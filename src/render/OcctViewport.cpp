@@ -1,3 +1,11 @@
+// OCCT's OpenGL headers must come before any Qt header: Qt pulls in the platform GL
+// headers (OpenGL/gl3.h on macOS), whose extension typedefs clash with OCCT's glext.
+#include <OpenGl_Context.hxx>
+#include <OpenGl_FrameBuffer.hxx>
+#include <OpenGl_GraphicDriver.hxx>
+#include <OpenGl_View.hxx>
+#include <OpenGl_Window.hxx>
+
 #include "render/OcctViewport.h"
 
 #include "core/OccCompat.h"
@@ -8,11 +16,7 @@
 #include <Graphic3d_AspectFillArea3d.hxx>
 #include <Graphic3d_TransformPers.hxx>
 #include <Message.hxx>
-#include <OpenGl_Context.hxx>
-#include <OpenGl_FrameBuffer.hxx>
-#include <OpenGl_GraphicDriver.hxx>
-#include <OpenGl_View.hxx>
-#include <OpenGl_Window.hxx>
+#include <NCollection_Vec2.hxx>
 #include <Prs3d_DatumAspect.hxx>
 
 #include <QMouseEvent>
@@ -196,7 +200,7 @@ OcctViewport::~OcctViewport() {
 void OcctViewport::configureNavigation() {
   // Left: orbit. Middle or Shift+Left: pan. Ctrl+Left/Middle: zoom. Wheel: zoom at cursor.
   // Right button is deliberately unbound; it is reserved for context menus.
-  AIS_MouseGestureMap& gestures = ChangeMouseGestureMap();
+  auto& gestures = ChangeMouseGestureMap();
   gestures.Clear();
   gestures.Bind(Aspect_VKeyMouse_LeftButton, AIS_MouseGesture_RotateOrbit);
   gestures.Bind(Aspect_VKeyMouse_MiddleButton, AIS_MouseGesture_Pan);
@@ -262,9 +266,9 @@ void OcctViewport::initializeGL() {
   if (firstInit) {
     m_viewCube->SetSize(55.0 * dpr, false);
     m_viewCube->SetFontHeight(12.0 * dpr);
-    m_viewCube->SetTransformPersistence(
-        new Graphic3d_TransformPers(Graphic3d_TMF_TriedronPers, Aspect_TOTP_RIGHT_UPPER,
-                                    Graphic3d_Vec2i(static_cast<int>(85 * dpr), static_cast<int>(85 * dpr))));
+    m_viewCube->SetTransformPersistence(new Graphic3d_TransformPers(
+        Graphic3d_TMF_TriedronPers, Aspect_TOTP_RIGHT_UPPER,
+        NCollection_Vec2<int>(static_cast<int>(85 * dpr), static_cast<int>(85 * dpr))));
     m_context->Display(m_viewCube, 0, 0, false);
   }
 
@@ -295,9 +299,9 @@ void OcctViewport::paintGL() {
   }
 
   OccHandle<Aspect_NeutralWindow> window = OccHandle<Aspect_NeutralWindow>::DownCast(m_view->Window());
-  Graphic3d_Vec2i oldSize;
+  NCollection_Vec2<int> oldSize;
   window->Size(oldSize.x(), oldSize.y());
-  const Graphic3d_Vec2i newSize = fbo->GetVPSize();
+  const NCollection_Vec2<int> newSize = fbo->GetVPSize();
   if (newSize != oldSize) {
     window->SetSize(newSize.x(), newSize.y());
     m_view->MustBeResized();
@@ -320,10 +324,10 @@ void OcctViewport::OnSelectionChanged(const OccHandle<AIS_InteractiveContext>&, 
   Q_EMIT selectionChanged();
 }
 
-Graphic3d_Vec2i OcctViewport::toViewPixels(const QPointF& logicalPos) const {
+NCollection_Vec2<int> OcctViewport::toViewPixels(const QPointF& logicalPos) const {
   const qreal dpr = devicePixelRatioF();
-  return Graphic3d_Vec2i(static_cast<int>(std::lround(logicalPos.x() * dpr)),
-                         static_cast<int>(std::lround(logicalPos.y() * dpr)));
+  return NCollection_Vec2<int>(static_cast<int>(std::lround(logicalPos.x() * dpr)),
+                               static_cast<int>(std::lround(logicalPos.y() * dpr)));
 }
 
 void OcctViewport::mousePressEvent(QMouseEvent* event) {

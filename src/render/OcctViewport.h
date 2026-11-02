@@ -4,6 +4,7 @@
 
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_ViewController.hxx>
+#include <NCollection_Vec2.hxx>
 #include <V3d_TypeOfOrientation.hxx>
 #include <V3d_View.hxx>
 #include <V3d_Viewer.hxx>
@@ -85,7 +86,7 @@ protected:
                           const OccHandle<V3d_View>& view) override;
 
 private:
-  Graphic3d_Vec2i toViewPixels(const QPointF& logicalPos) const;
+  NCollection_Vec2<int> toViewPixels(const QPointF& logicalPos) const;
   void configureNavigation();
   void collectGlInfo(int glMajor, int glMinor);
   void failGl(const QString& message);
