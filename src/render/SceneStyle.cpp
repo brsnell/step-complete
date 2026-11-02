@@ -28,6 +28,9 @@ int configureDrawer(const OccHandle<AIS_Shape>& shape, DisplayStyle style) {
   drawer->SetFaceBoundaryDraw(edges);
   if (edges) {
     drawer->SetFaceBoundaryAspect(new Prs3d_LineAspect(kEdgeColor, Aspect_TOL_SOLID, 1.0));
+    // Only sharp (C0) edges: skipping tangent edges between fillets and faces keeps
+    // filleted parts readable and draws far fewer lines on large models.
+    drawer->SetFaceBoundaryUpperContinuity(GeomAbs_C0);
   }
   return style == DisplayStyle::Wireframe ? AIS_WireFrame : AIS_Shaded;
 }
