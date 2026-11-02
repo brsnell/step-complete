@@ -5,10 +5,9 @@
 #include "TestModels.h"
 
 #include "core/AssemblyIndex.h"
+#include "render/AisCompat.h"
 #include "render/OcctViewport.h"
 #include "render/SceneManager.h"
-
-#include <AIS_ListOfInteractive.hxx>
 
 #include <QtTest>
 
@@ -35,10 +34,10 @@ const std::string kPin = "Pin \xC3\x98"
 
 // Visible part objects currently displayed by the context.
 int displayedParts(const SceneManager& scene, const OccHandle<AIS_InteractiveContext>& context) {
-  AIS_ListOfInteractive objects;
+  sc::occ::InteractiveList objects;
   context->DisplayedObjects(objects);
   int count = 0;
-  for (AIS_ListOfInteractive::Iterator it(objects); it.More(); it.Next()) {
+  for (sc::occ::InteractiveList::Iterator it(objects); it.More(); it.Next()) {
     if (scene.partOf(it.Value()) != sc::core::kNoNode) {
       ++count;
     }

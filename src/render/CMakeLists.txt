@@ -1,4 +1,5 @@
 add_library(sc_render STATIC
+  AisCompat.h
   OcctViewport.h
   OcctViewport.cpp
   SceneStyle.h

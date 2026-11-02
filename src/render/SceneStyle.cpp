@@ -1,7 +1,8 @@
 #include "render/SceneStyle.h"
 
+#include "render/AisCompat.h"
+
 #include <AIS_DisplayMode.hxx>
-#include <AIS_ListOfInteractive.hxx>
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepAlgoAPI_Fuse.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
@@ -42,9 +43,9 @@ void configureShapeStyle(const OccHandle<AIS_Shape>& shape, DisplayStyle style) 
 }
 
 void applyDisplayStyle(const OccHandle<AIS_InteractiveContext>& context, DisplayStyle style) {
-  AIS_ListOfInteractive objects;
+  occ::InteractiveList objects;
   context->DisplayedObjects(objects);
-  for (AIS_ListOfInteractive::Iterator it(objects); it.More(); it.Next()) {
+  for (occ::InteractiveList::Iterator it(objects); it.More(); it.Next()) {
     OccHandle<AIS_Shape> shape = OccHandle<AIS_Shape>::DownCast(it.Value());
     if (shape.IsNull()) {
       continue;

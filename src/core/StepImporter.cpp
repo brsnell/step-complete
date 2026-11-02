@@ -1,5 +1,7 @@
 #include "core/StepImporter.h"
 
+#include "core/OccCompat.h"
+
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Check.hxx>
 #include <Interface_CheckIterator.hxx>
@@ -11,8 +13,6 @@
 #include <Standard_Failure.hxx>
 #include <Standard_Version.hxx>
 #include <StdPrs_ToolTriangulatedShape.hxx>
-#include <TColStd_SequenceOfAsciiString.hxx>
-#include <TDF_LabelSequence.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include <XSControl_WorkSession.hxx>
@@ -154,7 +154,7 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
       return result;
     }
 
-    TColStd_SequenceOfAsciiString lengthUnits, angleUnits, solidAngleUnits;
+    occ::AsciiStringSequence lengthUnits, angleUnits, solidAngleUnits;
     reader.ChangeReader().FileUnits(lengthUnits, angleUnits, solidAngleUnits);
     if (!lengthUnits.IsEmpty()) {
       const std::string unitName = lengthUnits.First().ToCString();
@@ -163,7 +163,7 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
 
     // --- Pre-mesh unique parts -------------------------------------------------
     OccHandle<XCAFDoc_ShapeTool> shapeTool = XCAFDoc_DocumentTool::ShapeTool(ocaf->Main());
-    TDF_LabelSequence shapeLabels;
+    occ::LabelSequence shapeLabels;
     shapeTool->GetShapes(shapeLabels);
     std::vector<TopoDS_Shape> parts;
     for (const TDF_Label& label : shapeLabels) {
@@ -200,7 +200,7 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
     result.document = std::move(document);
     result.ok = true;
   } catch (const Standard_Failure& failure) {
-    result.error = std::string("Open CASCADE error: ") + failure.GetMessageString();
+    result.error = "Open CASCADE error: " + occ::errorMessage(failure);
   } catch (const std::exception& error) {
     result.error = std::string("Error: ") + error.what();
   }

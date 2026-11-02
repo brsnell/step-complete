@@ -2,6 +2,7 @@ configure_file(Version.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/core/Version.h
 
 add_library(sc_core STATIC
   OccHandle.h
+  OccCompat.h
   Units.h
   Units.cpp
   OcctInfo.h

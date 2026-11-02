@@ -1,8 +1,9 @@
 #include "core/AssemblyIndex.h"
 
-#include <TColStd_HSequenceOfExtendedString.hxx>
-#include <TDF_LabelMap.hxx>
-#include <TDF_LabelSequence.hxx>
+#include "core/OccCompat.h"
+
+#include <TDF_Tool.hxx>
+
 #include <TDataStd_Name.hxx>
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
@@ -10,6 +11,7 @@
 #include <XCAFDoc_ShapeTool.hxx>
 
 #include <algorithm>
+#include <set>
 
 namespace sc::core {
 
@@ -34,7 +36,7 @@ std::optional<Quantity_ColorRGBA> ownColor(const OccHandle<XCAFDoc_ColorTool>& c
 
 void appendLayers(const OccHandle<XCAFDoc_LayerTool>& layerTool, const TDF_Label& label,
                   std::vector<std::string>& out) {
-  OccHandle<TColStd_HSequenceOfExtendedString> names = new TColStd_HSequenceOfExtendedString();
+  OccHandle<occ::HExtendedStringSequence> names = new occ::HExtendedStringSequence();
   if (!layerTool->GetLayers(label, names)) {
     return;
   }
@@ -55,17 +57,19 @@ AssemblyIndex::AssemblyIndex(const DocumentPtr& document) : m_document(document)
   const TDF_Label main = document->ocaf()->Main();
   OccHandle<XCAFDoc_ShapeTool> shapeTool = XCAFDoc_DocumentTool::ShapeTool(main);
 
-  TDF_LabelSequence freeShapes;
+  occ::LabelSequence freeShapes;
   shapeTool->GetFreeShapes(freeShapes);
   for (const TDF_Label& root : freeShapes) {
     addNode(root, kNoNode, TopLoc_Location(), std::nullopt, true, 0);
   }
 
-  TDF_LabelMap prototypes;
+  std::set<std::string> prototypes;
   for (const NodeId id : m_partInstances) {
-    prototypes.Add(m_nodes[static_cast<size_t>(id)].prototypeLabel);
+    TCollection_AsciiString entry;
+    TDF_Tool::Entry(m_nodes[static_cast<size_t>(id)].prototypeLabel, entry);
+    prototypes.insert(entry.ToCString());
   }
-  m_uniquePartCount = prototypes.Extent();
+  m_uniquePartCount = static_cast<int>(prototypes.size());
 }
 
 void AssemblyIndex::addNode(const TDF_Label& label, NodeId parent, const TopLoc_Location& parentLocation,
@@ -132,7 +136,7 @@ void AssemblyIndex::addNode(const TDF_Label& label, NodeId parent, const TopLoc_
   if (!childColor) {
     childColor = parentColor;
   }
-  TDF_LabelSequence components;
+  occ::LabelSequence components;
   XCAFDoc_ShapeTool::GetComponents(prototype, components, false);
   for (const TDF_Label& component : components) {
     addNode(component, id, location, childColor, visible, depth + 1);

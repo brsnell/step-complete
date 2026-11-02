@@ -1,5 +1,7 @@
 #include "render/OcctViewport.h"
 
+#include "core/OccCompat.h"
+
 #include <AIS_ViewCube.hxx>
 #include <Aspect_DisplayConnection.hxx>
 #include <Aspect_NeutralWindow.hxx>
@@ -12,7 +14,6 @@
 #include <OpenGl_View.hxx>
 #include <OpenGl_Window.hxx>
 #include <Prs3d_DatumAspect.hxx>
-#include <TColStd_IndexedDataMapOfStringString.hxx>
 
 #include <QMouseEvent>
 #include <QSurfaceFormat>
@@ -20,6 +21,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <type_traits>
 
 namespace sc::render {
 
@@ -80,6 +82,17 @@ Aspect_VKeyFlags toVKeyFlags(Qt::KeyboardModifiers modifiers) {
     result |= Aspect_VKeyFlags_ALT;
   }
   return result;
+}
+
+// Aspect_Drawable is an integer (X11 Window) on Linux and a pointer elsewhere.
+// (A template, so the branch that does not apply is never instantiated.)
+template <class Drawable = Aspect_Drawable>
+Drawable toDrawable(WId id) {
+  if constexpr (std::is_pointer_v<Drawable>) {
+    return reinterpret_cast<Drawable>(id);
+  } else {
+    return static_cast<Drawable>(id);
+  }
 }
 
 // Highlight styles may carry a fill-area aspect that overrides their color on faces.
@@ -223,12 +236,12 @@ void OcctViewport::initializeGL() {
 #if defined(_WIN32)
   Aspect_Drawable drawable = glCtx->Window();
   if (drawable == 0) {
-    drawable = static_cast<Aspect_Drawable>(window()->winId());
+    drawable = toDrawable(window()->winId());
   }
 #elif defined(__APPLE__)
-  const Aspect_Drawable drawable = static_cast<Aspect_Drawable>(winId());
+  const Aspect_Drawable drawable = toDrawable(winId());
 #else
-  const Aspect_Drawable drawable = static_cast<Aspect_Drawable>(window()->winId());
+  const Aspect_Drawable drawable = toDrawable(window()->winId());
 #endif
 
   const qreal dpr = devicePixelRatioF();
@@ -390,12 +403,12 @@ void OcctViewport::setShowFrameRate(bool enabled) {
 }
 
 void OcctViewport::collectGlInfo(int glMajor, int glMinor) {
-  TColStd_IndexedDataMapOfStringString info;
+  occ::StringStringMap info;
   m_view->DiagnosticInformation(info, Graphic3d_DiagnosticInfo_Basic);
 
   QString text;
   QString renderer;
-  for (TColStd_IndexedDataMapOfStringString::Iterator it(info); it.More(); it.Next()) {
+  for (occ::StringStringMap::Iterator it(info); it.More(); it.Next()) {
     const QString key = QString::fromUtf8(it.Key().ToCString());
     const QString value = QString::fromUtf8(it.Value().ToCString());
     text += key + QStringLiteral(": ") + value + QLatin1Char('\n');
