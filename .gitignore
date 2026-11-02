@@ -1,0 +1,12 @@
+/build/
+/out/
+/.vcpkg-cache/
+/vcpkg_installed/
+/tests/data/downloads/
+CMakeUserPresets.json
+compile_commands.json
+.cache/
+.vscode/
+.idea/
+*.user
+.DS_Store

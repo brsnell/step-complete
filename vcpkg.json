@@ -1,0 +1,24 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+  "name": "step-complete",
+  "version-semver": "0.1.0",
+  "description": "Cross-platform STEP viewer with measurement and PMI",
+  "license": "MIT",
+  "builtin-baseline": "80aae04504a834399456d74605204bfe514762bf",
+  "dependencies": [
+    {
+      "name": "opencascade",
+      "default-features": false,
+      "features": [ "freetype" ]
+    }
+  ],
+  "overrides": [
+    { "name": "opencascade", "version": "8.0.1" }
+  ],
+  "features": {
+    "tests": {
+      "description": "Unit tests",
+      "dependencies": [ "gtest" ]
+    }
+  }
+}

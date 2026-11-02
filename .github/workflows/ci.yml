@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Qt 6.8 LTS: the newest LTS whose supported platforms still include macOS 12,
+  # the newest macOS that 2016-era Macs can run.
+  QT_VERSION: "6.8.*"
+  VCPKG_COMMIT: 80aae04504a834399456d74605204bfe514762bf
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+
+jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check formatting
+        run: |
+          find src tests -name '*.cpp' -o -name '*.h' | xargs clang-format-18 --dry-run --Werror
+
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported Linux baseline (glibc 2.35), so binaries run on older distros.
+          - name: Linux x64
+            os: ubuntu-22.04
+            triplet: x64-linux-dynamic
+            werror: "ON"
+            render-tests: true
+          - name: Windows x64
+            os: windows-2022
+            triplet: x64-windows
+            werror: "OFF"
+          - name: macOS arm64
+            os: macos-14
+            triplet: arm64-osx-sc
+            osx-arch: arm64
+            werror: "OFF"
+          # 2016-era Macs are Intel; cross-compiled on the arm64 runner.
+          - name: macOS x64
+            os: macos-14
+            triplet: x64-osx-sc
+            osx-arch: x86_64
+            werror: "OFF"
+            skip-tests: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build bison gperf autoconf autoconf-archive automake libtool \
+            libgl1-mesa-dev libglu1-mesa-dev libx11-dev libxi-dev libxext-dev libxrandr-dev \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libegl1 \
+            xvfb libgl1-mesa-dri
+
+      - name: Install macOS packages
+        if: runner.os == 'macOS'
+        run: brew install ninja autoconf autoconf-archive automake libtool
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-${{ matrix.triplet }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/**') }}
+          restore-keys: vcpkg-${{ matrix.triplet }}-
+
+      - name: Create vcpkg cache directory
+        shell: bash
+        run: mkdir -p .vcpkg-cache
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure
+        shell: bash
+        run: |
+          extra=()
+          if [ -n "${{ matrix.osx-arch }}" ]; then
+            extra+=("-DCMAKE_OSX_ARCHITECTURES=${{ matrix.osx-arch }}")
+          fi
+          cmake --preset vcpkg \
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
+            -DSC_WARNINGS_AS_ERRORS=${{ matrix.werror }} \
+            "${extra[@]}"
+
+      - name: Build
+        run: cmake --build --preset vcpkg
+
+      - name: Test (core)
+        if: ${{ !matrix.skip-tests }}
+        run: ctest --preset vcpkg -LE render
+
+      - name: Test (render, Xvfb + Mesa llvmpipe)
+        if: ${{ matrix.render-tests }}
+        run: xvfb-run -a -s "-screen 0 1280x1024x24" ctest --preset vcpkg -L render
+
+      - name: Upload test frames on failure
+        if: ${{ failure() && matrix.render-tests }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-frames-${{ matrix.triplet }}
+          path: build/vcpkg/Testing/Temporary/

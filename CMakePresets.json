@@ -1,0 +1,57 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}"
+    },
+    {
+      "name": "dev",
+      "displayName": "Dev (system Qt + OCCT)",
+      "description": "Debug build against system-installed Qt and OCCT, e.g. distro packages",
+      "inherits": "base",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "SC_WARNINGS_AS_ERRORS": "ON"
+      }
+    },
+    {
+      "name": "dev-asan",
+      "displayName": "Dev + sanitizers",
+      "inherits": "dev",
+      "cacheVariables": { "SC_ENABLE_SANITIZERS": "ON" }
+    },
+    {
+      "name": "vcpkg",
+      "displayName": "Release (vcpkg OCCT)",
+      "description": "OCCT from vcpkg (set VCPKG_ROOT); Qt from CMAKE_PREFIX_PATH (official Qt 6.8 LTS binaries)",
+      "inherits": "base",
+      "toolchainFile": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "VCPKG_MANIFEST_FEATURES": "tests",
+        "VCPKG_OVERLAY_TRIPLETS": "${sourceDir}/cmake/triplets"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "dev-asan", "configurePreset": "dev-asan" },
+    { "name": "vcpkg", "configurePreset": "vcpkg" }
+  ],
+  "testPresets": [
+    {
+      "name": "dev",
+      "configurePreset": "dev",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "vcpkg",
+      "configurePreset": "vcpkg",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}

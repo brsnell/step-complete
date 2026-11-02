@@ -1,0 +1,9 @@
+#pragma once
+
+namespace sc::core {
+
+inline constexpr const char* kAppName = "STEP Complete";
+inline constexpr const char* kAppVersion = "@PROJECT_VERSION@";
+inline constexpr const char* kAppDescription = "@PROJECT_DESCRIPTION@";
+
+} // namespace sc::core
