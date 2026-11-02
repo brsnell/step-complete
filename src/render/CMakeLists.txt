@@ -3,6 +3,8 @@ add_library(sc_render STATIC
   OcctViewport.cpp
   SceneStyle.h
   SceneStyle.cpp
+  SceneManager.h
+  SceneManager.cpp
 )
 add_library(sc::render ALIAS sc_render)
 

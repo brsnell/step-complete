@@ -3,6 +3,7 @@
 #include <AIS_ViewCube.hxx>
 #include <Aspect_DisplayConnection.hxx>
 #include <Aspect_NeutralWindow.hxx>
+#include <Graphic3d_AspectFillArea3d.hxx>
 #include <Graphic3d_TransformPers.hxx>
 #include <Message.hxx>
 #include <OpenGl_Context.hxx>
@@ -81,6 +82,19 @@ Aspect_VKeyFlags toVKeyFlags(Qt::KeyboardModifiers modifiers) {
   return result;
 }
 
+// Highlight styles may carry a fill-area aspect that overrides their color on faces.
+void setHighlightColor(const OccHandle<Prs3d_Drawer>& style, const Quantity_Color& color) {
+  style->SetColor(color);
+  const OccHandle<Graphic3d_AspectFillArea3d>& fill = style->BasicFillAreaAspect();
+  if (!fill.IsNull()) {
+    fill->SetInteriorColor(color);
+    Graphic3d_MaterialAspect material = fill->FrontMaterial();
+    material.SetColor(color);
+    fill->SetFrontMaterial(material);
+    fill->SetBackMaterial(material);
+  }
+}
+
 OccHandle<OpenGl_Context> glContextOf(const OccHandle<V3d_View>& view) {
   OccHandle<OpenGl_View> glView = OccHandle<OpenGl_View>::DownCast(view->View());
   if (glView.IsNull() || glView->GlWindow().IsNull()) {
@@ -118,6 +132,13 @@ OcctViewport::OcctViewport(QWidget* parent) : QOpenGLWidget(parent) {
   m_viewer->SetLightOn();
 
   m_context = new AIS_InteractiveContext(m_viewer);
+  // Selection: saturated blue; hover: light cyan. Both read well on gray and colored parts.
+  const Quantity_Color selectedColor(0.20, 0.50, 0.95, Quantity_TOC_sRGB);
+  const Quantity_Color hoverColor(0.55, 0.85, 1.00, Quantity_TOC_sRGB);
+  setHighlightColor(m_context->HighlightStyle(Prs3d_TypeOfHighlight_Selected), selectedColor);
+  setHighlightColor(m_context->HighlightStyle(Prs3d_TypeOfHighlight_LocalSelected), selectedColor);
+  setHighlightColor(m_context->HighlightStyle(Prs3d_TypeOfHighlight_Dynamic), hoverColor);
+  setHighlightColor(m_context->HighlightStyle(Prs3d_TypeOfHighlight_LocalDynamic), hoverColor);
 
   m_view = m_viewer->CreateView();
   m_view->SetImmediateUpdate(false);

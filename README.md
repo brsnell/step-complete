@@ -7,8 +7,9 @@ saved views).
 Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/OCCT) and
 [Qt 6](https://www.qt.io). MIT licensed.
 
-> **Status: early development (milestone M0).** The 3D viewer foundation works; STEP import is
-> next. See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
+> **Status: early development (milestone M1).** Opens STEP assemblies with names, colors and
+> structure; assembly tree, properties, hide/isolate/transparency. Measurement (M2) is next.
+> See [docs/PLAN.md](docs/PLAN.md) for the roadmap.
 
 ## Goals
 - **Accurate measurement** on exact B-rep geometry, never the display mesh.
@@ -43,6 +44,16 @@ ctest --preset dev
 ./build/dev/src/app/StepComplete
 ```
 
+Optional real-world model tests (downloads public sample STEP files):
+
+```bash
+tests/data/fetch.sh
+```
+
+```bash
+SC_TEST_DATA_DIR=tests/data/downloads ctest --preset dev
+```
+
 ### All platforms, release configuration (OCCT 8 via vcpkg)
 1. Install [vcpkg](https://github.com/microsoft/vcpkg) and set `VCPKG_ROOT`.
 2. Install Qt 6.8 LTS (official binaries) and put it on `CMAKE_PREFIX_PATH`.
@@ -70,7 +81,11 @@ The first build compiles OCCT, which takes a while. vcpkg caches it afterwards.
 | Orbit | Left drag |
 | Pan | Middle drag, or Shift + left drag |
 | Zoom | Wheel (zooms at the cursor), or Ctrl + left drag |
-| Select | Left click |
+| Select | Left click (Shift + click to add) |
+| Open file | `Ctrl+O`, drag and drop, or `StepComplete file.step` |
+| Hide / isolate / show all | `H` / `I` / `Shift+H` (also right-click menu) |
+| Toggle transparency | `T` |
+| Fit selection | `Shift+F` |
 | Fit all | `F` |
 | Standard views | `1`–`6`, isometric `0` |
 | Perspective toggle | `P` |

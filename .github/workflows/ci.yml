@@ -16,6 +16,7 @@ env:
   QT_VERSION: "6.8.*"
   VCPKG_COMMIT: 80aae04504a834399456d74605204bfe514762bf
   VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+  SC_TEST_DATA_DIR: ${{ github.workspace }}/tests/data/downloads
 
 jobs:
   format:
@@ -114,6 +115,11 @@ jobs:
 
       - name: Build
         run: cmake --build --preset vcpkg
+
+      - name: Fetch real-world test models
+        if: ${{ !matrix.skip-tests }}
+        shell: bash
+        run: tests/data/fetch.sh
 
       - name: Test (core)
         if: ${{ !matrix.skip-tests }}

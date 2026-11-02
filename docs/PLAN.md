@@ -246,7 +246,7 @@ Each milestone ends with something runnable on all three platforms in CI.
 - **Exit:** the same binary behavior on all 3 OSes. This milestone proves the riskiest
   integration (Qt + OCCT GL) first.
 
-### M1: Open and view (≈3–4 weeks)
+### M1: Open and view (≈3–4 weeks): 🚧 core features implemented
 - `StepImporter` with progress/cancel on a worker thread; warnings panel.
 - `AssemblyIndex`, assembly tree, names, colors, layers, instancing.
 - Selection and highlight synced between tree and 3D; Properties panel; metadata.

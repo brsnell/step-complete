@@ -2,6 +2,12 @@ qt_add_executable(stepcomplete WIN32 MACOSX_BUNDLE
   main.cpp
   MainWindow.h
   MainWindow.cpp
+  ImportJob.h
+  ImportJob.cpp
+  AssemblyTreeModel.h
+  AssemblyTreeModel.cpp
+  PropertiesPanel.h
+  PropertiesPanel.cpp
 )
 
 set_target_properties(stepcomplete PROPERTIES

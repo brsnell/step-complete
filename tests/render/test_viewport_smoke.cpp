@@ -15,48 +15,11 @@
 #include <QStatusBar>
 #include <QtTest>
 
-namespace {
+#include "RenderTestUtils.h"
 
-double meanBrightness(const QImage& image, const QRect& area) {
-  qint64 sum = 0;
-  qint64 count = 0;
-  for (int y = area.top(); y <= area.bottom(); ++y) {
-    for (int x = area.left(); x <= area.right(); ++x) {
-      sum += qGray(image.pixel(x, y));
-      ++count;
-    }
-  }
-  return count > 0 ? double(sum) / double(count) : 0.0;
-}
-
-double changedPixelFraction(const QImage& a, const QImage& b) {
-  if (a.size() != b.size() || a.isNull()) {
-    return 0.0;
-  }
-  qint64 changed = 0;
-  for (int y = 0; y < a.height(); ++y) {
-    for (int x = 0; x < a.width(); ++x) {
-      const QRgb pa = a.pixel(x, y);
-      const QRgb pb = b.pixel(x, y);
-      const int diff =
-          qAbs(qRed(pa) - qRed(pb)) + qAbs(qGreen(pa) - qGreen(pb)) + qAbs(qBlue(pa) - qBlue(pb));
-      if (diff > 24) {
-        ++changed;
-      }
-    }
-  }
-  return double(changed) / double(qint64(a.width()) * a.height());
-}
-
-// Set SC_RENDER_DUMP_DIR to keep the rendered frames for inspection.
-void dumpImage(const QImage& image, const char* name) {
-  const QString dir = qEnvironmentVariable("SC_RENDER_DUMP_DIR");
-  if (!dir.isEmpty()) {
-    image.save(dir + QLatin1Char('/') + QLatin1String(name) + QStringLiteral(".png"));
-  }
-}
-
-} // namespace
+using sc::test::changedPixelFraction;
+using sc::test::dumpImage;
+using sc::test::meanBrightness;
 
 class ViewportSmokeTest : public QObject {
   Q_OBJECT
@@ -158,18 +121,7 @@ private Q_SLOTS:
   }
 };
 
-int main(int argc, char** argv) {
-#if defined(__linux__)
-  if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
-    qputenv("QT_QPA_PLATFORM", "xcb");
-  }
-  if (qEnvironmentVariableIsEmpty("QT_XCB_GL_INTEGRATION")) {
-    qputenv("QT_XCB_GL_INTEGRATION", "xcb_glx");
-  }
-#endif
-  QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
-  sc::render::OcctViewport::configureDefaultSurfaceFormat();
-  QApplication app(argc, argv);
+int sc::test::runViewportSmokeTests(int argc, char** argv) {
   ViewportSmokeTest test;
   return QTest::qExec(&test, argc, argv);
 }

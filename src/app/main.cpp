@@ -60,9 +60,14 @@ int main(int argc, char** argv) {
   parser.addVersionOption();
   parser.addOption({QStringLiteral("software-gl"),
                     QStringLiteral("Use software OpenGL rendering (Linux; for old or broken GPU drivers).")});
+  parser.addPositionalArgument(QStringLiteral("file"), QStringLiteral("STEP file to open."),
+                               QStringLiteral("[file]"));
   parser.process(app);
 
   sc::app::MainWindow window;
   window.show();
+  if (!parser.positionalArguments().isEmpty()) {
+    window.openFileWhenReady(parser.positionalArguments().constFirst());
+  }
   return QApplication::exec();
 }
