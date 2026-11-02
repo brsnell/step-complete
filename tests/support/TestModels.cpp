@@ -8,6 +8,7 @@
 #include <STEPCAFControl_Writer.hxx>
 #include <STEPControl_StepModelType.hxx>
 #include <TDataStd_Name.hxx>
+#include <TDataStd_NamedData.hxx>
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
@@ -41,6 +42,11 @@ core::DocumentPtr buildFixtureAssembly(bool withHiddenInstance) {
   const TDF_Label plate = shapes->AddShape(BRepPrimAPI_MakeBox(100.0, 60.0, 10.0).Shape(), false);
   setName(plate, "Base plate");
   colors->SetColor(plate, Quantity_Color(Quantity_NOC_RED), XCAFDoc_ColorSurf);
+  OccHandle<TDataStd_NamedData> attributes = TDataStd_NamedData::Set(plate);
+  attributes->SetString("Part number", "BP-100");
+  attributes->SetString("Material", "Aluminium 6061");
+  attributes->SetInteger("Revision", 3);
+  attributes->SetReal("Mass (kg)", 0.162);
 
   const TDF_Label pin = shapes->AddShape(BRepPrimAPI_MakeCylinder(3.0, 20.0).Shape(), false);
   setName(pin, "Pin \xC3\x98"

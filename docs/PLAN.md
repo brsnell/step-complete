@@ -246,13 +246,21 @@ Each milestone ends with something runnable on all three platforms in CI.
 - **Exit:** the same binary behavior on all 3 OSes. This milestone proves the riskiest
   integration (Qt + OCCT GL) first.
 
-### M1: Open and view (≈3–4 weeks): 🚧 core features implemented
-- `StepImporter` with progress/cancel on a worker thread; warnings panel.
-- `AssemblyIndex`, assembly tree, names, colors, layers, instancing.
-- Selection and highlight synced between tree and 3D; Properties panel; metadata.
-- Display modes, hide/isolate/transparency, standard views, fit, perspective/ortho.
-- Recent files, drag-and-drop, command-line open.
-- **Exit:** opens the NIST test models and a large real-world assembly correctly.
+### M1: Open and view (≈3–4 weeks): ✅ implemented, pending CI on all platforms
+- ✅ `StepImporter` with progress/cancel on a worker thread; import messages panel.
+- ✅ `AssemblyIndex`, assembly tree, names, colors (incl. inherited instance colors), layers,
+  user-defined attributes (OCCT ≥ 7.7), instancing (`AIS_ConnectedInteractive`).
+- ✅ Selection and highlight synced between tree and 3D; Properties panel.
+- ✅ Display modes, hide/isolate/show all/transparency, standard views, fit all/selection,
+  perspective/ortho; only sharp edges drawn in "shaded with edges".
+- ✅ Recent files, drag-and-drop, command-line open.
+- ✅ Tests: synthetic STEP fixtures, SceneManager render tests, optional real-world models
+  (AS1 AP214/AP203 via `tests/data/fetch.sh`).
+- ⏳ NIST CTC/FTC models: their hosts are unreachable from the dev container; add them to
+  `fetch.sh` from a machine with access.
+- **Measured** (software renderer, debug build): 2,500 instances / 25 unique filleted parts
+  (3.3 MB STEP) load in 2.2 s; peak RSS 464 MB; empty app 236 MB. Both RSS figures include
+  Mesa's in-process software renderer, so re-measure on a real GPU against §2a.
 
 ### M2: Measurement (≈3–4 weeks)
 - `core/Measure` with full unit tests (analytic shapes with known answers).

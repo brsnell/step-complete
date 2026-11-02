@@ -5,6 +5,7 @@
 #include <TDF_Tool.hxx>
 
 #include <TDataStd_Name.hxx>
+#include <TDataStd_NamedData.hxx>
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_LayerTool.hxx>
@@ -46,6 +47,35 @@ void appendLayers(const OccHandle<XCAFDoc_LayerTool>& layerTool, const TDF_Label
       out.push_back(std::move(layer));
     }
   }
+}
+
+// Iterates any NCollection map type without naming it (typedef names differ between OCCT 7 and 8).
+template <class Map, class Fn>
+void forEachEntry(const Map& map, Fn&& fn) {
+  for (typename Map::Iterator it(map); it.More(); it.Next()) {
+    fn(it.Key(), it.Value());
+  }
+}
+
+void appendAttributes(const TDF_Label& label, std::vector<std::pair<std::string, std::string>>& out) {
+  OccHandle<TDataStd_NamedData> data;
+  if (label.IsNull() || !label.FindAttribute(TDataStd_NamedData::GetID(), data)) {
+    return;
+  }
+  data->LoadDeferredData();
+  const size_t first = out.size();
+  forEachEntry(data->GetStringsContainer(),
+               [&out](const TCollection_ExtendedString& key, const TCollection_ExtendedString& value) {
+                 out.emplace_back(toUtf8(key), toUtf8(value));
+               });
+  forEachEntry(data->GetIntegersContainer(), [&out](const TCollection_ExtendedString& key, int value) {
+    out.emplace_back(toUtf8(key), std::to_string(value));
+  });
+  forEachEntry(data->GetRealsContainer(), [&out](const TCollection_ExtendedString& key, double value) {
+    out.emplace_back(toUtf8(key), formatNumber(value, 6));
+  });
+  // Hash-map order is arbitrary; sort this label's entries by key for a stable display.
+  std::sort(out.begin() + static_cast<std::ptrdiff_t>(first), out.end());
 }
 
 } // namespace
@@ -198,6 +228,16 @@ TopoDS_Shape AssemblyIndex::worldShape(NodeId id) const {
     shape.Location(node(id).location * shape.Location());
   }
   return shape;
+}
+
+std::vector<std::pair<std::string, std::string>> AssemblyIndex::attributes(NodeId id) const {
+  std::vector<std::pair<std::string, std::string>> result;
+  const AssemblyNode& n = node(id);
+  appendAttributes(n.instanceLabel, result);
+  if (!(n.prototypeLabel == n.instanceLabel)) {
+    appendAttributes(n.prototypeLabel, result);
+  }
+  return result;
 }
 
 std::vector<std::string> AssemblyIndex::layers(NodeId id) const {

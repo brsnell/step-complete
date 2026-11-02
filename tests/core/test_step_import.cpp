@@ -144,6 +144,25 @@ TEST(AssemblyIndex, SubtreeQueries) {
   EXPECT_NEAR(zmin, 10.0, 1e-6);
 }
 
+TEST(AssemblyIndex, ReadsUserDefinedAttributes) {
+  const AssemblyIndex index(test::buildFixtureAssembly());
+  const auto* plate = findByName(index, "Base plate");
+  ASSERT_NE(plate, nullptr);
+  const auto attributes = index.attributes(plate->id);
+  using Entry = std::pair<std::string, std::string>;
+  // Sorted by key across value types.
+  const std::vector<Entry> expected{{"Mass (kg)", "0.162000"},
+                                    {"Material", "Aluminium 6061"},
+                                    {"Part number", "BP-100"},
+                                    {"Revision", "3"}};
+  EXPECT_EQ(attributes, expected);
+
+  const auto* pin = findByName(index, "Pin \xC3\x98"
+                                      "6");
+  ASSERT_NE(pin, nullptr);
+  EXPECT_TRUE(index.attributes(pin->id).empty());
+}
+
 TEST(AssemblyIndex, EmptyForNullDocument) {
   const AssemblyIndex index(nullptr);
   EXPECT_TRUE(index.isEmpty());

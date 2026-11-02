@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace sc::core {
@@ -78,6 +79,10 @@ public:
 
   // Layers assigned to the instance or its prototype.
   std::vector<std::string> layers(NodeId id) const;
+
+  // User-defined attributes from the STEP file (part number, material, ...),
+  // read by OCCT >= 7.7. Instance attributes first, then the product's.
+  std::vector<std::pair<std::string, std::string>> attributes(NodeId id) const;
 
 private:
   void addNode(const TDF_Label& label, NodeId parent, const TopLoc_Location& parentLocation,

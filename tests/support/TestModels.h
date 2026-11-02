@@ -9,7 +9,8 @@ namespace sc::test {
 // A small product structure covering the cases the viewer must handle:
 //
 //   Fixture (assembly)
-//   +-- Base plate           part, red, 100 x 60 x 10 mm box at the origin
+//   +-- Base plate           part, red, 100 x 60 x 10 mm box at the origin, with
+//   |                        attributes Part number, Material, Revision, Mass (kg)
 //   +-- Pin pair #1          assembly instance at (10, 10, 10)
 //   |   +-- Pin Ø6           part (no color), cylinder r=3 h=20 at (0, 0, 0)
 //   |   +-- Pin Ø6           second instance at (20, 0, 0), instance color green

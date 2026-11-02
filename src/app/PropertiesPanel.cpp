@@ -118,6 +118,13 @@ void PropertiesPanel::rebuild() {
     if (!node.visibleInFile) {
       addRow(group, tr("Hidden in file"), tr("Yes"));
     }
+    const auto attributes = m_index->attributes(id);
+    if (!attributes.empty()) {
+      QTreeWidgetItem* attributeGroup = addGroup(tr("Attributes"));
+      for (const auto& [key, value] : attributes) {
+        addRow(attributeGroup, QString::fromStdString(key), QString::fromStdString(value));
+      }
+    }
   } else if (m_selection.size() > 1) {
     QTreeWidgetItem* group = addGroup(tr("Selection"));
     addRow(group, tr("Selected items"), QString::number(m_selection.size()));
