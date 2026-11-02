@@ -85,8 +85,11 @@ jobs:
           version: ${{ env.QT_VERSION }}
           cache: true
 
+      # Restore and save are separate steps so the (slow) OCCT build is cached
+      # as soon as vcpkg finishes, even if compiling our code fails afterwards.
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: .vcpkg-cache
           key: vcpkg-${{ matrix.triplet }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/**') }}
@@ -112,6 +115,13 @@ jobs:
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
             -DSC_WARNINGS_AS_ERRORS=${{ matrix.werror }} \
             "${extra[@]}"
+
+      - name: Save vcpkg binary cache
+        if: ${{ always() && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .vcpkg-cache
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build
         run: cmake --build --preset vcpkg
