@@ -263,8 +263,7 @@ TEST(MassProperties, SingleBox) {
 
   // Unit density: m/12 (b^2 + c^2) for each axis, in mm^5.
   const std::string moments = detail(m, "Principal moments (unit density)");
-  for (const char* expected :
-       {"250000.000 mm\xE2\x81\xB5", "500000.000 mm\xE2\x81\xB5", "650000.000 mm\xE2\x81\xB5"}) {
+  for (const char* expected : {"250000 mm\xE2\x81\xB5", "500000 mm\xE2\x81\xB5", "650000 mm\xE2\x81\xB5"}) {
     EXPECT_TRUE(contains(moments, expected)) << moments;
   }
   EXPECT_EQ(m.entities, std::vector<std::string>{"Plate"});
@@ -389,5 +388,7 @@ TEST(MassProperties, InchDisplayOptions) {
   EXPECT_EQ(m.headline, "0.366 in\xC2\xB3"); // 6000 / 25.4^3
   EXPECT_EQ(detail(m, "Surface area"), "3.410 in\xC2\xB2");
   EXPECT_EQ(detail(m, "Bounding box size"), "0.394 \xC3\x97 0.787 \xC3\x97 1.181 in");
-  EXPECT_TRUE(contains(detail(m, "Principal moments (unit density)"), "in\xE2\x81\xB5"));
+  // 250000 mm^5 / 25.4^5: keeps its precision instead of rounding to 0.024 (= 0.0236467).
+  EXPECT_TRUE(contains(detail(m, "Principal moments (unit density)"), "0.0236467 in\xE2\x81\xB5"))
+      << detail(m, "Principal moments (unit density)");
 }

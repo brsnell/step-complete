@@ -312,10 +312,11 @@ constexpr double kCentroidDiagonalFraction = 1e-3;
 constexpr double kCentroidFloor = 1e-6; // mm
 constexpr size_t kMaxListedEntities = 10;
 
-// Moments of inertia are length^5 for unit density (mass = volume).
+// Moments of inertia are length^5 for unit density (mass = volume). They span many
+// orders of magnitude across units (mm^5 vs in^5), so use significant digits.
 std::string moment(double mm5, const MeasureDisplayOptions& o) {
   const double perUnit = millimetersPer(o.lengthUnit);
-  return formatNumber(mm5 / std::pow(perUnit, 5), o.decimals) + " " + std::string(symbol(o.lengthUnit)) +
+  return formatSignificant(mm5 / std::pow(perUnit, 5), 6) + " " + std::string(symbol(o.lengthUnit)) +
          "\xE2\x81\xB5"; // superscript five
 }
 

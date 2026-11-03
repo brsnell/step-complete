@@ -99,6 +99,17 @@ std::string formatNumber(double value, int decimals) {
   return out.str();
 }
 
+std::string formatSignificant(double value, int digits) {
+  if (std::isnan(value) || std::isinf(value)) {
+    return formatNumber(value, 0);
+  }
+  std::ostringstream out;
+  out.imbue(std::locale::classic());
+  out.precision(std::clamp(digits, 1, 17));
+  out << (value == 0.0 ? 0.0 : value); // no "-0"
+  return out.str();
+}
+
 std::string formatLength(double mm, LengthUnit unit, int decimals) {
   std::string text = formatNumber(fromMillimeters(mm, unit), decimals);
   text += ' ';

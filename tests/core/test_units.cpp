@@ -75,3 +75,10 @@ TEST(Units, FormattingIgnoresProcessLocale) {
   EXPECT_EQ(formatNumber(1.5, 2), "1.50");
   std::setlocale(LC_NUMERIC, saved.c_str());
 }
+
+TEST(Units, FormatsSignificantDigits) {
+  EXPECT_EQ(sc::core::formatSignificant(650000.0, 6), "650000");
+  EXPECT_EQ(sc::core::formatSignificant(0.0236467481, 6), "0.0236467");
+  EXPECT_EQ(sc::core::formatSignificant(1.5e-9, 6), "1.5e-09");
+  EXPECT_EQ(sc::core::formatSignificant(-0.0, 6), "0");
+}

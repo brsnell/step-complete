@@ -46,6 +46,9 @@ std::optional<LengthUnit> lengthUnitFromScale(double mmPerUnit);
 // Fixed-point formatting with the unit symbol: "12.700 mm", "0.5000 in".
 // Negative zero is printed as zero. 'decimals' is clamped to [0, 12].
 std::string formatNumber(double value, int decimals);
+// Significant-digit formatting for quantities spanning many orders of
+// magnitude (e.g. moments of inertia): "650000", "0.0237683", "1.5e-09".
+std::string formatSignificant(double value, int digits);
 std::string formatLength(double mm, LengthUnit unit, int decimals);
 std::string formatArea(double mm2, LengthUnit unit, int decimals);     // "mm²"
 std::string formatVolume(double mm3, LengthUnit unit, int decimals);   // "mm³"

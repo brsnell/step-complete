@@ -272,8 +272,12 @@ Each milestone ends with something runnable on all three platforms in CI.
 - ✅ Measure menu (Entity Info, Distance, Point to Point, Angle, Radius), Measurements panel
   (copy, CSV export, remove), length unit / precision / angle unit preferences.
 - ✅ STEP validation properties read from the file (`AssemblyIndex::validationProperties`).
-- ⏳ Mass properties UI with validation-property comparison; snap markers while hovering;
-  results that follow section views (M4).
+- ✅ Mass Properties (Shift+M) for the selected parts: volume, area, centroid, principal
+  moments, axis-aligned and oriented boxes; for one part, compared against the file's declared
+  validation properties (AS1: computed 96858.573 mm³ vs declared 96858.571 mm³ → "Matches").
+- ✅ Point to Point shows where a click will snap while hovering (vertex, endpoint, midpoint,
+  center, on edge, on face).
+- ⏳ Results that follow section views (M4); manual check on a real GPU and on Windows/macOS.
 - **Exit:** test suite covers every mode across transformed instances.
 
 ### M3: PMI (≈4–6 weeks)
