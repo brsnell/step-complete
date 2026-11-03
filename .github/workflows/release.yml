@@ -161,6 +161,20 @@ jobs:
         run: packaging\windows\build-package.ps1 -BuildDir build\release -OutputDir dist
 
       # --- macOS: DMG -------------------------------------------------------------------
+      # Installs per user and starts the installed exe: the Windows loader fails the run if
+      # any DLL is missing from the package.
+      - name: Smoke test installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem dist\*-setup.exe | Select-Object -First 1
+          $dir = Join-Path $env:RUNNER_TEMP "sc-install"
+          Start-Process -Wait -FilePath $setup.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',"/DIR=$dir"
+          $out = & (Join-Path $dir "StepComplete.exe") --version | Out-String
+          Write-Host $out
+          if ($LASTEXITCODE -ne 0 -or $out -notmatch 'STEP Complete') { throw "installed app did not start" }
+          Get-ChildItem $dir | Measure-Object -Property Length -Sum | ForEach-Object { "Installed top-level files: {0:N1} MB" -f ($_.Sum / 1MB) }
+
       - name: Import signing certificate
         if: runner.os == 'macOS' && env.MACOS_CERT_P12_BASE64 != '' && env.MACOS_SIGN_IDENTITY != ''
         shell: bash
@@ -183,6 +197,30 @@ jobs:
           SC_ARCH: ${{ matrix.sc-arch }}
           SC_VCPKG_LIB_DIR: ${{ github.workspace }}/build/release/vcpkg_installed/${{ matrix.triplet }}/lib
         run: packaging/macos/build-dmg.sh build/release dist
+
+      # Every library the bundle loads must come from inside it, never from the build machine.
+      - name: Smoke test DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          dmg=$(ls dist/*.dmg | head -1)
+          mnt=$(mktemp -d)
+          hdiutil attach "$dmg" -nobrowse -readonly -mountpoint "$mnt"
+          app="$mnt/StepComplete.app"
+          bad=0
+          while IFS= read -r f; do
+            if otool -L "$f" | tail -n +2 | grep -E '/Users/|/opt/homebrew|/usr/local|vcpkg_installed'; then
+              echo "::error::$f links outside the bundle"; bad=1
+            fi
+          done < <(find "$app/Contents" -type f \( -perm -u+x -o -name '*.dylib' \) | grep -v '\.plist$')
+          if [ "$(uname -m)" = "$(lipo -archs "$app/Contents/MacOS/StepComplete" | tr ' ' '\n' | sed 's/x86_64/x86_64/' | head -1)" ]; then
+            "$app/Contents/MacOS/StepComplete" --version
+          else
+            echo "Different architecture than the runner: not launching"
+          fi
+          du -sh "$app"
+          hdiutil detach "$mnt"
+          exit $bad
 
       - name: Upload packages
         uses: actions/upload-artifact@v4

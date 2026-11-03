@@ -26,13 +26,18 @@ Release build, OCCT 7.6.3, a 4-vCPU cloud container (slower per core than a curr
 | **Total** | 47.1 s | **38.0 s** |
 | Re-open from cache | | **1.3 s** |
 
+**OCCT 8.0.1 (what releases ship), GitHub Linux runner, 4 cores, 43 MB / 500 parts / 1,000
+instances:** read 2.9 s, transfer 4.7 s, mesh 1.4 s, 10.6 s in total including storing the cache
+entry (0.3 s); 0.65 s to re-open from the cache. Peak 446 MB, 193 MB once loaded. OCCT 8 reads
+STEP about twice as fast as 7.6, so the §6 target (50 MB interactive in ~10 s on a modern laptop)
+is about met.
+
 - **Meshing is parallel** across parts (OCCT's thread pool), or across faces when a model has only
   a few large parts. It was serial before M5.
 - **Read and transfer are single-threaded inside OCCT** and dominate. They scale with file size,
-  so a 50 MB file of the same kind takes about 16 s here. The UI stays responsive (import runs on a
-  worker thread with progress and cancel). The §6 target of ~10 s on a modern laptop is met only by
-  machines with clearly faster single-core speed than this container; the cache makes every
-  re-open near-instant regardless.
+  so a 50 MB file of the same kind takes about 16 s here with OCCT 7.6 (about 12 s with OCCT 8 on
+  a CI runner). The UI stays responsive (import runs on a worker thread with progress and cancel),
+  and the cache makes every re-open near-instant.
 - **Open-file cache:** the XCAF document with triangulation is stored as BinXCAF (plus a sidecar
   for cameras, units and import messages) under the OS cache folder, keyed by size, mtime, sampled
   content hash, app/OCCT versions and mesh parameters. Storing takes 0.7 s for this model (108 MB on
@@ -55,6 +60,17 @@ Release build, OCCT 7.6.3, a 4-vCPU cloud container (slower per core than a curr
   margin. The idle target (< 150 MB) cannot be measured on llvmpipe because the software renderer's
   buffers live in our process; with a hardware driver they are in video memory, which leaves an
   estimated ~100 MB. Not yet verified on a real GPU.
+
+## Package size
+
+| Package | Download |
+|---|---|
+| Linux AppImage | 52 MB |
+| Windows installer / portable zip | 28 MB each (56 MB artifact holds both) |
+| macOS DMG (arm64 / x64) | 40 MB / 43 MB |
+
+All are well under the 100 MB install budget (§2a). Measured from the release workflow's
+artifacts (zip-compressed sizes).
 
 ## Startup
 
