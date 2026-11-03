@@ -40,3 +40,12 @@ target_link_libraries(sc_render_tests PRIVATE sc::render sc_test_support Qt6::Te
 sc_target_defaults(sc_render_tests)
 add_test(NAME render.viewport_smoke COMMAND sc_render_tests)
 set_tests_properties(render.viewport_smoke PROPERTIES LABELS "render" TIMEOUT 120)
+
+# --- App widget tests (offscreen Qt platform: no display or OpenGL needed) -----
+add_executable(sc_app_tests
+  app/test_pmi_panel.cpp
+)
+target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
+sc_target_defaults(sc_app_tests)
+add_test(NAME app.pmi_panel COMMAND sc_app_tests)
+set_tests_properties(app.pmi_panel PROPERTIES TIMEOUT 120)
