@@ -37,6 +37,13 @@
       }
     },
     {
+      "name": "vcpkg-qt",
+      "displayName": "Release (vcpkg OCCT and Qt)",
+      "description": "Everything from vcpkg, Qt included, so no separate Qt install; the first configure builds Qt and OCCT (about an hour), cached afterwards",
+      "inherits": "vcpkg",
+      "cacheVariables": { "VCPKG_MANIFEST_FEATURES": "tests;qt" }
+    },
+    {
       "name": "release",
       "displayName": "Release packaging (vcpkg OCCT, no tests)",
       "description": "Same toolchain as 'vcpkg' but without tests (and without the gtest dependency); used by the release workflow",
@@ -51,6 +58,7 @@
     { "name": "dev", "configurePreset": "dev" },
     { "name": "dev-asan", "configurePreset": "dev-asan" },
     { "name": "vcpkg", "configurePreset": "vcpkg" },
+    { "name": "vcpkg-qt", "configurePreset": "vcpkg-qt" },
     { "name": "release", "configurePreset": "release" }
   ],
   "testPresets": [
@@ -62,6 +70,11 @@
     {
       "name": "vcpkg",
       "configurePreset": "vcpkg",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "vcpkg-qt",
+      "configurePreset": "vcpkg-qt",
       "output": { "outputOnFailure": true }
     }
   ]

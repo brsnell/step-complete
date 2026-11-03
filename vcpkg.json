@@ -20,6 +20,24 @@
     "tests": {
       "description": "Unit tests",
       "dependencies": [ "gtest" ]
+    },
+    "qt": {
+      "description": "Qt from vcpkg instead of an official Qt install, so a build needs only a compiler, CMake and vcpkg (Visual Studio 2022 ships all three)",
+      "dependencies": [
+        {
+          "name": "qtbase",
+          "default-features": false,
+          "features": [
+            "gui", "widgets", "opengl", "testlib", "concurrent", "thread",
+            "freetype", "harfbuzz", "png", "pcre2", "doubleconversion",
+            { "name": "fontconfig", "platform": "linux" },
+            { "name": "xcb", "platform": "linux" },
+            { "name": "xcb-xlib", "platform": "linux" },
+            { "name": "xrender", "platform": "linux" },
+            { "name": "egl", "platform": "linux" }
+          ]
+        }
+      ]
     }
   }
 }

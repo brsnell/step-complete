@@ -1,0 +1,78 @@
+# Checks the Visual-Studio-only Windows setup from the README: OCCT *and* Qt from
+# vcpkg via the vcpkg-qt preset. It builds Qt from source (about an hour without a
+# cache), so it runs only when the dependency setup changes, or on request.
+name: Windows vcpkg-qt
+
+on:
+  pull_request:
+    paths:
+      - vcpkg.json
+      - CMakePresets.json
+      - cmake/triplets/**
+      - .github/workflows/vcpkg-qt.yml
+  workflow_dispatch:
+
+concurrency:
+  group: vcpkg-qt-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keep in sync with ci.yml.
+  VCPKG_COMMIT: 80aae04504a834399456d74605204bfe514762bf
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Windows x64 (vcpkg Qt)
+    runs-on: windows-2022
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-qt-x64-windows-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/**') }}
+          restore-keys: vcpkg-qt-x64-windows-
+
+      - name: Create vcpkg cache directory
+        shell: bash
+        run: mkdir -p .vcpkg-cache
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure
+        run: cmake --preset vcpkg-qt -DVCPKG_TARGET_TRIPLET=x64-windows -DSC_WARNINGS_AS_ERRORS=ON
+
+      - name: Save vcpkg binary cache
+        if: ${{ always() && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .vcpkg-cache
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
+      - name: Build
+        run: cmake --build --preset vcpkg-qt
+
+      - name: Test
+        run: ctest --preset vcpkg-qt -LE render
+
+      # The built app must start with the DLLs and Qt plugins vcpkg deployed next to it.
+      - name: Start the app
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem build\vcpkg-qt -Recurse -Filter StepComplete.exe | Select-Object -First 1
+          $out = & $exe.FullName --version | Out-String
+          Write-Host $out
+          if ($LASTEXITCODE -ne 0 -or $out -notmatch 'STEP Complete') { throw "built app did not start" }
