@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/OccHandle.h"
+#include "core/StepCamera.h"
 #include "core/Units.h"
 
 #include <TDocStd_Document.hxx>
@@ -8,6 +9,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 class TCollection_ExtendedString;
 
@@ -37,11 +39,16 @@ public:
   std::optional<LengthUnit> fileUnit() const { return m_fileUnit; }
   void setFileUnit(std::string name, std::optional<LengthUnit> unit);
 
+  // Saved-view cameras read from the STEP file, in file order (empty for other sources).
+  const std::vector<StepCamera>& cameras() const { return m_cameras; }
+  void setCameras(std::vector<StepCamera> cameras) { m_cameras = std::move(cameras); }
+
 private:
   OccHandle<TDocStd_Document> m_doc;
   std::string m_sourcePath;
   std::string m_fileUnitName;
   std::optional<LengthUnit> m_fileUnit;
+  std::vector<StepCamera> m_cameras;
 };
 
 using DocumentPtr = std::shared_ptr<Document>;

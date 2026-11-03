@@ -6,6 +6,7 @@
 
 #include "core/AssemblyIndex.h"
 #include "core/PmiModel.h"
+#include "core/StepImporter.h"
 #include "render/OcctViewport.h"
 #include "render/PmiFont.h"
 #include "render/PmiLabel.h"
@@ -26,6 +27,12 @@
 #include <QRawFont>
 #include <QtTest>
 
+#include <BRep_Tool.hxx>
+#include <TopExp_Explorer.hxx>
+#include <TopoDS.hxx>
+#include <TopoDS_Shape.hxx>
+#include <algorithm>
+#include <climits>
 #include <memory>
 
 using sc::core::PmiId;
@@ -398,6 +405,90 @@ private Q_SLOTS:
 
     m_pmiScene->clearViewClipping(m_viewport->view());
     QVERIFY(m_viewport->view()->ClipPlanes().IsNull() || m_viewport->view()->ClipPlanes()->Size() == 0);
+  }
+
+  // Saved views of the NIST models carry a camera (location, view window) in the STEP file. Applying
+  // one must frame the part: inside the viewport, filling a good part of it.
+  void nistSavedViewsFrameTheModel_data() {
+    QTest::addColumn<QString>("file");
+    QTest::addColumn<int>("viewIndex");
+    QTest::newRow("ctc01-MBD_0") << "nist_ctc_01_asme1_ap242-e1.stp" << 0;
+    QTest::newRow("ctc02-MBD_A") << "nist_ctc_02_asme1_ap242-e2.stp" << 0;
+    QTest::newRow("ctc02-MBD_C") << "nist_ctc_02_asme1_ap242-e2.stp" << 2;
+    QTest::newRow("ctc05-MBD_A") << "nist_ctc_05_asme1_ap242-e1.stp" << 0;
+    QTest::newRow("ctc05-MBD_B") << "nist_ctc_05_asme1_ap242-e1.stp" << 1;
+    QTest::newRow("ftc06-MBD_A") << "nist_ftc_06_asme1_ap242-e2.stp" << 0;
+    QTest::newRow("ftc06-MBD_C") << "nist_ftc_06_asme1_ap242-e2.stp" << 2;
+    QTest::newRow("ctc03-0") << "nist_ctc_03_asme1_ap242-e2.stp" << 0;
+    QTest::newRow("ctc02-MBD_B") << "nist_ctc_02_asme1_ap242-e2.stp" << 1;
+    QTest::newRow("ftc06-MBD_B") << "nist_ftc_06_asme1_ap242-e2.stp" << 1;
+  }
+
+  void nistSavedViewsFrameTheModel() {
+    QFETCH(QString, file);
+    QFETCH(int, viewIndex);
+    const QByteArray dir = qgetenv("SC_TEST_DATA_DIR");
+    const QString path = QString::fromUtf8(dir) + QLatin1Char('/') + file;
+    if (dir.isEmpty() || !QFile::exists(path)) {
+      QSKIP("NIST model not available (run tests/data/fetch.sh and set SC_TEST_DATA_DIR)");
+    }
+    const sc::core::ImportResult imported = sc::core::importStep(path.toStdString());
+    QVERIFY2(imported.ok, imported.error.c_str());
+    auto index = std::make_shared<sc::core::AssemblyIndex>(imported.document);
+    m_scene->setModel(index);
+    auto pmi = std::make_shared<PmiModel>(imported.document);
+    m_pmiScene->setModel(pmi, index);
+    QVERIFY(static_cast<size_t>(viewIndex) < pmi->views().size());
+    const sc::core::PmiSavedView& saved = pmi->views()[static_cast<size_t>(viewIndex)];
+    QVERIFY2(saved.eye.has_value(), "the STEP camera must have been matched to the view");
+
+    m_pmiScene->applyView(saved, m_viewport->view());
+    const QImage image = render();
+    sc::test::dumpImage(image, QStringLiteral("nist_view_%1_%2")
+                                   .arg(QString(QTest::currentDataTag()))
+                                   .arg(viewIndex)
+                                   .toLatin1()
+                                   .constData());
+
+    // The part's mesh, projected into the viewport (every few nodes is enough). A saved view may be
+    // panned so that some of the part lies outside its window, so most of the part must be inside
+    // the viewport and fill a reasonable share of it; CTC-01's frame must hold the whole part.
+    int minX = INT_MAX, minY = INT_MAX, maxX = INT_MIN, maxY = INT_MIN;
+    int total = 0;
+    int inside = 0;
+    const int w = image.width();
+    const int h = image.height();
+    for (const sc::core::NodeId node : index->partInstances()) {
+      for (TopExp_Explorer faces(index->worldShape(node), TopAbs_FACE); faces.More(); faces.Next()) {
+        TopLoc_Location location;
+        const auto mesh = BRep_Tool::Triangulation(TopoDS::Face(faces.Current()), location);
+        if (mesh.IsNull()) {
+          continue;
+        }
+        for (int i = 1; i <= mesh->NbNodes(); i += 7) {
+          const gp_Pnt p = mesh->Node(i).Transformed(location);
+          const QPoint px = pixelOf(p.X(), p.Y(), p.Z());
+          minX = std::min(minX, px.x());
+          maxX = std::max(maxX, px.x());
+          minY = std::min(minY, px.y());
+          maxY = std::max(maxY, px.y());
+          ++total;
+          inside += px.x() >= 0 && px.x() < w && px.y() >= 0 && px.y() < h ? 1 : 0;
+        }
+      }
+    }
+    QVERIFY(total > 100);
+    qInfo() << QTest::currentDataTag() << "part pixels" << minX << minY << maxX << maxY << "in" << w << "x"
+            << h << "inside" << double(inside) / total;
+    const QRect visibleBox = QRect(QPoint(minX, minY), QPoint(maxX, maxY)).intersected(QRect(0, 0, w, h));
+    QVERIFY2(double(inside) / total > 0.6, "most of the part lies outside the viewport");
+    QVERIFY2(std::max(visibleBox.width() / double(w), visibleBox.height() / double(h)) > 0.2,
+             "the part is too small in the viewport");
+    if (file.startsWith(QLatin1String("nist_ctc_01"))) {
+      QVERIFY2(minX >= 0 && minY >= 0 && maxX < w && maxY < h, "the whole part must be in the viewport");
+    }
+    QVERIFY2(std::max(maxX - minX, maxY - minY) < 1.5 * std::max(w, h),
+             "the part is far larger than the view");
   }
 };
 

@@ -9,6 +9,7 @@ add_library(sc_core STATIC
   OcctInfo.cpp
   Document.h
   Document.cpp
+  StepCamera.h
   StepImporter.h
   StepImporter.cpp
   AssemblyIndex.h

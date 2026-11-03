@@ -1,10 +1,12 @@
 #include "core/StepImporter.h"
 
 #include "core/OccCompat.h"
+#include "core/OccHandle.h"
 
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Check.hxx>
 #include <Interface_CheckIterator.hxx>
+#include <Interface_InterfaceModel.hxx>
 #include <Message_ProgressIndicator.hxx>
 #include <Message_ProgressScope.hxx>
 #include <Prs3d_Drawer.hxx>
@@ -13,11 +15,33 @@
 #include <Standard_Failure.hxx>
 #include <Standard_Version.hxx>
 #include <StdPrs_ToolTriangulatedShape.hxx>
+#include <StepBasic_ConversionBasedUnit.hxx>
+#include <StepBasic_MeasureWithUnit.hxx>
+#include <StepBasic_NamedUnit.hxx>
+#include <StepBasic_SiPrefix.hxx>
+#include <StepBasic_SiUnit.hxx>
+#include <StepBasic_SiUnitName.hxx>
+#include <StepBasic_Unit.hxx>
+#include <StepGeom_Axis2Placement3d.hxx>
+#include <StepGeom_CartesianPoint.hxx>
+#include <StepGeom_Direction.hxx>
+#include <StepGeom_GeomRepContextAndGlobUnitAssCtxAndGlobUncertaintyAssCtx.hxx>
+#include <StepGeom_GeometricRepresentationContextAndGlobalUnitAssignedContext.hxx>
+#include <StepVisual_CameraModelD3.hxx>
+#include <StepVisual_PlanarBox.hxx>
+#include <StepVisual_ViewVolume.hxx>
+#include <TCollection_HAsciiString.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include <XSControl_WorkSession.hxx>
+#include <gp_Ax2.hxx>
+#include <gp_Dir.hxx>
+#include <gp_Pnt.hxx>
+#include <gp_Vec.hxx>
+#include <gp_XYZ.hxx>
 
 #include <chrono>
+#include <cmath>
 #include <exception>
 #include <map>
 #include <mutex>
@@ -30,6 +54,196 @@ using Clock = std::chrono::steady_clock;
 
 double secondsSince(Clock::time_point start) {
   return std::chrono::duration<double>(Clock::now() - start).count();
+}
+
+// Direction/point coordinates from STEP entities; false for malformed ones.
+bool stepVector(const OccHandle<StepGeom_Direction>& direction, gp_Dir& out) {
+  if (direction.IsNull() || direction->NbDirectionRatios() < 3) {
+    return false;
+  }
+  const gp_XYZ ratios(direction->DirectionRatiosValue(1), direction->DirectionRatiosValue(2),
+                      direction->DirectionRatiosValue(3));
+  if (ratios.Modulus() < 1e-12) {
+    return false;
+  }
+  out = gp_Dir(ratios);
+  return true;
+}
+
+gp_Pnt stepPoint(const OccHandle<StepGeom_CartesianPoint>& point, double mmPerUnit) {
+  if (point.IsNull() || point->NbCoordinates() < 3) {
+    return gp_Pnt();
+  }
+  return gp_Pnt(point->CoordinatesValue(1) * mmPerUnit, point->CoordinatesValue(2) * mmPerUnit,
+                point->CoordinatesValue(3) * mmPerUnit);
+}
+
+// AXIS2_PLACEMENT_3D frame; the reference direction is projected onto the plane normal to the axis.
+gp_Ax2 placementFrame(const gp_Pnt& origin, const gp_Dir& axis, const gp_Dir& ref) {
+  return ref.IsParallel(axis, 1e-9) ? gp_Ax2(origin, axis) : gp_Ax2(origin, axis, ref);
+}
+
+// Millimeters per unit of a LENGTH_UNIT: an SI unit (with prefix) or a conversion-based unit
+// (inch, foot, ...) defined as a multiple of an SI unit. Zero if it cannot be determined.
+double lengthUnitInMillimeters(const OccHandle<StepBasic_NamedUnit>& unit, int depth = 0) {
+  if (unit.IsNull() || depth > 3) {
+    return 0.0;
+  }
+  if (const auto si = OccHandle<StepBasic_SiUnit>::DownCast(unit); !si.IsNull()) {
+    if (si->Name() != StepBasic_sunMetre) {
+      return 0.0;
+    }
+    int exponent = 0; // power of ten relative to the metre
+    if (si->HasPrefix()) {
+      switch (si->Prefix()) {
+      case StepBasic_spKilo:
+        exponent = 3;
+        break;
+      case StepBasic_spHecto:
+        exponent = 2;
+        break;
+      case StepBasic_spDeca:
+        exponent = 1;
+        break;
+      case StepBasic_spDeci:
+        exponent = -1;
+        break;
+      case StepBasic_spCenti:
+        exponent = -2;
+        break;
+      case StepBasic_spMilli:
+        exponent = -3;
+        break;
+      case StepBasic_spMicro:
+        exponent = -6;
+        break;
+      case StepBasic_spNano:
+        exponent = -9;
+        break;
+      default:
+        return 0.0;
+      }
+    }
+    return 1000.0 * std::pow(10.0, exponent);
+  }
+  if (const auto converted = OccHandle<StepBasic_ConversionBasedUnit>::DownCast(unit); !converted.IsNull()) {
+    const OccHandle<StepBasic_MeasureWithUnit> factor = converted->ConversionFactor();
+    if (factor.IsNull()) {
+      return 0.0;
+    }
+    return factor->ValueComponent() * lengthUnitInMillimeters(factor->UnitComponent().NamedUnit(), depth + 1);
+  }
+  return 0.0;
+}
+
+// Millimeters per length unit of the file's geometric representation context, the factor OCCT
+// scales the geometry by. Zero if there is no such context. (STEPControl_Reader::FileUnits
+// misses contexts that also carry a global uncertainty, which is how most CAD systems write
+// them.)
+double geometryUnitInMillimeters(const OccHandle<Interface_InterfaceModel>& model) {
+  const auto lengthOf = [](const auto& context) {
+    for (int i = 1; i <= context->NbUnits(); ++i) {
+      if (const double scale = lengthUnitInMillimeters(context->UnitsValue(i)); scale > 0.0) {
+        return scale;
+      }
+    }
+    return 0.0;
+  };
+  for (int i = 1; i <= model->NbEntities(); ++i) {
+    const OccHandle<Standard_Transient> entity = model->Value(i);
+    double scale = 0.0;
+    if (const auto plain =
+            OccHandle<StepGeom_GeometricRepresentationContextAndGlobalUnitAssignedContext>::DownCast(entity);
+        !plain.IsNull()) {
+      scale = lengthOf(plain);
+    } else if (const auto withUncertainty =
+                   OccHandle<StepGeom_GeomRepContextAndGlobUnitAssCtxAndGlobUncertaintyAssCtx>::DownCast(
+                       entity);
+               !withUncertainty.IsNull()) {
+      scale = lengthOf(withUncertainty);
+    }
+    if (scale > 0.0) {
+      return scale;
+    }
+  }
+  return 0.0;
+}
+
+// Collects the CAMERA_MODEL_D3 entities (saved views) in file order. OCCT's
+// XCAF view object drops the camera location and keeps the view window in file
+// units, so both are read here. Lengths are converted with the factor OCCT
+// applied to the geometry.
+std::vector<StepCamera> readCameras(const OccHandle<Interface_InterfaceModel>& model, double fallbackScale) {
+  std::vector<StepCamera> cameras;
+  if (model.IsNull()) {
+    return cameras;
+  }
+  const double unitScale = geometryUnitInMillimeters(model);
+  const double mmPerUnit = unitScale > 0.0 ? unitScale : fallbackScale;
+  for (int i = 1; i <= model->NbEntities(); ++i) {
+    const OccHandle<StepVisual_CameraModelD3> camera =
+        OccHandle<StepVisual_CameraModelD3>::DownCast(model->Value(i));
+    if (camera.IsNull()) {
+      continue;
+    }
+    const OccHandle<StepGeom_Axis2Placement3d> frame = camera->ViewReferenceSystem();
+    const OccHandle<StepVisual_ViewVolume> volume = camera->PerspectiveOfVolume();
+    if (frame.IsNull() || volume.IsNull()) {
+      continue;
+    }
+    StepCamera out;
+    if (!camera->Name().IsNull()) {
+      out.name = camera->Name()->ToCString();
+    }
+    out.location = stepPoint(frame->Location(), mmPerUnit);
+    if (frame->HasAxis() && !stepVector(frame->Axis(), out.axis)) {
+      continue;
+    }
+    gp_Dir ref(1.0, 0.0, 0.0);
+    if (frame->HasRefDirection()) {
+      stepVector(frame->RefDirection(), ref);
+    }
+    out.refDirection = placementFrame(out.location, out.axis, ref).XDirection();
+
+    out.perspective = volume->ProjectionType() == StepVisual_copCentral;
+    out.projectionPoint = stepPoint(volume->ProjectionPoint(), mmPerUnit);
+    out.viewPlaneDistance = volume->ViewPlaneDistance() * mmPerUnit;
+    out.frontPlaneClipping = volume->FrontPlaneClipping();
+    out.backPlaneClipping = volume->BackPlaneClipping();
+    out.sidesClipping = volume->ViewVolumeSidesClipping();
+    if (out.frontPlaneClipping) {
+      out.frontPlaneDistance = volume->FrontPlaneDistance() * mmPerUnit;
+    }
+    if (out.backPlaneClipping) {
+      out.backPlaneDistance = volume->BackPlaneDistance() * mmPerUnit;
+    }
+
+    const OccHandle<StepVisual_PlanarBox> window = volume->ViewWindow();
+    if (!window.IsNull()) {
+      out.windowWidth = window->SizeInX() * mmPerUnit;
+      out.windowHeight = window->SizeInY() * mmPerUnit;
+      // The box placement is its lower-left corner and axes in the camera frame.
+      const OccHandle<StepGeom_Axis2Placement3d> placement = window->Placement().Axis2Placement3d();
+      if (!placement.IsNull()) {
+        const gp_Pnt corner = stepPoint(placement->Location(), mmPerUnit);
+        gp_Dir boxZ(0.0, 0.0, 1.0);
+        gp_Dir boxX(1.0, 0.0, 0.0);
+        if (placement->HasAxis()) {
+          stepVector(placement->Axis(), boxZ);
+        }
+        if (placement->HasRefDirection()) {
+          stepVector(placement->RefDirection(), boxX);
+        }
+        const gp_Ax2 box = placementFrame(corner, boxZ, boxX);
+        const gp_Vec center = gp_Vec(corner.XYZ()) + gp_Vec(box.XDirection()) * (out.windowWidth * 0.5) +
+                              gp_Vec(box.YDirection()) * (out.windowHeight * 0.5);
+        out.windowCenterX = center.X();
+        out.windowCenterY = center.Y();
+      }
+    }
+    cameras.push_back(std::move(out));
+  }
+  return cameras;
 }
 
 // OCCT translators keep their parameters in process-global state.
@@ -160,6 +374,10 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
       const std::string unitName = lengthUnits.First().ToCString();
       document->setFileUnit(unitName, lengthUnitFromStepName(unitName));
     }
+
+    // Saved-view cameras: lengths in the file's unit, converted like the geometry.
+    const std::optional<LengthUnit> fileUnit = document->fileUnit();
+    document->setCameras(readCameras(reader.Reader().Model(), fileUnit ? millimetersPer(*fileUnit) : 1.0));
 
     // --- Pre-mesh unique parts -------------------------------------------------
     OccHandle<XCAFDoc_ShapeTool> shapeTool = XCAFDoc_DocumentTool::ShapeTool(ocaf->Main());

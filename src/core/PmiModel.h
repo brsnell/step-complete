@@ -86,8 +86,16 @@ struct PmiSavedView {
   gp_Dir viewDirection;
   gp_Dir upDirection;
   double zoom = 1.0;
-  double windowWidth = 0.0; // view window size in model units, if given
+  double windowWidth = 0.0; // view window size as OCCT stores it (file units, unreliable)
   double windowHeight = 0.0;
+  // From the STEP CAMERA_MODEL_D3 (millimeters); unset when the document has no matching
+  // camera, e.g. views built directly in XCAF.
+  std::optional<gp_Pnt> eye; // camera frame origin in world coordinates
+  std::optional<double> windowWidthMm;
+  std::optional<double> windowHeightMm;
+  double windowCenterX = 0.0; // view window centre in the camera frame
+  double windowCenterY = 0.0;
+  std::optional<double> viewPlaneDistanceMm;
   std::optional<double> frontPlaneDistance;
   std::optional<double> backPlaneDistance;
   std::vector<gp_Pln> clippingPlanes;

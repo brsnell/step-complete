@@ -28,6 +28,7 @@
 #include <TopoDS_Compound.hxx>
 
 #include <algorithm>
+#include <cmath>
 
 namespace sc::render {
 
@@ -409,24 +410,75 @@ void PmiScene::highlight(const std::vector<core::PmiId>& ids) {
   m_context->Display(shape, AIS_Shaded, -1, false); // not selectable
 }
 
+// Places the camera from the view's STEP camera data (eye, view plane, window), all in mm.
+// Returns false when that data is missing so the caller can fit the model instead.
+static bool placeSavedViewCamera(const core::PmiSavedView& view, Graphic3d_Camera& camera) {
+  if (!view.eye || !view.windowWidthMm || !view.windowHeightMm || !view.viewPlaneDistanceMm) {
+    return false;
+  }
+  // Camera frame: Z viewing direction, Y up, X = Y x Z (so that Z = X x Y).
+  const gp_Dir z = view.viewDirection;
+  const gp_Dir x = view.upDirection.Crossed(z);
+  const gp_Dir y = z.Crossed(x);
+  const gp_Vec zv(z);
+  const gp_Vec xv(x);
+  const gp_Vec yv(y);
+  const gp_Pnt origin = *view.eye;
+  const double planeDistance = *view.viewPlaneDistanceMm;
+  const gp_Pnt center =
+      origin.Translated(xv * view.windowCenterX + yv * view.windowCenterY + zv * planeDistance);
+  const double aspect = camera.Aspect() > 1e-6 ? camera.Aspect() : 1.0;
+  // The window must fit entirely, whatever the viewport's aspect ratio.
+  const double extent = std::max(*view.windowHeightMm, *view.windowWidthMm / aspect);
+
+  if (!view.perspective) {
+    // Parallel: only the direction and the window matter; the eye sits on the view plane's
+    // normal through the window centre.
+    camera.SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
+    camera.SetEyeAndCenter(center.Translated(-zv * planeDistance), center);
+    camera.SetUp(y);
+    camera.OrthogonalizeUp();
+    camera.SetScale(extent);
+    return true;
+  }
+  // Central: rays converge at the projection point (given in the camera frame).
+  const gp_Pnt eye = origin.Translated(xv * view.projectionPoint.X() + yv * view.projectionPoint.Y() +
+                                       zv * view.projectionPoint.Z());
+  const double distance = gp_Vec(eye, center).Dot(zv);
+  if (distance < 1e-6) {
+    return false;
+  }
+  constexpr double kRadToDeg = 57.29577951308232;
+  const double fov = std::clamp(2.0 * std::atan(extent * 0.5 / distance) * kRadToDeg, 1.0, 170.0);
+  camera.SetProjectionType(Graphic3d_Camera::Projection_Perspective);
+  camera.SetEyeAndCenter(eye, center);
+  camera.SetUp(y);
+  camera.OrthogonalizeUp();
+  camera.SetFOVy(fov);
+  return true;
+}
+
 void PmiScene::applyView(const core::PmiSavedView& view, const OccHandle<V3d_View>& v3dView) {
   if (m_pmi) {
     setOnlyVisible(view.pmi);
   }
 
-  // Camera: orientation from the file, then fit. OCCT's reader keeps only the
-  // view volume's projection point, which is relative to the camera's own frame
-  // (the camera position itself is dropped), and does not convert the view
-  // window to the document unit, so neither can place the camera reliably.
-  // See docs/pmi-coverage.md.
+  // Camera. With the STEP camera (location, view window) the saved view is reproduced: the
+  // camera frame's Z axis is the viewing direction, the view plane lies viewPlaneDistance
+  // along it and the window on that plane sets the visible extent. Without it (views built
+  // directly in XCAF) only the orientation is known, so the model is fitted instead.
   const OccHandle<Graphic3d_Camera>& camera = v3dView->Camera();
-  camera->SetProjectionType(view.perspective ? Graphic3d_Camera::Projection_Perspective
-                                             : Graphic3d_Camera::Projection_Orthographic);
-  camera->SetDirection(view.viewDirection);
-  camera->SetUp(view.upDirection);
-  camera->OrthogonalizeUp();
-  v3dView->FitAll(0.05, false);
-  v3dView->ZFitAll();
+  if (placeSavedViewCamera(view, *camera)) {
+    v3dView->ZFitAll();
+  } else {
+    camera->SetProjectionType(view.perspective ? Graphic3d_Camera::Projection_Perspective
+                                               : Graphic3d_Camera::Projection_Orthographic);
+    camera->SetDirection(view.viewDirection);
+    camera->SetUp(view.upDirection);
+    camera->OrthogonalizeUp();
+    v3dView->FitAll(0.05, false);
+    v3dView->ZFitAll();
+  }
 
   // Clipping planes.
   clearViewClipping(v3dView);

@@ -14,7 +14,7 @@ What STEP Complete shows from AP242 PMI, measured on the NIST MBE PMI test model
 | Links to geometry | ✅ | Selecting PMI highlights the faces/edges it applies to, on every instance of the part |
 | Graphical presentation from the file | ✅ OCCT 8 / ⚠️ 7.6 | Polylines and tessellated annotations, drawn as authored. OCCT 7.6 does not read tessellated presentations (most NIST files) |
 | Semantic-only rendering | ✅ | Screen-aligned boxed feature control frames, datum flags and dimension values at the annotation's text position (or the target's center), with a leader; labels sharing an anchor stack. Bundled STIX Two Math font covers every GD&T symbol. Labels at *nearby* anchors can still overlap; dimension extension lines and arrows are not drawn yet |
-| Saved views | ⚠️ partial | Name, orientation, visible PMI, clipping planes. The camera **position** and window size are not usable (see gaps), so the view is fitted to the model in the saved orientation |
+| Saved views | ✅ parallel / ⚠️ central | Name, visible PMI, clipping planes and the camera: location, orientation and view window come from the STEP `CAMERA_MODEL_D3` (read by `StepImporter`, see gap 1), so the view shows the part as the exporter framed it. Parallel projection is verified on the NIST files; central projection (field of view from the window and plane distance) is implemented but untested, as no NIST file has one. Front/back plane distances are kept but not applied; the depth range is fitted to the model. Views without a STEP camera fall back to the saved orientation fitted to the model |
 | Not-interpreted annotations | ✅ | Listed under "Not Interpreted" and drawn from their graphics, never hidden |
 
 ## Visual check (OCCT 8.0.1)
@@ -59,10 +59,29 @@ linked to geometry. "Presentations" is the number of items with graphics from th
 Found by comparing the files' raw entities with what OCCT stores. All of them are candidates for
 fixes upstream (OCCT is open source; patches would go through a vcpkg overlay port first).
 
-1. **Saved-view camera position is dropped.** `STEPCAFControl_Reader` stores the view volume's
-   projection point, which is relative to the camera's own coordinate system, and discards the
-   camera's location (`CAMERA_MODEL_D3.view_reference_system.location`). The view window size is
-   also not converted to the document unit. We use the saved orientation and fit the model.
+1. **Saved-view camera position is dropped by OCCT (worked around).** `STEPCAFControl_Reader`
+   stores the view volume's projection point, which is relative to the camera's own coordinate
+   system, and discards the camera's location (`CAMERA_MODEL_D3.view_reference_system.location`).
+   The view window size is also not converted to the document unit. `StepImporter` therefore walks
+   the STEP entities itself and reads each camera (location, axis, reference direction, view
+   volume, window), converting lengths with the unit of the file's geometric representation
+   context (`STEPControl_Reader::FileUnits` misses contexts that also carry a global uncertainty,
+   as most CAD systems write them, so it is not used here). `PmiModel` matches cameras to the XCAF
+   views by name, then by file order.
+
+   Semantics as verified on the NIST files: the camera frame is the view reference system
+   (X = reference direction, Z = axis, Y = Z x X); the camera looks along **+Z**, towards the model,
+   and the view plane is `view_plane_distance` along it. In CTC-01, CTC-02/C and FTC-06/C
+   `location + view_plane_distance * axis` lands within a few tens of mm of the model's centre
+   (CTC-01: `|location|` = 1645.003 = `view_plane_distance`, axis pointing at the origin), and the
+   `PLANAR_BOX` is centred on that point. For parallel projection the window gives the visible
+   height (`Graphic3d_Camera::SetScale`), widened if the viewport is wider than the window.
+
+   Still approximate: some NIST views are panned so that the part sits off-centre or is partly
+   outside the window (CTC-02 A and FTC-06 A: about 10 to 25 percent of the part is cropped); this
+   is how the files define them, we do not re-centre. The window's own off-centre placement is
+   honoured for parallel views only. Models with no XCAF view (CTC-04, FTC-07/10 on OCCT 7.6) have
+   no view to apply.
 2. **Lower tolerance sign is lost.** Plus/minus dimensions are stored as
    (nominal, |lower deviation|, upper deviation). A lower bound *above* the nominal (e.g. +0.05/+0.10)
    reads as −0.05. We always show the lower deviation as negative, which is correct for the common case.

@@ -177,6 +177,9 @@ TEST(PmiModel, ReadsSavedViews) {
   EXPECT_TRUE(view.upDirection.IsEqual(gp_Dir(0, 0, 1), 1e-9));
   EXPECT_DOUBLE_EQ(view.zoom, 1.5);
   EXPECT_DOUBLE_EQ(view.windowWidth, 120.0);
+  // Built directly in XCAF: there is no CAMERA_MODEL_D3 to take a location or window from.
+  EXPECT_FALSE(view.eye.has_value());
+  EXPECT_FALSE(view.windowWidthMm.has_value());
   ASSERT_TRUE(view.frontPlaneDistance.has_value());
   EXPECT_DOUBLE_EQ(*view.frontPlaneDistance, 5.0);
   EXPECT_FALSE(view.backPlaneDistance.has_value());
@@ -294,4 +297,73 @@ TEST(NistPmi, Ctc01SavedViewShowsItsAnnotations) {
     }
   }
   EXPECT_EQ(letters, (std::vector<std::string>{"A", "B", "C"}));
+}
+
+TEST(NistPmi, SavedViewCamerasComeFromTheStepFile) {
+  const std::string path = nistPath("nist_ctc_01_asme1_ap242-e1.stp");
+  if (path.empty()) {
+    GTEST_SKIP() << "nist_ctc_01 not available";
+  }
+  const core::ImportResult result = core::importStep(path);
+  ASSERT_TRUE(result.ok);
+  ASSERT_EQ(result.document->cameras().size(), 1u);
+  const core::StepCamera& camera = result.document->cameras().front();
+  EXPECT_EQ(camera.name, "MBD_0");
+  EXPECT_FALSE(camera.perspective);
+  EXPECT_NEAR(camera.viewPlaneDistance, 1645.0029296875, 1e-6);
+  EXPECT_NEAR(camera.windowCenterX, 0.0, 1e-6); // the window is centred on the camera axis
+  EXPECT_NEAR(camera.windowCenterY, 0.0, 1e-6);
+
+  const PmiModel model(result.document);
+  ASSERT_EQ(model.views().size(), 1u);
+  const core::PmiSavedView& view = model.views().front();
+  ASSERT_TRUE(view.eye.has_value());
+  EXPECT_NEAR(view.eye->X(), 963.43359375, 1e-6);
+  EXPECT_NEAR(view.eye->Y(), -975.346008300781, 1e-6);
+  EXPECT_NEAR(view.eye->Z(), 916.765258789063, 1e-6);
+  ASSERT_TRUE(view.windowWidthMm.has_value());
+  ASSERT_TRUE(view.windowHeightMm.has_value());
+  EXPECT_NEAR(*view.windowWidthMm, 789.860376816842, 1e-6);
+  EXPECT_NEAR(*view.windowHeightMm, 789.860376816842, 1e-6);
+  ASSERT_TRUE(view.viewPlaneDistanceMm.has_value());
+  // The camera looks at the model: the view plane centre is near the origin the model is built around.
+  const gp_Pnt target = view.eye->Translated(gp_Vec(view.viewDirection) * *view.viewPlaneDistanceMm);
+  EXPECT_LT(target.Distance(gp_Pnt(0, 0, 0)), 100.0);
+}
+
+TEST(NistPmi, SavedViewLengthsAreConvertedFromInches) {
+  const std::string path = nistPath("nist_ctc_05_asme1_ap242-e1.stp");
+  if (path.empty()) {
+    GTEST_SKIP() << "nist_ctc_05 not available";
+  }
+  const core::ImportResult imported = core::importStep(path);
+  const PmiModel model(imported.document);
+  ASSERT_EQ(model.views().size(), 2u);
+  const core::PmiSavedView& a = model.views()[0];
+  const core::PmiSavedView& b = model.views()[1];
+  EXPECT_EQ(a.name, "MBD_A");
+  EXPECT_EQ(b.name, "MBD_B");
+  ASSERT_TRUE(a.windowWidthMm.has_value());
+  ASSERT_TRUE(b.windowWidthMm.has_value());
+  EXPECT_NEAR(*a.windowWidthMm, 20.3814 * 25.4, 1e-3);
+  EXPECT_NEAR(*a.windowHeightMm, 20.3814 * 25.4, 1e-3);
+  EXPECT_NEAR(*b.windowWidthMm, 17.4987 * 25.4, 1e-3);
+  ASSERT_TRUE(a.viewPlaneDistanceMm.has_value());
+  EXPECT_NEAR(*a.viewPlaneDistanceMm, 60.0296 * 25.4, 1e-3);
+  ASSERT_TRUE(a.eye.has_value());
+  EXPECT_NEAR(a.eye->X(), 34.5572 * 25.4, 1e-3); // the location is converted as well
+}
+
+TEST(NistPmi, SavedViewsMatchCamerasWhenNamesAreEmpty) {
+  const std::string path = nistPath("nist_ctc_02_asme1_ap242-e2.stp");
+  if (path.empty()) {
+    GTEST_SKIP() << "nist_ctc_02 not available";
+  }
+  const PmiModel model(core::importStep(path).document);
+  ASSERT_EQ(model.views().size(), 3u);
+  const double expected[] = {797.769515295141, 866.964941749908, 995.881100861612};
+  for (size_t i = 0; i < 3; ++i) {
+    ASSERT_TRUE(model.views()[i].windowWidthMm.has_value()) << i;
+    EXPECT_NEAR(*model.views()[i].windowWidthMm, expected[i], 1e-6) << model.views()[i].name;
+  }
 }

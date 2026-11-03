@@ -379,6 +379,28 @@ void PmiModel::mergeDuplicatePresentations() {
   m_items = std::move(kept);
 }
 
+namespace {
+
+// The STEP camera for the XCAF view with this name. Names may repeat or be empty, so each
+// camera is used once, and when no unused camera has the name the one at the same position
+// in file order is taken (XCAF creates the views in file order).
+const StepCamera* matchCamera(const std::vector<StepCamera>& cameras, std::vector<bool>& used,
+                              const std::string& name, int viewCount, size_t index) {
+  for (size_t i = 0; i < cameras.size(); ++i) {
+    if (!used[i] && cameras[i].name == name) {
+      used[i] = true;
+      return &cameras[i];
+    }
+  }
+  if (static_cast<size_t>(viewCount) == cameras.size() && index < cameras.size() && !used[index]) {
+    used[index] = true;
+    return &cameras[index];
+  }
+  return nullptr;
+}
+
+} // namespace
+
 void PmiModel::readViews() {
   const TDF_Label main = m_document->ocaf()->Main();
   if (!XCAFDoc_DocumentTool::CheckViewTool(main)) {
@@ -388,6 +410,8 @@ void PmiModel::readViews() {
   OccHandle<XCAFDoc_ClippingPlaneTool> clipping = XCAFDoc_DocumentTool::ClippingPlaneTool(main);
   occ::LabelSequence labels;
   tool->GetViewLabels(labels);
+  const std::vector<StepCamera>& cameras = m_document->cameras();
+  std::vector<bool> cameraUsed(cameras.size(), false);
   for (const TDF_Label& label : labels) {
     OccHandle<XCAFDoc_View> attribute;
     if (!label.FindAttribute(XCAFDoc_View::GetID(), attribute)) {
@@ -411,6 +435,19 @@ void PmiModel::readViews() {
     view.zoom = object->ZoomFactor();
     view.windowWidth = object->WindowHorizontalSize();
     view.windowHeight = object->WindowVerticalSize();
+    if (const StepCamera* camera =
+            matchCamera(cameras, cameraUsed, ascii(object->Name()), labels.Length(), m_views.size())) {
+      view.eye = camera->location;
+      if (camera->windowWidth > 0.0 && camera->windowHeight > 0.0) {
+        view.windowWidthMm = camera->windowWidth;
+        view.windowHeightMm = camera->windowHeight;
+        view.windowCenterX = camera->windowCenterX;
+        view.windowCenterY = camera->windowCenterY;
+      }
+      if (camera->viewPlaneDistance > 0.0) {
+        view.viewPlaneDistanceMm = camera->viewPlaneDistance;
+      }
+    }
     if (object->HasFrontPlaneClipping()) {
       view.frontPlaneDistance = object->FrontPlaneDistance();
     }
