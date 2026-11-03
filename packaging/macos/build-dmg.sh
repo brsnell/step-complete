@@ -61,6 +61,16 @@ for fw in QtSvg QtPdf QtVirtualKeyboard QtQuick QtQml QtQmlModels QtNetwork; do
   rm -rf "$app/Contents/Frameworks/$fw.framework"
 done
 
+# Qt's official macOS binaries are universal (arm64 + x86_64); each DMG targets one architecture,
+# so keep only that slice. This roughly halves the Qt frameworks.
+lipo_arch=$([ "$arch" = x64 ] && echo x86_64 || echo arm64)
+while IFS= read -r f; do
+  archs=$(lipo -archs "$f" 2>/dev/null || true)
+  case "$archs" in
+    *" "*) lipo -thin "$lipo_arch" -output "$f.thin" "$f" && mv "$f.thin" "$f" ;;
+  esac
+done < <(find "$app/Contents" -type f \( -name '*.dylib' -o -perm -u+x \))
+
 # OCCT is not a Qt dependency: make sure its dylibs really ended up in the bundle.
 if ! ls "$app"/Contents/Frameworks/libTKernel*.dylib >/dev/null 2>&1; then
   echo "macdeployqt did not bundle OCCT; copying from $libdir" >&2
