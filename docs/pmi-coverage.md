@@ -37,7 +37,7 @@ linked to geometry. "Presentations" is the number of items with graphics from th
 | CTC-03 | 8.0.1 | 12 | 12 | 5 | 0 | 3 | 1 | 28 | 24/29 |
 | CTC-04 | 8.0.1 | 13 | 6 | 8 | 0 | 4 | 0 | 27 | 23/27 |
 | CTC-05 | 8.0.1 | 8 | 10 | 2 | 2 | 2 | 2 | 22 | 18/22 |
-| FTC-06 | 8.0.1 | 47 | 27 | 8 | 4 | 23 | 3 | 23 | 77/86 |
+| FTC-06 | 8.0.1 | 41 | 27 | 8 | 4 | 17 | 3 | 23 | 71/80 |
 | FTC-07 | 8.0.1 | 27 | 25 | 5 | 0 | 10 | 0 | 57 | 47/57 |
 | FTC-10 | 8.0.1 | 36 | 35 | 11 | 0 | 13 | 0 | 82 | 69/82 |
 
@@ -62,7 +62,9 @@ fixes upstream (OCCT is open source; patches would go through a vcpkg overlay po
 7. **Unlinked graphics on OCCT 8.** For some files (CTC-01, FTC-06) OCCT 8 reads tessellated
    graphics as separate items whose names do not match a semantic item, so they are listed under
    "Not Interpreted" (and drawn) next to the semantic item, which then has no graphics of its own.
-   Matching them by target geometry is a planned improvement.
+   We fold such graphics into the semantic item when exactly one item without graphics applies to
+   the same faces/edges (FTC-06: 23 → 17 left). The rest target different geometry than their
+   semantic item; matching them needs the STEP draughting-callout links OCCT does not expose.
 
 Values: OCCT converts lengths to millimeters and angles to degrees. Displayed text follows
 ASME Y14.5 / ISO 1101 conventions with Unicode GD&T symbols.
