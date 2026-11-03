@@ -18,6 +18,7 @@ add_executable(sc_core_tests
   core/test_real_models.cpp
   core/test_measure.cpp
   core/test_measurement.cpp
+  core/test_pmi_text.cpp
 )
 target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support GTest::gtest_main)
 sc_target_defaults(sc_core_tests)
