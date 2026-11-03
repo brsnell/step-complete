@@ -6,10 +6,13 @@
 
 #include <TDataStd_Name.hxx>
 #include <TDataStd_NamedData.hxx>
+#include <XCAFDoc_Area.hxx>
+#include <XCAFDoc_Centroid.hxx>
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_LayerTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_Volume.hxx>
 
 #include <algorithm>
 #include <set>
@@ -236,6 +239,28 @@ std::vector<std::pair<std::string, std::string>> AssemblyIndex::attributes(NodeI
   appendAttributes(n.instanceLabel, result);
   if (!(n.prototypeLabel == n.instanceLabel)) {
     appendAttributes(n.prototypeLabel, result);
+  }
+  return result;
+}
+
+ValidationProperties AssemblyIndex::validationProperties(NodeId id) const {
+  ValidationProperties result;
+  const AssemblyNode& n = node(id);
+  for (const TDF_Label* label : {&n.instanceLabel, &n.prototypeLabel}) {
+    if (label->IsNull()) {
+      continue;
+    }
+    double value = 0.0;
+    gp_Pnt point;
+    if (!result.volume && XCAFDoc_Volume::Get(*label, value)) {
+      result.volume = value;
+    }
+    if (!result.area && XCAFDoc_Area::Get(*label, value)) {
+      result.area = value;
+    }
+    if (!result.centroid && XCAFDoc_Centroid::Get(*label, point)) {
+      result.centroid = point;
+    }
   }
   return result;
 }

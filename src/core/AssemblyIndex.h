@@ -6,6 +6,7 @@
 #include <TDF_Label.hxx>
 #include <TopLoc_Location.hxx>
 #include <TopoDS_Shape.hxx>
+#include <gp_Pnt.hxx>
 
 #include <cstdint>
 #include <optional>
@@ -43,6 +44,19 @@ struct AssemblyNode {
   // assemblies; applies to faces whose part defines no color of its own.
   std::optional<Quantity_ColorRGBA> inheritedColor;
   bool visibleInFile = true;
+};
+
+// Validation properties (volume, surface area, centroid) that a STEP file declares
+// for a product, as stored by OCCT's STEP reader (PropsMode) in the XCAFDoc_Volume,
+// XCAFDoc_Area and XCAFDoc_Centroid attributes. They are the file author's claim
+// about the geometry, shown next to our own computed mass properties so users can
+// verify the model.
+struct ValidationProperties {
+  std::optional<double> volume;   // mm^3
+  std::optional<double> area;     // mm^2
+  std::optional<gp_Pnt> centroid; // mm, in the PART's own (prototype) coordinates
+
+  bool empty() const { return !volume && !area && !centroid; }
 };
 
 // Read-only index over an XCAF document's assembly structure. Everything in
@@ -83,6 +97,13 @@ public:
   // User-defined attributes from the STEP file (part number, material, ...),
   // read by OCCT >= 7.7. Instance attributes first, then the product's.
   std::vector<std::pair<std::string, std::string>> attributes(NodeId id) const;
+
+  // Validation properties declared in the file for this node. Each attribute is
+  // taken from the instance label if present there, else from the prototype label.
+  // Values are in the document unit (mm): OCCT's reader scales them with the file's
+  // length unit (verified on 7.6 with an inch-labelled file). The centroid is NOT placed: it is in
+  // prototype coordinates, so callers apply node.location for world space.
+  ValidationProperties validationProperties(NodeId id) const;
 
 private:
   void addNode(const TDF_Label& label, NodeId parent, const TopLoc_Location& parentLocation,

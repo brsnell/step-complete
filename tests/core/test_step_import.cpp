@@ -9,8 +9,11 @@
 #include <Quantity_Color.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
+#include <XCAFDoc_Area.hxx>
+#include <XCAFDoc_Centroid.hxx>
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_Volume.hxx>
 
 #include <gtest/gtest.h>
 
@@ -43,6 +46,20 @@ core::ImportResult importFixture() {
   const std::string path = test::tempPath("fixture.step");
   EXPECT_TRUE(test::writeStep(test::buildFixtureAssembly(false), path));
   return core::importStep(path);
+}
+
+// The fixture with the plate's exact validation properties set on its label, so
+// OCCT's writer emits them (it writes the XCAF attributes, it does not compute them).
+core::DocumentPtr buildFixtureWithPlateValidationProps() {
+  const core::DocumentPtr document = test::buildFixtureAssembly(false);
+  const AssemblyIndex index(document);
+  const auto* plate = findByName(index, "Base plate");
+  if (plate != nullptr) {
+    XCAFDoc_Volume::Set(plate->prototypeLabel, 60000.0);
+    XCAFDoc_Area::Set(plate->prototypeLabel, 15200.0);
+    XCAFDoc_Centroid::Set(plate->prototypeLabel, gp_Pnt(50, 30, 5));
+  }
+  return document;
 }
 
 // Replaces every millimetre length unit with a STEP conversion-based inch unit.
@@ -163,6 +180,39 @@ TEST(AssemblyIndex, ReadsUserDefinedAttributes) {
   EXPECT_TRUE(index.attributes(pin->id).empty());
 }
 
+TEST(AssemblyIndex, ReadsValidationProperties) {
+  const AssemblyIndex index(test::buildFixtureAssembly());
+  const auto* plate = findByName(index, "Base plate");
+  ASSERT_NE(plate, nullptr);
+  EXPECT_TRUE(index.validationProperties(plate->id).empty());
+
+  XCAFDoc_Volume::Set(plate->prototypeLabel, 60000.0);
+  XCAFDoc_Area::Set(plate->prototypeLabel, 15200.0);
+  XCAFDoc_Centroid::Set(plate->prototypeLabel, gp_Pnt(50, 30, 5));
+
+  const auto props = index.validationProperties(plate->id);
+  EXPECT_FALSE(props.empty());
+  ASSERT_TRUE(props.volume);
+  ASSERT_TRUE(props.area);
+  ASSERT_TRUE(props.centroid);
+  EXPECT_DOUBLE_EQ(*props.volume, 60000.0);
+  EXPECT_DOUBLE_EQ(*props.area, 15200.0);
+  EXPECT_TRUE(props.centroid->IsEqual(gp_Pnt(50, 30, 5), 1e-9));
+
+  const auto* pin = findByName(index, "Pin \xC3\x98"
+                                      "6");
+  ASSERT_NE(pin, nullptr);
+  EXPECT_TRUE(index.validationProperties(pin->id).empty());
+
+  // The instance label takes precedence, attribute by attribute.
+  XCAFDoc_Volume::Set(pin->instanceLabel, 1234.0);
+  const auto pinProps = index.validationProperties(pin->id);
+  ASSERT_TRUE(pinProps.volume);
+  EXPECT_DOUBLE_EQ(*pinProps.volume, 1234.0);
+  EXPECT_FALSE(pinProps.area);
+  EXPECT_FALSE(pinProps.centroid);
+}
+
 TEST(AssemblyIndex, EmptyForNullDocument) {
   const AssemblyIndex index(nullptr);
   EXPECT_TRUE(index.isEmpty());
@@ -215,6 +265,54 @@ TEST(StepImport, ReportsFileUnitAndConvertsGeometryToMillimeters) {
   double xmin, ymin, zmin, xmax, ymax, zmax;
   box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
   EXPECT_NEAR(xmax - xmin, 2540.0, 1e-3) << "geometry must be in mm regardless of file unit";
+}
+
+TEST(StepImport, RoundTripsValidationProperties) {
+  const std::string path = test::tempPath("validation.step");
+  ASSERT_TRUE(test::writeStep(buildFixtureWithPlateValidationProps(), path));
+  const core::ImportResult result = core::importStep(path);
+  ASSERT_TRUE(result.ok) << result.error;
+
+  const AssemblyIndex index(result.document);
+  const auto* plate = findByName(index, "Base plate");
+  ASSERT_NE(plate, nullptr);
+  const auto props = index.validationProperties(plate->id);
+  if (props.empty()) {
+    GTEST_SKIP() << "this OCCT writer does not emit validation properties";
+  }
+  ASSERT_TRUE(props.volume);
+  ASSERT_TRUE(props.area);
+  ASSERT_TRUE(props.centroid);
+  EXPECT_NEAR(*props.volume, 60000.0, 1e-3);
+  EXPECT_NEAR(*props.area, 15200.0, 1e-3);
+  EXPECT_TRUE(props.centroid->IsEqual(gp_Pnt(50, 30, 5), 1e-6))
+      << props.centroid->X() << ", " << props.centroid->Y() << ", " << props.centroid->Z();
+}
+
+TEST(StepImport, ValidationPropertiesFollowTheFileUnit) {
+  // Same relabel trick as above: the file now claims a 100 x 60 x 10 inch plate.
+  const std::string path = test::tempPath("validation-inch.step");
+  ASSERT_TRUE(test::writeStep(buildFixtureWithPlateValidationProps(), path));
+  ASSERT_TRUE(relabelLengthUnitAsInch(path));
+  const core::ImportResult result = core::importStep(path);
+  ASSERT_TRUE(result.ok) << result.error;
+
+  const AssemblyIndex index(result.document);
+  const auto* plate = findByName(index, "Base plate");
+  ASSERT_NE(plate, nullptr);
+  const auto props = index.validationProperties(plate->id);
+  if (props.empty()) {
+    GTEST_SKIP() << "this OCCT writer does not emit validation properties";
+  }
+  ASSERT_TRUE(props.volume);
+  ASSERT_TRUE(props.area);
+  ASSERT_TRUE(props.centroid);
+  // OCCT's reader scales validation properties to the document unit (mm): the plate
+  // is 100 x 60 x 10 inch, so lengths scale by 25.4, areas by 25.4^2, volumes by 25.4^3.
+  constexpr double kInch = 25.4;
+  EXPECT_NEAR(*props.volume / (60000.0 * kInch * kInch * kInch), 1.0, 1e-6);
+  EXPECT_NEAR(*props.area / (15200.0 * kInch * kInch), 1.0, 1e-6);
+  EXPECT_TRUE(props.centroid->IsEqual(gp_Pnt(50 * kInch, 30 * kInch, 5 * kInch), 1e-3));
 }
 
 TEST(StepImport, ReportsProgressUpToCompletion) {
