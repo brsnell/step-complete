@@ -27,9 +27,10 @@ to the Linux job log (`sc_pmi_snapshots`). Findings from that check:
 - Saved views now use the file's camera (gap 1 fixed), so text authored in the annotation planes
   faces the viewer as intended. Some views are framed off-center as exported (e.g. FTC-06 MBD_A);
   we keep the authored framing.
-- FTC-06: annotations whose graphics OCCT reads as unlinked items (gap 7) used to get boxed
-  semantic labels as well, piling up at their targets. Semantic labels are now off by default when
-  most items have file graphics.
+- FTC-06: annotations whose graphics OCCT reads as unlinked items (gap 7) get boxed semantic
+  labels; these are laid out apart once the camera settles (see
+  [the semantic rendering of FTC-06](images/m3-pmi-ftc06-semantic.png)). Semantic labels are off
+  by default when most items have file graphics.
 
 ## Per-model extraction
 

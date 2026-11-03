@@ -84,6 +84,10 @@ private Q_SLOTS:
     const QString base = safeName(QFileInfo(file).completeBaseName()) +
                          QStringLiteral("_occt%1").arg(QLatin1String(OCC_VERSION_STRING_EXT));
     const auto snap = [&](const QString& suffix) {
+      // As the app does once the camera settles: lay out semantic labels for this view.
+      viewport.invalidateScene();
+      viewport.grabFramebuffer();
+      pmiScene.declutter(viewport.view());
       viewport.invalidateScene();
       // Composited grab: includes the PMI labels' overlay widgets, if any.
       const QImage image = viewport.grab().toImage();
