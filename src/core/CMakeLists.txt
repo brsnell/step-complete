@@ -10,6 +10,8 @@ add_library(sc_core STATIC
   Document.h
   Document.cpp
   StepCamera.h
+  CompressedStep.h
+  CompressedStep.cpp
   StepImporter.h
   StepImporter.cpp
   AssemblyIndex.h
@@ -30,5 +32,7 @@ add_library(sc::core ALIAS sc_core)
 target_include_directories(sc_core PUBLIC
   ${PROJECT_SOURCE_DIR}/src
   ${CMAKE_CURRENT_BINARY_DIR}/generated)
+find_package(ZLIB REQUIRED)
 target_link_libraries(sc_core PUBLIC sc::occt_foundation sc::occt_data sc::occt_visual)
+target_link_libraries(sc_core PRIVATE ZLIB::ZLIB)
 sc_target_defaults(sc_core)

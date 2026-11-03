@@ -1,5 +1,6 @@
 #include "core/StepImporter.h"
 
+#include "core/CompressedStep.h"
 #include "core/OccCompat.h"
 #include "core/OccHandle.h"
 
@@ -44,11 +45,15 @@
 #include <gp_Vec.hxx>
 #include <gp_XYZ.hxx>
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <exception>
+#include <filesystem>
 #include <map>
 #include <mutex>
+#include <optional>
+#include <random>
 #include <unordered_set>
 
 namespace sc::core {
@@ -319,6 +324,29 @@ bool cancelled(const CancelToken* cancel) {
   return cancel != nullptr && cancel->isCancelled();
 }
 
+// A uniquely named temporary file that is removed when the guard goes away.
+class TempFile {
+public:
+  TempFile() {
+    static std::atomic<unsigned> counter{0};
+    std::random_device random;
+    const std::string name =
+        "stepcomplete-" + std::to_string(random()) + "-" + std::to_string(counter.fetch_add(1)) + ".stp";
+    m_path = std::filesystem::temp_directory_path() / name;
+  }
+  ~TempFile() {
+    std::error_code ec;
+    std::filesystem::remove(m_path, ec);
+  }
+  TempFile(const TempFile&) = delete;
+  TempFile& operator=(const TempFile&) = delete;
+
+  std::string utf8() const { return m_path.u8string(); }
+
+private:
+  std::filesystem::path m_path;
+};
+
 } // namespace
 
 ImportResult importStep(const std::string& utf8Path, const ImportOptions& options,
@@ -331,7 +359,35 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
     document->setSourcePath(utf8Path);
 
     OccHandle<ProgressBridge> bridge = new ProgressBridge(progress, cancel);
-    Message_ProgressScope root(bridge->Start(), "Import", 100.0);
+    // Gzip / zip containers (.stpz, .stp.gz) are inflated to a temporary file first: OCCT 7.6 has
+    // no stream reader. Detection is by content, so misnamed files work.
+    const Compression compression = detectCompression(utf8Path);
+    constexpr double kDecompressShare = 10.0;
+    Message_ProgressScope root(bridge->Start(), "Import",
+                               compression == Compression::None ? 100.0 : 100.0 + kDecompressShare);
+
+    std::optional<TempFile> temp;
+    std::string readPath = utf8Path;
+    if (compression != Compression::None) {
+      bridge->setStage("Decompressing");
+      DecompressOptions decompress;
+      decompress.isCancelled = [cancel] { return cancelled(cancel); };
+      decompress.progress = [&bridge](double fraction) {
+        bridge->report(fraction * kDecompressShare / (100.0 + kDecompressShare), false);
+      };
+      temp.emplace();
+      const DecompressResult inflated = decompressStepFile(utf8Path, compression, temp->utf8(), decompress);
+      if (inflated.cancelled) {
+        result.cancelled = true;
+        return result;
+      }
+      if (!inflated.ok) {
+        result.error = inflated.error;
+        return result;
+      }
+      readPath = temp->utf8();
+      root.Next(kDecompressShare);
+    }
 
     // --- Parse ---------------------------------------------------------------
     bridge->setStage("Reading file");
@@ -350,7 +406,8 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
 #endif
 
     // OCCT handles UTF-8 paths on all platforms (wide-char APIs on Windows).
-    const IFSelect_ReturnStatus status = reader.ReadFile(utf8Path.c_str());
+    const IFSelect_ReturnStatus status = reader.ReadFile(readPath.c_str());
+    temp.reset();
     result.stats.readSeconds = secondsSince(readStart);
     collectChecks(reader.Reader().WS()->ModelCheckList(), result.messages);
     if (status != IFSelect_RetDone) {

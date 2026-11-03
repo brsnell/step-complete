@@ -6,6 +6,7 @@
   "license": "MIT",
   "builtin-baseline": "80aae04504a834399456d74605204bfe514762bf",
   "dependencies": [
+    "zlib",
     {
       "name": "opencascade",
       "default-features": false,

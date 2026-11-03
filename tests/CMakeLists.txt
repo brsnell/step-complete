@@ -14,6 +14,7 @@ target_link_libraries(sc_test_support PUBLIC sc::core)
 sc_target_defaults(sc_test_support)
 
 # --- Core unit tests (headless) -----------------------------------------------
+find_package(ZLIB REQUIRED) # the compressed-STEP tests build fixtures with zlib
 add_executable(sc_core_tests
   core/test_units.cpp
   core/test_step_import.cpp
@@ -22,8 +23,9 @@ add_executable(sc_core_tests
   core/test_measurement.cpp
   core/test_pmi_text.cpp
   core/test_pmi_model.cpp
+  core/test_compressed_step.cpp
 )
-target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support GTest::gtest_main)
+target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support ZLIB::ZLIB GTest::gtest_main)
 sc_target_defaults(sc_core_tests)
 gtest_discover_tests(sc_core_tests DISCOVERY_MODE PRE_TEST TEST_PREFIX "core.")
 
