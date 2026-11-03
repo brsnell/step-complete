@@ -287,8 +287,8 @@ Each milestone ends with something runnable on all three platforms in CI.
 - ✅ Graphical PMI rendering on every instance; saved views (orientation, visible PMI,
   clipping); PMI panel (groups, search, filter, visibility); cross-highlighting of target
   geometry; full semantics in Properties.
-- ⏳ Semantic-only rendering: boxed feature control frames, datum flags, stacked labels, bundled
-  GD&T font (STIX Two Math, OFL). Dimension extension/arrow geometry later.
+- ✅ Semantic-only rendering: boxed feature control frames, datum flags, stacked labels, bundled
+  GD&T font (STIX Two Math, OFL). ⏳ Dimension extension/arrow geometry; decluttering nearby labels.
 - ✅ PMI coverage matrix: [docs/pmi-coverage.md](pmi-coverage.md), including OCCT reader gaps
   (saved-view camera position, lower-tolerance sign) to patch upstream.
 - **Exit:** NIST CTC/FTC models show all annotations, saved views work, and gaps are documented.

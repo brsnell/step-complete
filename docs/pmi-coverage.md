@@ -13,7 +13,7 @@ What STEP Complete shows from AP242 PMI, measured on the NIST MBE PMI test model
 | Datums and datum targets | ✅ | One datum per letter (OCCT's per-reference copies are merged); target type, number, size |
 | Links to geometry | ✅ | Selecting PMI highlights the faces/edges it applies to, on every instance of the part |
 | Graphical presentation from the file | ✅ OCCT 8 / ⚠️ 7.6 | Polylines and tessellated annotations, drawn as authored. OCCT 7.6 does not read tessellated presentations (most NIST files) |
-| Semantic-only rendering | ⚠️ basic | Text label with leader at the annotation's text position (or the target's center). Boxed feature control frames and datum flags are in progress |
+| Semantic-only rendering | ✅ | Screen-aligned boxed feature control frames, datum flags and dimension values at the annotation's text position (or the target's center), with a leader; labels sharing an anchor stack. Bundled STIX Two Math font covers every GD&T symbol. Labels at *nearby* anchors can still overlap; dimension extension lines and arrows are not drawn yet |
 | Saved views | ⚠️ partial | Name, orientation, visible PMI, clipping planes. The camera **position** and window size are not usable (see gaps), so the view is fitted to the model in the saved orientation |
 | Not-interpreted annotations | ✅ | Listed under "Not Interpreted" and drawn from their graphics, never hidden |
 
