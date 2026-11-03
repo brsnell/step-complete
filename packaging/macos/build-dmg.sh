@@ -69,7 +69,8 @@ while IFS= read -r f; do
   case "$archs" in
     *" "*) lipo -thin "$lipo_arch" -output "$f.thin" "$f" && mv "$f.thin" "$f" ;;
   esac
-done < <(find "$app/Contents" -type f \( -name '*.dylib' -o -perm -u+x \))
+done < <(find "$app/Contents/MacOS" "$app/Contents/Frameworks" "$app/Contents/PlugIns" -type f \
+           ! -name '*.plist' ! -name '*.prl' ! -path '*/Resources/*' ! -path '*/Headers/*')
 
 # OCCT is not a Qt dependency: make sure its dylibs really ended up in the bundle.
 if ! ls "$app"/Contents/Frameworks/libTKernel*.dylib >/dev/null 2>&1; then
