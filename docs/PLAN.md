@@ -280,25 +280,30 @@ Each milestone ends with something runnable on all three platforms in CI.
 - ⏳ Results that follow section views (M4); manual check on a real GPU and on Windows/macOS.
 - **Exit:** test suite covers every mode across transformed instances.
 
-### M3: PMI (≈4–6 weeks): in progress
+### M3: PMI (≈4–6 weeks): ✅ done
 - ✅ `PmiModel` (+ `PmiText` for GD&T text) with tests on a synthetic XCAF fixture and 8 NIST
   CTC/FTC AP242 models (public domain, fetched from a pinned GitHub mirror). CI logs what each
-  OCCT version extracts.
-- ✅ Graphical PMI rendering on every instance; saved views (orientation, visible PMI,
-  clipping); PMI panel (groups, search, filter, visibility); cross-highlighting of target
-  geometry; full semantics in Properties.
-- ✅ Semantic-only rendering: boxed feature control frames, datum flags, stacked labels, bundled
-  GD&T font (STIX Two Math, OFL). ⏳ Dimension extension/arrow geometry; decluttering nearby labels.
-- ✅ PMI coverage matrix: [docs/pmi-coverage.md](pmi-coverage.md), including OCCT reader gaps
-  (saved-view camera position, lower-tolerance sign) to patch upstream.
-- **Exit:** NIST CTC/FTC models show all annotations, saved views work, and gaps are documented.
+  OCCT version extracts and renders every model and saved view (`sc_pmi_snapshots`).
+- ✅ Graphical PMI on every instance; PMI panel (groups, search, filter, visibility);
+  cross-highlighting of target geometry; full semantics in Properties.
+- ✅ Saved views: camera read from the STEP `CAMERA_MODEL_D3` (OCCT drops its position), visible
+  PMI, clipping planes.
+- ✅ Semantic-only rendering: boxed feature control frames, datum flags, dimension values,
+  extension/dimension lines with constant-size arrows, labels re-laid out when the camera
+  settles, bundled GD&T font (STIX Two Math, OFL). Automatically off when most items have
+  graphics from the file (View > PMI Labels from Semantics).
+- ✅ PMI coverage matrix: [docs/pmi-coverage.md](pmi-coverage.md), including OCCT reader gaps.
+- **Exit check:** OCCT 8 renders the NIST models' authored PMI completely (CI snapshots);
+  remaining gaps (unlinked graphics on FTC-06, lower-tolerance sign) are documented upstream
+  candidates. A hands-on check on a real GPU is still to do.
 
-### M4: Visualization tools (≈2 weeks): in progress
-- ✅ Section planes engine (`SectionTool`): up to 3 planes clipping the parts only (PMI,
+### M4: Visualization tools (≈2 weeks): ✅ done
+- ✅ Section view (View > Section View, `X`): up to 3 planes clipping the parts only (PMI,
   witnesses and the view cube stay whole), capping in the part's color, hatching, drag handles
-  that work the same on OCCT 7.6 and 8. ⏳ Section panel and menu.
-- ⏳ Screenshot export (any size, white/transparent background), background/lighting
-  preferences.
+  (same behavior on OCCT 7.6 and 8), Section panel synced with the handles.
+- ✅ Image export (File > Export Image…, Ctrl+Shift+E): view size or custom up to 8192 px,
+  as shown / white / transparent background.
+- ✅ Preferences: background (gradient, solid, white), lighting presets, anti-aliasing.
 - ⏸ Exploded view (optional): deferred. Displacing parts would detach their PMI and break
   measurement picks unless every subsystem learned about the offsets; not worth the weight now.
 

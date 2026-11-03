@@ -7,15 +7,16 @@ saved views).
 Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/OCCT) and
 [Qt 6](https://www.qt.io). MIT licensed.
 
-> **Status: early development (milestone M3, PMI).** Opens STEP assemblies with names, colors
+> **Status: early development (milestones M1–M4 done; M5 packaging next).** Opens STEP assemblies with names, colors
 > and structure; assembly tree, properties, hide/isolate/transparency; measurement on the exact
 > geometry (distance, point to point, angle, radius, entity info, mass properties with
 > validation-property check); PMI from AP242 files (dimensions, tolerances, datums, saved views,
-> cross-highlighting). See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
+> cross-highlighting); section view with capping; image export; view preferences. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
 > [docs/pmi-coverage.md](docs/pmi-coverage.md) for what PMI is supported.
 
 ![Measuring a distance](docs/images/m2-distance.png)
 ![PMI on NIST CTC-05](docs/images/m3-pmi-ctc05.png)
+![Section view](docs/images/m4-section.png)
 
 ## Goals
 - **Accurate measurement** on exact B-rep geometry, never the display mesh.
@@ -99,6 +100,8 @@ The first build compiles OCCT, which takes a while. vcpkg caches it afterwards.
 | Measure: entity info / distance / point to point | `M` / `D` / `Shift+D` |
 | Measure: angle / radius / mass properties | `A` / `R` / `Shift+M` |
 | Stop measuring | `Esc` |
+| Section view | `X` (drag a plane's handle to move it) |
+| Export image | `Ctrl+Shift+E` |
 | Saved view (PMI) | double-click it in the PMI panel; View → Show All PMI to reset |
 
 ## Repository layout
