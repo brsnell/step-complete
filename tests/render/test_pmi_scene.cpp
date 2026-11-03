@@ -7,14 +7,23 @@
 #include "core/AssemblyIndex.h"
 #include "core/PmiModel.h"
 #include "render/OcctViewport.h"
+#include "render/PmiFont.h"
+#include "render/PmiLabel.h"
 #include "render/PmiScene.h"
 #include "render/SceneManager.h"
 
+#include <Font_FTFont.hxx>
+#include <Font_FontAspect.hxx>
+#include <Font_FontMgr.hxx>
+#include <Font_SystemFont.hxx>
+#include <TCollection_AsciiString.hxx>
 #include <TDataStd_Name.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include <gp_Trsf.hxx>
 
+#include <QFile>
+#include <QRawFont>
 #include <QtTest>
 
 #include <memory>
@@ -36,6 +45,11 @@ int countPixels(const QImage& image, bool (*match)(const QColor&)) {
 
 bool isPmiBlue(const QColor& c) {
   return c.blue() > 90 && c.blue() > c.red() + 50 && c.blue() > c.green() + 30 && c.red() < 80;
+}
+
+// Ink of a label: dark, bluish pixels (not the white box or the gray part).
+bool isLabelInk(const QColor& c) {
+  return c.blue() > c.red() + 60 && c.blue() < 200 && c.red() < 120;
 }
 
 bool isTargetOrange(const QColor& c) {
@@ -82,6 +96,21 @@ private:
   }
 
   PmiId id(const TDF_Label& label) const { return m_pmi->itemFor(label); }
+
+  // View pixel of a model point.
+  QPoint pixelOf(double x, double y, double z) const {
+    int xp = 0;
+    int yp = 0;
+    m_viewport->view()->Convert(x, y, z, xp, yp);
+    return {xp, yp};
+  }
+
+  // PMI picked at a view pixel, or kNoPmi.
+  PmiId pmiAt(const QPoint& p) {
+    const auto& context = m_viewport->context();
+    context->MoveTo(p.x(), p.y(), m_viewport->view(), false);
+    return context->HasDetected() ? m_pmiScene->pmiOf(context->DetectedInteractive()) : sc::core::kNoPmi;
+  }
 
 private Q_SLOTS:
   void init() {
@@ -141,19 +170,216 @@ private Q_SLOTS:
     QCOMPARE(countPixels(render(), isTargetOrange), 0);
   }
 
+  void bundledFontCoversTheGdtSymbols() {
+    QVERIFY(sc::render::ensurePmiFont());
+    QCOMPARE(QString::fromLatin1(sc::render::pmiFontName()), QStringLiteral("STIX Two Math"));
+    // OCCT resolves the family to the registered font file...
+    const sc::OccHandle<Font_SystemFont> system =
+        Font_FontMgr::GetInstance()->GetFont(TCollection_AsciiString(sc::render::pmiFontName()));
+    QVERIFY(!system.IsNull());
+    QVERIFY(!system->FontPath(Font_FontAspect_Regular).IsEmpty());
+    const sc::OccHandle<Font_FTFont> font = Font_FTFont::FindAndCreate(
+        sc::render::pmiFontName(), Font_FontAspect_Regular, Font_FTFontParams(13, 72));
+    QVERIFY(!font.IsNull());
+
+    // ...and that file has a glyph for every GD&T symbol (OCCT itself draws .notdef for a missing
+    // one, so ask the font's character map).
+    QFile resource(QStringLiteral(":/fonts/STIXTwoMath-Regular.ttf"));
+    QVERIFY(resource.open(QIODevice::ReadOnly));
+    const QRawFont raw(resource.readAll(), 13.0);
+    QVERIFY(raw.isValid());
+    QVERIFY(!raw.supportsCharacter(0x10FFFFu));
+    // flatness, position, circularity, cylindricity, symmetry, total runout, profile of a surface,
+    // perpendicularity, parallelism, angularity, diameter, concentricity, the material conditions
+    const uint symbols[] = {0x23E5, 0x2316, 0x25CB, 0x232D, 0x232F, 0x2330, 0x2313, 0x27C2, 0x2225, 0x2220,
+                            0x2300, 0x25CE, 0x24C2, 0x24C1, 0x24C5, 0x24BB, 0x2312, 0x2197, 0x00B1};
+    for (const uint symbol : symbols) {
+      QVERIFY2(raw.supportsCharacter(symbol),
+               qPrintable(QStringLiteral("no glyph for U+%1").arg(symbol, 4, 16)));
+    }
+  }
+
+  void stacksLabelsThatShareAnAnchor() {
+    load();
+    m_pmiScene->setOnlyVisible({id(m_fixture.flatness), id(m_fixture.parallelism)});
+    const QImage frame = render();
+    sc::test::dumpImage(frame, "pmi_stacked_labels");
+
+    // Both items have no text position: the labels sit on the top face's center.
+    const QPoint anchor = pixelOf(50, 30, 20);
+    const int pitch = int(sc::render::PmiLabel::stackPitch(1.0));
+    const PmiId first = pmiAt(anchor + QPoint(8, 0));
+    const PmiId second = pmiAt(anchor + QPoint(8, pitch));
+    QCOMPARE(first, std::min(id(m_fixture.flatness), id(m_fixture.parallelism)));
+    QCOMPARE(second, std::max(id(m_fixture.flatness), id(m_fixture.parallelism)));
+    QVERIFY(first != second);
+    // Nothing is drawn above the first row or below the second.
+    QCOMPARE(pmiAt(anchor + QPoint(8, -pitch)), sc::core::kNoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 2 * pitch)), sc::core::kNoPmi);
+    // Left of the anchor is empty too: the box starts at the anchor.
+    QCOMPARE(pmiAt(anchor + QPoint(-8, 0)), sc::core::kNoPmi);
+
+    // The boxes are drawn apart: a gap separates the two rows of white interior.
+    const int x = anchor.x() + int(sc::render::PmiLabel::rowHeight(1.0)) - 4;
+    QVector<int> whiteRows;
+    for (int dy = -20; dy <= 60; ++dy) {
+      const QColor c = frame.pixelColor(x, anchor.y() + dy);
+      if (c.red() > 240 && c.green() > 240 && c.blue() > 240) {
+        whiteRows.push_back(dy);
+      }
+    }
+    QVERIFY(whiteRows.size() > 20);
+    bool gap = false;
+    for (int i = 1; i < whiteRows.size(); ++i) {
+      gap = gap || whiteRows[i] - whiteRows[i - 1] > 1;
+    }
+    QVERIFY2(gap, "the two labels are not separated by a gap");
+  }
+
   void pickingALabelSelectsItsPmi() {
     load();
     // Show only the flatness: its label sits on the top face's center (no text position in the file).
     m_pmiScene->setOnlyVisible({id(m_fixture.flatness)});
     render();
-    int xp = 0;
-    int yp = 0;
-    m_viewport->view()->Convert(50, 30, 20, xp, yp);
+    const QPoint anchor = pixelOf(50, 30, 20);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 0)), id(m_fixture.flatness));
     const auto& context = m_viewport->context();
-    context->MoveTo(xp, yp, m_viewport->view(), false);
-    QVERIFY(context->HasDetected());
-    QCOMPARE(m_pmiScene->pmiOf(context->DetectedInteractive()), id(m_fixture.flatness));
     QVERIFY(m_scene->partOf(context->DetectedInteractive()) == sc::core::kNoNode);
+    sc::test::dumpImage(render(), "pmi_label_hover");
+    context->SelectDetected();
+    QCOMPARE(m_pmiScene->selectedPmi(), std::vector<PmiId>{id(m_fixture.flatness)});
+    context->MoveTo(5, 5, m_viewport->view(), false);
+    const QImage selected = render();
+    sc::test::dumpImage(selected, "pmi_label_selected");
+    // The selected label gets an orange outline and stays legible (its white box is not filled).
+    QVERIFY(countPixels(selected, isTargetOrange) > 60);
+    QVERIFY(selected.pixelColor(anchor + QPoint(30, -9)).red() > 240);
+  }
+
+  void hidingAnItemHidesItsLabel() {
+    load();
+    m_pmiScene->setOnlyVisible({id(m_fixture.flatness), id(m_fixture.parallelism)});
+    const QImage both = render();
+    const QPoint anchor = pixelOf(50, 30, 20);
+    const int pitch = int(sc::render::PmiLabel::stackPitch(1.0));
+    const PmiId first = pmiAt(anchor + QPoint(8, 0));
+    const PmiId second = pmiAt(anchor + QPoint(8, pitch));
+
+    m_pmiScene->setVisible({first}, false);
+    const QImage one = render();
+    QCOMPARE(pmiAt(anchor + QPoint(8, 0)), sc::core::kNoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, pitch)), second); // the other keeps its row
+    QVERIFY(sc::test::changedPixelFraction(both, one) > 0.0005);
+
+    m_pmiScene->setVisible({first}, true);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 0)), first);
+    m_pmiScene->setVisible({first, second}, false);
+    const QImage none = render();
+    QCOMPARE(pmiAt(anchor + QPoint(8, 0)), sc::core::kNoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, pitch)), sc::core::kNoPmi);
+    QCOMPARE(countPixels(none, isLabelInk), 0);
+  }
+
+  void labelsHaveAConstantPixelSize() {
+    load();
+    m_pmiScene->setOnlyVisible({id(m_fixture.flatness)});
+    const auto inkBox = [this]() {
+      const QImage frame = render();
+      const QPoint anchor = pixelOf(50, 30, 20);
+      QRect box;
+      for (int y = anchor.y() - 40; y < anchor.y() + 40; ++y) {
+        for (int x = anchor.x() - 10; x < anchor.x() + 200; ++x) {
+          if (isLabelInk(frame.pixelColor(x, y))) {
+            box |= QRect(x, y, 1, 1);
+          }
+        }
+      }
+      return box;
+    };
+    const QRect before = inkBox();
+    m_viewport->view()->SetScale(m_viewport->view()->Scale() * 0.5); // zoom in 2x
+    const QRect zoomed = inkBox();
+    QVERIFY(!before.isEmpty());
+    QCOMPARE(zoomed.size(), before.size());
+    // 1 local unit is 1 pixel: the row is rowHeight() pixels tall (plus the border).
+    QVERIFY(std::abs(before.height() - int(sc::render::PmiLabel::rowHeight(1.0))) <= 2);
+  }
+
+  void scalesWithTheDevicePixelRatio() {
+    auto index = std::make_shared<sc::core::AssemblyIndex>(m_fixture.document);
+    m_scene->setModel(index);
+    m_pmi = std::make_shared<PmiModel>(m_fixture.document);
+    m_pmiScene->setModel(m_pmi, index, 2.0);
+    m_viewport->setStandardView(V3d_Zpos);
+    m_viewport->fitAll();
+    m_pmiScene->setOnlyVisible({id(m_fixture.flatness), id(m_fixture.parallelism)});
+    render();
+    const QPoint anchor = pixelOf(50, 30, 20);
+    const int pitch = int(sc::render::PmiLabel::stackPitch(2.0));
+    QCOMPARE(sc::render::PmiLabel::rowHeight(2.0), 2.0 * sc::render::PmiLabel::rowHeight(1.0));
+    QVERIFY(pmiAt(anchor + QPoint(8, 0)) != sc::core::kNoPmi);
+    QVERIFY(pmiAt(anchor + QPoint(8, pitch)) != sc::core::kNoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 2 * pitch)), sc::core::kNoPmi);
+    sc::test::dumpImage(render(), "pmi_labels_dpr2");
+  }
+
+  void drawsFramesDatumFlagsAndValues() {
+    load();
+    m_pmiScene->setOnlyVisible({});
+    // A frame with symbols the default fonts lack, a datum flag and a dimension, on separate anchors.
+    sc::core::PmiItem frame;
+    frame.id = 100;
+    frame.kind = sc::core::PmiKind::GeometricTolerance;
+    frame.frame = {"⌖",
+                   "⌀"
+                   "0.1 Ⓜ",
+                   "A", "B", "Ⓜ"};
+    sc::core::PmiItem datum;
+    datum.id = 101;
+    datum.kind = sc::core::PmiKind::Datum;
+    datum.text = "A";
+    sc::core::PmiItem dimension;
+    dimension.id = 102;
+    dimension.kind = sc::core::PmiKind::Dimension;
+    dimension.text = "⌀"
+                     "12.70 ±0.05";
+    sc::core::PmiItem frame2 = frame;
+    frame2.id = 103;
+    frame2.frame = {"⌓", "0.2", "A"};
+    const auto show = [this](const sc::core::PmiItem& item, const gp_Pnt& at, int stack) {
+      sc::OccHandle<sc::render::PmiLabel> label = new sc::render::PmiLabel(item, at, stack, 1.0);
+      m_viewport->context()->Display(label, 0, 0, false);
+      return label;
+    };
+    const auto framed = show(frame, gp_Pnt(10, 50, 20), 0);
+    const auto stacked = show(frame2, gp_Pnt(10, 50, 20), 1);
+    const auto flag = show(datum, gp_Pnt(10, 10, 20), 0);
+    const auto value = show(dimension, gp_Pnt(60, 10, 20), 0);
+    const QImage image = render();
+    sc::test::dumpImage(image, "pmi_label_kinds");
+
+    // Every cell of the frame has text ink inside it (nothing dropped, no empty boxes).
+    const QPoint anchor = pixelOf(10, 50, 20);
+    const auto extents = framed->cellExtents();
+    QCOMPARE(extents.size(), size_t(5));
+    for (const auto& cell : extents) {
+      const QRect inside(anchor.x() + int(cell.first) + 3, anchor.y() - 8, int(cell.second - cell.first) - 6,
+                         16);
+      QRect inkBounds;
+      for (int y = inside.top(); y <= inside.bottom(); ++y) {
+        for (int x = inside.left(); x <= inside.right(); ++x) {
+          if (image.pixelColor(x, y).red() < 190) { // darker than the white box
+            inkBounds |= QRect(x, y, 1, 1);
+          }
+        }
+      }
+      QVERIFY2(!inkBounds.isNull() && inkBounds.width() >= 4 && inkBounds.height() >= 4,
+               "a cell has no text");
+    }
+    QVERIFY(stacked->centerY() < framed->centerY());
+    QVERIFY(flag->boxLeft() > 0.0);                      // datum stem
+    QCOMPARE(flag->boxWidth(), flag->boxHeight());       // a square letter box
+    QVERIFY(value->boxWidth() > value->boxHeight() * 2); // the value is wider than a square
   }
 
   void appliesSavedViews() {

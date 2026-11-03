@@ -3,6 +3,7 @@
 #include "core/AssemblyIndex.h"
 #include "core/OccHandle.h"
 #include "core/PmiModel.h"
+#include "render/PmiLabel.h"
 
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_InteractiveObject.hxx>
@@ -16,9 +17,9 @@
 namespace sc::render {
 
 // Draws one PMI item at one placement: the file's graphical presentation
-// (polylines and triangulated text/symbols) when present, otherwise the
-// semantic text as a screen-space label with a leader to the geometry it
-// applies to. Selectable as a whole (mode 0).
+// (polylines and triangulated text/symbols) when present, otherwise a leader
+// line to the geometry it applies to (the semantic text itself is a separate
+// screen-space PmiLabel, see PmiScene). Selectable as a whole (mode 0).
 class PmiPresentation : public AIS_InteractiveObject {
   DEFINE_STANDARD_RTTI_INLINE(PmiPresentation, AIS_InteractiveObject)
 
@@ -27,6 +28,9 @@ public:
 
   core::PmiId pmiId() const { return m_id; }
   bool isGraphical() const { return !m_presentation.IsNull(); }
+  // Semantic-only items have a text label at labelAnchor() (prototype coordinates).
+  bool hasLabel() const { return !isGraphical() && !m_label.empty(); }
+  const gp_Pnt& labelAnchor() const { return m_labelAnchor; }
 
   bool AcceptDisplayMode(const int mode) const override { return mode == 0; }
 
@@ -92,6 +96,7 @@ public:
 private:
   struct Entry {
     std::vector<OccHandle<PmiPresentation>> placements;
+    std::vector<OccHandle<PmiLabel>> labels; // semantic-only items: one per placement
     bool visible = true;
   };
   std::vector<TopLoc_Location> placementsOf(const core::PmiItem& item) const;

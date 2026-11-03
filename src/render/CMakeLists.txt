@@ -12,8 +12,19 @@ add_library(sc_render STATIC
   MeasureTool.cpp
   PmiScene.h
   PmiScene.cpp
+  PmiLabel.h
+  PmiLabel.cpp
+  PmiFont.h
+  PmiFont.cpp
 )
 add_library(sc::render ALIAS sc_render)
+
+# The PMI font (SIL OFL 1.1, see resources/fonts/OFL.txt and THIRD_PARTY_NOTICES.md) is
+# embedded and registered with OCCT at run time, see PmiFont.h.
+qt_add_resources(sc_render sc_render_fonts
+  PREFIX "/fonts"
+  BASE "${PROJECT_SOURCE_DIR}/resources/fonts"
+  FILES "${PROJECT_SOURCE_DIR}/resources/fonts/STIXTwoMath-Regular.ttf")
 
 target_link_libraries(sc_render PUBLIC
   sc::core

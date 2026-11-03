@@ -12,7 +12,6 @@
 #include <Graphic3d_ArrayOfTriangles.hxx>
 #include <Graphic3d_AspectFillArea3d.hxx>
 #include <Graphic3d_AspectLine3d.hxx>
-#include <Graphic3d_AspectText3d.hxx>
 #include <Graphic3d_Camera.hxx>
 #include <Graphic3d_Group.hxx>
 #include <Poly_Polygon3D.hxx>
@@ -20,14 +19,10 @@
 #include <Prs3d_Drawer.hxx>
 #include <Prs3d_Presentation.hxx>
 #include <Prs3d_ShadingAspect.hxx>
-#include <Prs3d_Text.hxx>
-#include <Prs3d_TextAspect.hxx>
-#include <Select3D_SensitivePoint.hxx>
 #include <Select3D_SensitiveSegment.hxx>
 #include <Select3D_SensitiveTriangle.hxx>
 #include <SelectMgr_EntityOwner.hxx>
 #include <SelectMgr_Selection.hxx>
-#include <TCollection_ExtendedString.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
@@ -40,9 +35,10 @@ namespace {
 
 // Annotations: dark blue, readable on the light background and on part colors.
 const Quantity_Color kPmiColor(0.05, 0.20, 0.55, Quantity_TOC_sRGB);
-const Quantity_Color kLabelBackground(1.0, 1.0, 0.94, Quantity_TOC_sRGB);
 // Geometry a selected annotation applies to.
 const Quantity_Color kTargetColor(1.0, 0.62, 0.10, Quantity_TOC_sRGB);
+// Semantic labels whose anchors are closer than this (model units) are stacked.
+constexpr double kSameAnchorDistance = 1e-3;
 
 std::optional<gp_Pnt> centerOf(const std::vector<TopoDS_Shape>& shapes) {
   Bnd_Box box;
@@ -169,11 +165,11 @@ void PmiPresentation::Compute(const OccHandle<PrsMgr_PresentationManager>&,
     }
     group->AddPrimitiveArray(triangles);
   }
-  if (isGraphical() || m_label.empty()) {
+  if (!hasLabel()) {
     return;
   }
 
-  // Semantic-only: leader line plus a boxed screen-space label.
+  // Semantic-only: the leader line; the text is a PmiLabel at the anchor.
   if (m_leaderTarget) {
     OccHandle<Graphic3d_Group> leader = prs->NewGroup();
     leader->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(kPmiColor, Aspect_TOL_SOLID, 1.0 * m_dpr));
@@ -182,16 +178,6 @@ void PmiPresentation::Compute(const OccHandle<PrsMgr_PresentationManager>&,
     segment->AddVertex(*m_leaderTarget);
     leader->AddPrimitiveArray(segment);
   }
-  OccHandle<Graphic3d_Group> label = prs->NewGroup();
-  OccHandle<Prs3d_TextAspect> aspect = new Prs3d_TextAspect();
-  aspect->SetColor(kPmiColor);
-  aspect->SetHeight(13.0 * m_dpr);
-  aspect->SetHorizontalJustification(Graphic3d_HTA_CENTER);
-  aspect->SetVerticalJustification(Graphic3d_VTA_CENTER);
-  aspect->Aspect()->SetDisplayType(Aspect_TODT_SUBTITLE);
-  aspect->Aspect()->SetColorSubTitle(kLabelBackground);
-  label->SetGroupPrimitivesAspect(aspect->Aspect());
-  Prs3d_Text::Draw(label, aspect, TCollection_ExtendedString(m_label.c_str(), true), m_labelAnchor);
 }
 
 void PmiPresentation::ComputeSelection(const OccHandle<SelectMgr_Selection>& selection, const int mode) {
@@ -208,13 +194,8 @@ void PmiPresentation::ComputeSelection(const OccHandle<SelectMgr_Selection>& sel
     selection->Add(
         new Select3D_SensitiveTriangle(owner, m_triangles[i], m_triangles[i + 1], m_triangles[i + 2]));
   }
-  if (!isGraphical() && !m_label.empty()) {
-    OccHandle<Select3D_SensitivePoint> anchor = new Select3D_SensitivePoint(owner, m_labelAnchor);
-    anchor->SetSensitivityFactor(static_cast<int>(12 * m_dpr)); // the label box, roughly
-    selection->Add(anchor);
-    if (m_leaderTarget) {
-      selection->Add(new Select3D_SensitiveSegment(owner, m_labelAnchor, *m_leaderTarget));
-    }
+  if (hasLabel() && m_leaderTarget) {
+    selection->Add(new Select3D_SensitiveSegment(owner, m_labelAnchor, *m_leaderTarget));
   }
 }
 
@@ -250,6 +231,8 @@ void PmiScene::setModel(std::shared_ptr<const core::PmiModel> pmi,
     return;
   }
   m_entries.resize(m_pmi->items().size());
+  // Labels sharing an anchor are stacked: (anchor, labels so far).
+  std::vector<std::pair<gp_Pnt, int>> anchors;
   for (const core::PmiItem& item : m_pmi->items()) {
     Entry& entry = m_entries[static_cast<size_t>(item.id)];
     for (const TopLoc_Location& placement : placementsOf(item)) {
@@ -257,6 +240,20 @@ void PmiScene::setModel(std::shared_ptr<const core::PmiModel> pmi,
       m_objectToPmi[prs.get()] = item.id;
       m_context->Display(prs, 0, 0, false);
       entry.placements.push_back(prs);
+      if (prs->hasLabel()) {
+        const gp_Pnt anchor = prs->labelAnchor().Transformed(placement.Transformation());
+        auto same = std::find_if(anchors.begin(), anchors.end(), [&anchor](const auto& other) {
+          return other.first.Distance(anchor) < kSameAnchorDistance;
+        });
+        if (same == anchors.end()) {
+          anchors.emplace_back(anchor, 0);
+          same = std::prev(anchors.end());
+        }
+        OccHandle<PmiLabel> label = new PmiLabel(item, anchor, same->second++, devicePixelRatio);
+        m_objectToPmi[label.get()] = item.id;
+        m_context->Display(label, 0, 0, false);
+        entry.labels.push_back(label);
+      }
     }
   }
 }
@@ -266,6 +263,9 @@ void PmiScene::clear() {
   for (Entry& entry : m_entries) {
     for (const auto& prs : entry.placements) {
       m_context->Remove(prs, false);
+    }
+    for (const auto& label : entry.labels) {
+      m_context->Remove(label, false);
     }
   }
   m_entries.clear();
@@ -290,6 +290,13 @@ void PmiScene::setVisible(const std::vector<core::PmiId>& ids, bool visible) {
         m_context->Display(prs, 0, 0, false);
       } else {
         m_context->Erase(prs, false);
+      }
+    }
+    for (const auto& label : entry.labels) {
+      if (visible) {
+        m_context->Display(label, 0, 0, false);
+      } else {
+        m_context->Erase(label, false);
       }
     }
   }
@@ -372,9 +379,15 @@ void PmiScene::highlight(const std::vector<core::PmiId>& ids) {
         }
       }
     }
-    for (const auto& prs : m_entries[static_cast<size_t>(id)].placements) {
+    const Entry& entry = m_entries[static_cast<size_t>(id)];
+    for (const auto& prs : entry.placements) {
       if (m_context->IsDisplayed(prs)) {
         m_context->AddOrRemoveSelected(prs, false);
+      }
+    }
+    for (const auto& label : entry.labels) {
+      if (m_context->IsDisplayed(label)) {
+        m_context->AddOrRemoveSelected(label, false);
       }
     }
   }
