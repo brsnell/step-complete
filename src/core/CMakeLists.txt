@@ -19,6 +19,8 @@ add_library(sc_core STATIC
   Measurement.cpp
   PmiText.h
   PmiText.cpp
+  PmiModel.h
+  PmiModel.cpp
 )
 add_library(sc::core ALIAS sc_core)
 

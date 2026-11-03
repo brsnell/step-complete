@@ -6,6 +6,8 @@ include(GoogleTest)
 add_library(sc_test_support STATIC
   support/TestModels.h
   support/TestModels.cpp
+  support/PmiFixture.h
+  support/PmiFixture.cpp
 )
 target_include_directories(sc_test_support PUBLIC support)
 target_link_libraries(sc_test_support PUBLIC sc::core)
@@ -19,6 +21,7 @@ add_executable(sc_core_tests
   core/test_measure.cpp
   core/test_measurement.cpp
   core/test_pmi_text.cpp
+  core/test_pmi_model.cpp
 )
 target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support GTest::gtest_main)
 sc_target_defaults(sc_core_tests)

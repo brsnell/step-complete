@@ -31,8 +31,6 @@ constexpr const char* kUnequallyDisposed = "Ⓤ";
 constexpr const char* kReciprocity = "Ⓡ";
 constexpr const char* kCellSeparator = " | ";
 
-constexpr double kPi = 3.14159265358979323846;
-
 // --- Number helpers -------------------------------------------------------------------
 
 bool isZeroText(const std::string& text) {
@@ -437,7 +435,7 @@ struct DimensionView {
   bool angular = false;
   int decimals = 2;
   bool explicitDecimals = false;
-  double unit = 1.0; // value multiplier: 1 for lengths, 180/pi for angles
+  double unit = 1.0; // value multiplier (1: OCCT already stores angles in degrees, lengths in mm)
   const char* suffix = "";
 
   bool range = false;
@@ -460,7 +458,8 @@ DimensionView viewOf(const XCAFDimTolObjects_DimensionObject& dim, int fallbackD
   v.type = dim.GetType();
   v.angular = isAngular(v.type);
   if (v.angular) {
-    v.unit = 180.0 / kPi; // OCCT keeps angular dimension values in radians
+    // OCCT's STEP reader converts angular dimension values to degrees
+    // (STEPCAFControl_Reader: convertAngleValue).
     v.suffix = kDegree;
   }
 
@@ -478,7 +477,10 @@ DimensionView viewOf(const XCAFDimTolObjects_DimensionObject& dim, int fallbackD
   } else if (dim.IsDimWithPlusMinusTolerance()) {
     v.plusMinus = true;
     v.nominal = dim.GetValue() * v.unit;
-    v.lower = dim.GetLowerTolValue() * v.unit;
+    // OCCT stores plus/minus dimensions as (nominal, |lower deviation|, upper
+    // deviation): the reader keeps only the magnitude of the lower bound, which
+    // always means "minus". Accept either sign for objects built in code.
+    v.lower = -std::abs(dim.GetLowerTolValue()) * v.unit;
     v.upper = dim.GetUpperTolValue() * v.unit;
   } else {
     v.nominal = dim.GetValue() * v.unit;

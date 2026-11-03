@@ -16,8 +16,6 @@ using sc::OccHandle;
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-
 using Dim = OccHandle<XCAFDimTolObjects_DimensionObject>;
 using Tol = OccHandle<XCAFDimTolObjects_GeomToleranceObject>;
 using Datum = OccHandle<XCAFDimTolObjects_DatumObject>;
@@ -143,14 +141,28 @@ TEST(PmiText, RadiusAndSizePrefixes) {
             "25.40");
 }
 
-TEST(PmiText, AngularDimensionConvertsRadiansToDegrees) {
-  Dim dim = makeDimension(XCAFDimTolObjects_DimensionType_Location_Angular, kPi / 6.0);
+// OCCT's STEP reader converts angular dimensions to degrees (convertAngleValue in
+// STEPCAFControl_Reader), so the stored values are degrees.
+TEST(PmiText, AngularDimensionsAreInDegrees) {
+  Dim dim = makeDimension(XCAFDimTolObjects_DimensionType_Location_Angular, 30.0);
   EXPECT_EQ(dimensionText(dim), "30.00°");
-  dim->SetUpperTolValue(0.5 * kPi / 180.0);
-  dim->SetLowerTolValue(-0.5 * kPi / 180.0);
+  dim->SetUpperTolValue(0.5);
+  dim->SetLowerTolValue(-0.5);
   EXPECT_EQ(dimensionText(dim), "30.00° ±0.50°");
-  Dim size = makeDimension(XCAFDimTolObjects_DimensionType_Size_Angular, kPi / 4.0);
+  Dim size = makeDimension(XCAFDimTolObjects_DimensionType_Size_Angular, 45.0);
   EXPECT_EQ(dimensionText(size, 1), "45.0°");
+}
+
+// The STEP reader stores (nominal, |lower deviation|, upper deviation): a positive
+// stored lower value still means "minus".
+TEST(PmiText, LowerDeviationIsStoredAsMagnitudeByTheReader) {
+  Dim dim = makeDimension(XCAFDimTolObjects_DimensionType_Size_Diameter, 35.0);
+  dim->SetUpperTolValue(0.0);
+  dim->SetLowerTolValue(0.2); // as read from TOLERANCE_VALUE(-0.2, 0.0)
+  EXPECT_EQ(dimensionText(dim), "⌀35.00 0.00/−0.20");
+  dim->SetUpperTolValue(0.15);
+  dim->SetLowerTolValue(0.15);
+  EXPECT_EQ(dimensionText(dim), "⌀35.00 ±0.15");
 }
 
 TEST(PmiText, DecimalsFromObjectOrFallback) {

@@ -20,4 +20,15 @@ fetch https://raw.githubusercontent.com/tpaviot/pythonocc-demos/master/assets/mo
 # Same assembly as AP203 (no colors).
 fetch https://raw.githubusercontent.com/tpaviot/pythonocc-demos/master/assets/models/as1_pe_203.stp as1_pe_203.stp
 
+# NIST MBE PMI validation and conformance test models (AP242 with semantic and
+# graphical PMI and saved views). US-government works, public domain. Mirrored
+# in the cadmpeg corpus (www.nist.gov downloads are often blocked by proxies);
+# pinned to a commit so the files cannot change under the tests.
+nist="https://raw.githubusercontent.com/cadmpeg/cadmpeg/feb97ae81e8e4088d6014ee5e18bb140504cfa89/corpus/nist-pmi/step"
+for model in nist_ctc_01_asme1_ap242-e1 nist_ctc_02_asme1_ap242-e2 nist_ctc_03_asme1_ap242-e2 \
+             nist_ctc_04_asme1_ap242-e1 nist_ctc_05_asme1_ap242-e1 nist_ftc_06_asme1_ap242-e2 \
+             nist_ftc_07_asme1_ap242-e2 nist_ftc_10_asme1_ap242-e2; do
+  fetch "$nist/$model.stp" "$model.stp"
+done
+
 echo "Test models are in $dir"
