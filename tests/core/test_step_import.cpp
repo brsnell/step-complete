@@ -15,9 +15,9 @@
 #include <Quantity_Color.hxx>
 #include <STEPControl_Writer.hxx>
 #include <TColgp_Array2OfPnt.hxx>
-#include <TopoDS_Compound.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
+#include <TopoDS_Compound.hxx>
 #include <XCAFDoc_Area.hxx>
 #include <XCAFDoc_Centroid.hxx>
 #include <XCAFDoc_ColorTool.hxx>

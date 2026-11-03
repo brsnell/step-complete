@@ -32,13 +32,13 @@
 #include <StepGeom_Axis2Placement3d.hxx>
 #include <StepGeom_BSplineCurve.hxx>
 #include <StepGeom_BSplineSurface.hxx>
-#include <StepGeom_HArray1OfCartesianPoint.hxx>
-#include <StepGeom_HArray2OfCartesianPoint.hxx>
-#include <StepGeom_Pcurve.hxx>
 #include <StepGeom_CartesianPoint.hxx>
 #include <StepGeom_Direction.hxx>
 #include <StepGeom_GeomRepContextAndGlobUnitAssCtxAndGlobUncertaintyAssCtx.hxx>
 #include <StepGeom_GeometricRepresentationContextAndGlobalUnitAssignedContext.hxx>
+#include <StepGeom_HArray1OfCartesianPoint.hxx>
+#include <StepGeom_HArray2OfCartesianPoint.hxx>
+#include <StepGeom_Pcurve.hxx>
 #include <StepRepr_ReprItemAndMeasureWithUnit.hxx>
 #include <StepShape_FaceSurface.hxx>
 #include <StepVisual_CameraModelD3.hxx>
@@ -387,7 +387,9 @@ std::string neutralizeBrokenSplines(const OccHandle<Interface_InterfaceModel>& m
     const OccHandle<Standard_Transient>& entity = model->Value(i);
     const auto surface = OccHandle<StepGeom_BSplineSurface>::DownCast(entity);
     const auto curve = OccHandle<StepGeom_BSplineCurve>::DownCast(entity);
-    if ((!surface.IsNull() && hasNullControlPoint(surface)) || (!curve.IsNull() && hasNullControlPoint(curve))) {
+    const bool brokenSurface = !surface.IsNull() && hasNullControlPoint(surface);
+    const bool brokenCurve = !curve.IsNull() && hasNullControlPoint(curve);
+    if (brokenSurface || brokenCurve) {
       broken.push_back(entity);
     }
   }
@@ -426,14 +428,19 @@ std::string neutralizeBrokenSplines(const OccHandle<Interface_InterfaceModel>& m
   }
 
   if (!unrecoverable.empty()) {
-    return "The file is malformed: " + std::to_string(unrecoverable.size()) +
-           " B-spline curve(s) or surface(s) have invalid control points (" + entityList(model, unrecoverable) +
-           "). The exporting program wrote references to other entity types where points belong.";
+    std::string error = "The file is malformed: ";
+    error += std::to_string(unrecoverable.size());
+    error += " B-spline curve(s) or surface(s) have invalid control points (";
+    error += entityList(model, unrecoverable);
+    error += "). The exporting program wrote references to other entity types where points belong.";
+    return error;
   }
-  messages.push_back({ImportMessage::Severity::Warning,
-                      "Skipped the faces of " + std::to_string(skipped.size()) +
-                          " B-spline surface(s) with invalid control points (" + entityList(model, skipped) +
-                          "); the file is malformed."});
+  std::string warning = "Skipped the faces of ";
+  warning += std::to_string(skipped.size());
+  warning += " B-spline surface(s) with invalid control points (";
+  warning += entityList(model, skipped);
+  warning += "); the file is malformed.";
+  messages.push_back({ImportMessage::Severity::Warning, std::move(warning)});
   return {};
 }
 
