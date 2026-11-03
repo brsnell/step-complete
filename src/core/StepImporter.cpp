@@ -3,12 +3,15 @@
 #include "core/OccCompat.h"
 #include "core/OccHandle.h"
 
+#include <BRepMesh_IncrementalMesh.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Check.hxx>
 #include <Interface_CheckIterator.hxx>
 #include <Interface_InterfaceModel.hxx>
 #include <Message_ProgressIndicator.hxx>
 #include <Message_ProgressScope.hxx>
+#include <OSD_Parallel.hxx>
+#include <OSD_ThreadPool.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <STEPCAFControl_Reader.hxx>
 #include <STEPControl_Reader.hxx>
@@ -46,6 +49,7 @@
 #include <exception>
 #include <map>
 #include <mutex>
+#include <unordered_set>
 
 namespace sc::core {
 
@@ -395,9 +399,13 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
     occ::LabelSequence shapeLabels;
     shapeTool->GetShapes(shapeLabels);
     std::vector<TopoDS_Shape> parts;
+    std::unordered_set<const void*> seenShapes; // mesh each TShape once, never concurrently
     for (const TDF_Label& label : shapeLabels) {
       if (!XCAFDoc_ShapeTool::IsAssembly(label)) {
-        parts.push_back(XCAFDoc_ShapeTool::GetShape(label));
+        const TopoDS_Shape part = XCAFDoc_ShapeTool::GetShape(label);
+        if (!part.IsNull() && seenShapes.insert(part.TShape().get()).second) {
+          parts.push_back(part);
+        }
       }
     }
     result.stats.uniqueParts = static_cast<int>(parts.size());
@@ -406,18 +414,36 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
       bridge->setStage("Meshing");
       const Clock::time_point meshStart = Clock::now();
       Message_ProgressScope meshScope(root.Next(25.0), "Meshing", static_cast<double>(parts.size()));
-      for (const TopoDS_Shape& part : parts) {
-        if (!meshScope.More()) {
-          break;
-        }
-        if (!part.IsNull()) {
-          // A default drawer matches the viewer's defaults, so the viewer
-          // reuses these triangulations instead of meshing again.
-          OccHandle<Prs3d_Drawer> drawer = new Prs3d_Drawer();
-          StdPrs_ToolTriangulatedShape::Tessellate(part, drawer);
-        }
-        meshScope.Next();
+      // Progress ranges must be created in order on this thread; the indicator
+      // itself is thread-safe, so each worker reports through its own range.
+      std::vector<Message_ProgressRange> ranges;
+      ranges.reserve(parts.size());
+      for (size_t i = 0; i < parts.size(); ++i) {
+        ranges.push_back(meshScope.Next());
       }
+      // Many parts: mesh parts in parallel. Few big parts: parallelize over faces instead.
+      const int threads = OSD_ThreadPool::DefaultPool()->NbThreads();
+      const bool acrossParts = threads > 1 && parts.size() >= static_cast<size_t>(2 * threads);
+      const auto meshPart = [&](int i) {
+        Message_ProgressScope partScope(ranges[static_cast<size_t>(i)], nullptr, 1.0);
+        if (cancelled(cancel) || !partScope.More()) {
+          return;
+        }
+        // Same deflection as the viewer's default drawer, so the viewer reuses
+        // these triangulations instead of meshing again. The drawer is per part:
+        // computing a relative deflection writes into it.
+        const TopoDS_Shape& part = parts[static_cast<size_t>(i)];
+        OccHandle<Prs3d_Drawer> drawer = new Prs3d_Drawer();
+        if (StdPrs_ToolTriangulatedShape::IsTessellated(part, drawer)) {
+          return;
+        }
+        IMeshTools_Parameters parameters;
+        parameters.Deflection = StdPrs_ToolTriangulatedShape::GetDeflection(part, drawer);
+        parameters.Angle = drawer->DeviationAngle();
+        parameters.InParallel = !acrossParts;
+        BRepMesh_IncrementalMesh mesher(part, parameters);
+      };
+      OSD_Parallel::For(0, static_cast<int>(parts.size()), meshPart, !acrossParts);
       result.stats.meshSeconds = secondsSince(meshStart);
       if (cancelled(cancel)) {
         result.cancelled = true;

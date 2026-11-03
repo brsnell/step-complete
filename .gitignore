@@ -13,3 +13,4 @@ compile_commands.json
 
 # Claude Code local state (agent worktrees)
 .claude/
+/tests/data/bench/

@@ -19,6 +19,7 @@ endif()
 option(SC_BUILD_TESTS "Build unit and render tests" ON)
 option(SC_ENABLE_SANITIZERS "Build with ASan/UBSan (GCC/Clang only)" OFF)
 option(SC_WARNINGS_AS_ERRORS "Treat compiler warnings as errors" OFF)
+option(SC_BUILD_TOOLS "Build developer tools (benchmark model generator)" OFF)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerSettings)
@@ -45,6 +46,10 @@ add_subdirectory(src/app)
 
 if(SC_BUILD_TESTS)
   add_subdirectory(tests)
+endif()
+
+if(SC_BUILD_TOOLS)
+  add_subdirectory(tools)
 endif()
 
 message(STATUS "STEP Complete ${PROJECT_VERSION}: Qt ${Qt6_VERSION}, OCCT ${OpenCASCADE_VERSION}")
