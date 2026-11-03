@@ -18,6 +18,7 @@ class QLabel;
 class QListWidget;
 class QMenu;
 class QProgressDialog;
+class QTimer;
 class QTreeView;
 
 namespace sc::render {
@@ -47,6 +48,7 @@ public:
   void openFileWhenReady(const QString& path);
 
 protected:
+  bool eventFilter(QObject* watched, QEvent* event) override;
   void dragEnterEvent(QDragEnterEvent* event) override;
   void dropEvent(QDropEvent* event) override;
 
@@ -112,6 +114,8 @@ private:
   PmiPanel* m_pmiPanel = nullptr;
   QDockWidget* m_pmiDock = nullptr;
   QAction* m_showAllPmiAction = nullptr;
+  QAction* m_semanticLabelsAction = nullptr;
+  QTimer* m_declutterTimer = nullptr; // re-lays out PMI labels once the camera settles
   QAction* m_antialiasingAction = nullptr;
   QAction* m_exportImageAction = nullptr;
   MeasurementsPanel* m_measurements = nullptr;

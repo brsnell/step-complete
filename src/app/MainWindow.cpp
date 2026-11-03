@@ -41,6 +41,7 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QStatusBar>
+#include <QTimer>
 #include <QTreeView>
 #include <QVBoxLayout>
 
@@ -87,6 +88,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setCentralWidget(m_viewport);
   m_scene = std::make_unique<render::SceneManager>(m_viewport->context());
   m_pmiScene = std::make_unique<render::PmiScene>(m_viewport->context());
+  // PMI labels are screen-space boxes: re-separate them once the camera stops moving.
+  m_declutterTimer = new QTimer(this);
+  m_declutterTimer->setSingleShot(true);
+  m_declutterTimer->setInterval(150);
+  connect(m_declutterTimer, &QTimer::timeout, this, [this] {
+    if (m_pmi && !m_pmi->isEmpty() && m_pmiScene->semanticLabelsVisible()) {
+      m_pmiScene->declutter(m_viewport->view());
+      m_viewport->invalidateScene();
+    }
+  });
+  m_viewport->installEventFilter(this);
   m_measureTool = new render::MeasureTool(m_viewport, m_scene.get(), this);
   connect(m_measureTool, &render::MeasureTool::measured, this, &MainWindow::onMeasured);
   connect(m_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
@@ -289,6 +301,15 @@ void MainWindow::createActions() {
 
   m_showAllPmiAction = viewMenu->addAction(tr("Show All &PMI"), this, &MainWindow::showAllPmi);
   m_showAllPmiAction->setStatusTip(tr("Show every annotation and remove saved-view clipping"));
+  m_semanticLabelsAction = viewMenu->addAction(tr("PMI &Labels from Semantics"));
+  m_semanticLabelsAction->setCheckable(true);
+  m_semanticLabelsAction->setStatusTip(
+      tr("Draw annotations that have no graphics in the file as labels, dimension lines and arrows"));
+  connect(m_semanticLabelsAction, &QAction::toggled, this, [this](bool on) {
+    m_pmiScene->setSemanticLabelsVisible(on);
+    m_declutterTimer->start();
+    m_viewport->invalidateScene();
+  });
 
   viewMenu->addSeparator();
   m_antialiasingAction = viewMenu->addAction(tr("&Antialiasing (4x MSAA)"));
@@ -544,6 +565,7 @@ void MainWindow::updateActions() {
   m_fitSelectionAction->setEnabled(hasSelection);
   m_showAllAction->setEnabled(hasModel);
   m_showAllPmiAction->setEnabled(m_pmi && !m_pmi->isEmpty());
+  m_semanticLabelsAction->setEnabled(m_pmi && !m_pmi->isEmpty());
   if (m_stopMeasureAction != nullptr) {
     m_stopMeasureAction->setEnabled(m_measureTool->isActive());
     m_massPropertiesAction->setEnabled(hasModel);
@@ -655,6 +677,11 @@ void MainWindow::onImportFinished() {
     m_pmi = job->pmi();
     m_pmiScene->setModel(m_pmi, index, m_viewport->devicePixelRatioF());
     m_pmiPanel->setModel(m_pmi);
+    {
+      const QSignalBlocker blocker(m_semanticLabelsAction);
+      m_semanticLabelsAction->setChecked(m_pmiScene->semanticLabelsVisible()); // auto default per file
+    }
+    m_declutterTimer->start();
     if (m_pmi && !m_pmi->isEmpty()) {
       m_pmiDock->show();
       m_pmiDock->raise();
@@ -751,6 +778,22 @@ void MainWindow::rebuildRecentMenu() {
     m_recentMenu->addAction(tr("Clear Recent Files"), this,
                             [] { QSettings().remove(QLatin1String(kRecentFilesKey)); });
   }
+}
+
+bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == m_viewport) {
+    switch (event->type()) {
+    case QEvent::MouseButtonRelease:
+    case QEvent::Wheel:
+    case QEvent::Resize:
+    case QEvent::KeyRelease: // standard views, fit
+      m_declutterTimer->start();
+      break;
+    default:
+      break;
+    }
+  }
+  return QMainWindow::eventFilter(watched, event);
 }
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
@@ -953,6 +996,7 @@ void MainWindow::activateSavedView(int viewId) {
   }
   const core::PmiSavedView& view = m_pmi->views()[static_cast<size_t>(viewId)];
   m_pmiScene->applyView(view, m_viewport->view());
+  m_declutterTimer->start();
   m_pmiPanel->setVisible(m_pmiPanel->visibleIds(), false);
   m_pmiPanel->setVisible(view.pmi, true);
   m_showAllPmiAction->setEnabled(true);
