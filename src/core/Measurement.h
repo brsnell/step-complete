@@ -1,11 +1,14 @@
 #pragma once
 
+#include "core/AssemblyIndex.h"
 #include "core/Measure.h"
 #include "core/Units.h"
 
+#include <TopLoc_Location.hxx>
 #include <TopoDS_Shape.hxx>
 #include <gp_Pnt.hxx>
 
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -22,9 +25,13 @@ enum class MeasureMode {
   PointToPoint, // 2 picks: snapped points
   Angle,        // 2 picks
   Radius,       // 1 pick
+  // Volume, area, centroid, inertia and bounding boxes of the selected parts. Works on a part
+  // selection (see computeMassProperties), not on picks.
+  MassProperties, // 0 picks
 };
 
 const char* toString(MeasureMode mode);
+// Number of sub-shape picks a mode needs. 0 means the mode does not use picks.
 int picksRequired(MeasureMode mode);
 
 struct MeasureDisplayOptions {
@@ -84,6 +91,20 @@ std::string describeEntity(const TopoDS_Shape& shape);
 // snapDistance is used by PointToPoint (model units, typically a few pixels).
 Measurement computeMeasurement(MeasureMode mode, const std::vector<Pick>& picks,
                                const MeasureDisplayOptions& options, double snapDistance = 0.0);
+
+// One part instance that goes into a mass-properties measurement.
+struct MassItem {
+  TopoDS_Shape worldShape;                      // placed in world coordinates
+  std::string name;                             // display path, for the entity list
+  std::optional<ValidationProperties> declared; // what the STEP file claims (prototype coordinates)
+  TopLoc_Location location;                     // instance placement: maps declared.centroid to world
+};
+
+// Mass properties (unit density) of the combined items: volume, area, centroid, principal
+// moments of inertia, bounding boxes. With exactly one item that carries declared validation
+// properties, the file's claims are compared with the computed values. The witness is the
+// axis-aligned bounding box with a marker at the centroid.
+Measurement computeMassProperties(const std::vector<MassItem>& items, const MeasureDisplayOptions& options);
 
 // Readable multi-line text for the clipboard ("Distance: 12.700 mm" plus
 // indented entities and details), and a CSV table (header + one row per

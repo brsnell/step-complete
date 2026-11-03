@@ -8,7 +8,9 @@
 #include <TopoDS.hxx>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <functional>
 
 namespace sc::core {
 
@@ -298,6 +300,104 @@ void radiusReport(const Pick& pick, const MeasureDisplayOptions& o, Measurement&
   m.ok = true;
 }
 
+// --- Mass properties -------------------------------------------------------------
+
+// A model "matches" its declared validation properties when the volume and area agree to
+// 0.1% (STEP writers state them to a handful of digits, so real matches are far tighter) and
+// the centroid is within 0.1% of the bounding-box diagonal, but never tighter than 1e-6 mm so
+// that tiny parts do not demand sub-nanometer agreement.
+constexpr double kRelativeVolumeTolerance = 1e-3;
+constexpr double kRelativeAreaTolerance = 1e-3;
+constexpr double kCentroidDiagonalFraction = 1e-3;
+constexpr double kCentroidFloor = 1e-6; // mm
+constexpr size_t kMaxListedEntities = 10;
+
+// Moments of inertia are length^5 for unit density (mass = volume).
+std::string moment(double mm5, const MeasureDisplayOptions& o) {
+  const double perUnit = millimetersPer(o.lengthUnit);
+  return formatNumber(mm5 / std::pow(perUnit, 5), o.decimals) + " " + std::string(symbol(o.lengthUnit)) +
+         "\xE2\x81\xB5"; // superscript five
+}
+
+// "10.000 x 20.000 x 30.000 mm" (with multiplication signs)
+std::string sizeText(double dx, double dy, double dz, const MeasureDisplayOptions& o) {
+  auto n = [&o](double mm) { return formatNumber(fromMillimeters(mm, o.lengthUnit), o.decimals); };
+  return n(dx) + " \xC3\x97 " + n(dy) + " \xC3\x97 " + n(dz) + " " + std::string(symbol(o.lengthUnit));
+}
+
+// Signed relative difference of 'computed' against 'declared', as a percentage like "+0.42%".
+std::string percentText(double computed, double declared) {
+  const double percent = declared != 0.0 ? 100.0 * (computed - declared) / std::abs(declared) : 0.0;
+  const std::string number = formatNumber(percent, 2);
+  return (number.front() == '-' ? "" : "+") + number + "%";
+}
+
+bool relativelyDiffers(double computed, double declared, double tolerance) {
+  if (declared == 0.0) {
+    return computed != 0.0;
+  }
+  return std::abs(computed - declared) / std::abs(declared) > tolerance;
+}
+
+void validationRows(const MassItem& item, const measure::MassProperties& mass, const MeasureDisplayOptions& o,
+                    Measurement& m) {
+  const ValidationProperties& declared = *item.declared;
+  auto add = [&m](std::string key, std::string value) {
+    m.details.emplace_back(std::move(key), std::move(value));
+  };
+  std::vector<std::string> differences;
+
+  if (declared.volume) {
+    add("Declared volume", formatVolume(*declared.volume, o.lengthUnit, o.decimals));
+    if (mass.hasVolume && relativelyDiffers(mass.volume, *declared.volume, kRelativeVolumeTolerance)) {
+      differences.push_back("volume " + percentText(mass.volume, *declared.volume));
+    }
+  }
+  if (declared.area) {
+    add("Declared area", formatArea(*declared.area, o.lengthUnit, o.decimals));
+    if (relativelyDiffers(mass.area, *declared.area, kRelativeAreaTolerance)) {
+      differences.push_back("area " + percentText(mass.area, *declared.area));
+    }
+  }
+  if (declared.centroid) {
+    // Declared centroids are in the part's own coordinates; place them like the geometry.
+    const gp_Pnt world = declared.centroid->Transformed(item.location.Transformation());
+    add("Declared centroid", point(world, o));
+    const double diagonal = mass.boxMin.Distance(mass.boxMax);
+    const double allowed = std::max(kCentroidDiagonalFraction * diagonal, kCentroidFloor);
+    const double offset = world.Distance(mass.centroid);
+    if (offset > allowed) {
+      differences.push_back("centroid " + length(offset, o) + " off");
+    }
+  }
+
+  std::string verdict = "Matches";
+  if (!differences.empty()) {
+    verdict = "Differs: ";
+    for (size_t i = 0; i < differences.size(); ++i) {
+      verdict += (i == 0 ? "" : ", ") + differences[i];
+    }
+  }
+  add("Validation", verdict);
+}
+
+// The 12 edges of the axis-aligned bounding box.
+void boxWitness(const measure::MassProperties& mass, Witness& w) {
+  const gp_Pnt& lo = mass.boxMin;
+  const gp_Pnt& hi = mass.boxMax;
+  auto corner = [&](int i) {
+    return gp_Pnt((i & 1) ? hi.X() : lo.X(), (i & 2) ? hi.Y() : lo.Y(), (i & 4) ? hi.Z() : lo.Z());
+  };
+  // Corner indices differ in exactly one bit along an edge.
+  for (int i = 0; i < 8; ++i) {
+    for (int bit = 1; bit <= 4; bit <<= 1) {
+      if ((i & bit) == 0) {
+        w.polylines.push_back({corner(i), corner(i | bit)});
+      }
+    }
+  }
+}
+
 std::string csvField(const std::string& text) {
   if (text.find_first_of(",\"\n") == std::string::npos) {
     return text;
@@ -326,6 +426,8 @@ const char* toString(MeasureMode mode) {
     return "Angle";
   case MeasureMode::Radius:
     return "Radius";
+  case MeasureMode::MassProperties:
+    return "Mass properties";
   }
   return "Measurement";
 }
@@ -339,6 +441,8 @@ int picksRequired(MeasureMode mode) {
   case MeasureMode::PointToPoint:
   case MeasureMode::Angle:
     return 2;
+  case MeasureMode::MassProperties:
+    return 0;
   }
   return 1;
 }
@@ -447,7 +551,76 @@ Measurement computeMeasurement(MeasureMode mode, const std::vector<Pick>& picks,
   case MeasureMode::Radius:
     radiusReport(picks[0], options, m);
     break;
+  case MeasureMode::MassProperties:
+    m.error = "Mass properties works on the selected parts, not on picks.";
+    break;
   }
+  return m;
+}
+
+Measurement computeMassProperties(const std::vector<MassItem>& items, const MeasureDisplayOptions& o) {
+  Measurement m;
+  m.mode = MeasureMode::MassProperties;
+
+  std::vector<TopoDS_Shape> shapes;
+  for (const MassItem& item : items) {
+    if (!item.worldShape.IsNull()) {
+      shapes.push_back(item.worldShape);
+    }
+    if (m.entities.size() < kMaxListedEntities) {
+      m.entities.push_back(item.name.empty() ? "(unnamed)" : item.name);
+    }
+  }
+  if (items.size() > kMaxListedEntities) {
+    m.entities.push_back("and " + std::to_string(items.size() - kMaxListedEntities) + " more");
+  }
+
+  const measure::MassProperties mass = measure::massProperties(shapes);
+  if (!mass.ok) {
+    m.error = "There is no solid or surface geometry to measure.";
+    return m;
+  }
+
+  auto add = [&m](std::string key, std::string value) {
+    m.details.emplace_back(std::move(key), std::move(value));
+  };
+  const std::string volume = formatVolume(mass.volume, o.lengthUnit, o.decimals);
+  const std::string area = formatArea(mass.area, o.lengthUnit, o.decimals);
+  m.headline = mass.hasVolume ? volume : area;
+
+  add("Solids", std::to_string(mass.solidCount));
+  if (mass.hasVolume) {
+    add("Volume", volume);
+  }
+  add("Surface area", area);
+  add(mass.hasVolume ? "Centroid" : "Centroid (surface)", point(mass.centroid, o));
+  if (mass.hasVolume) {
+    // Inertia of a bare surface has other units and is rarely wanted: only report it for solids.
+    add("Principal moments (unit density)", moment(mass.principalMoments[0], o) + ", " +
+                                                moment(mass.principalMoments[1], o) + ", " +
+                                                moment(mass.principalMoments[2], o));
+  }
+  add("Bounding box size", sizeText(mass.boxMax.X() - mass.boxMin.X(), mass.boxMax.Y() - mass.boxMin.Y(),
+                                    mass.boxMax.Z() - mass.boxMin.Z(), o));
+  add("Bounding box min", point(mass.boxMin, o));
+  add("Bounding box max", point(mass.boxMax, o));
+  std::array<double, 3> oriented = mass.orientedBox.halfSizes;
+  if (oriented[0] > 0.0 || oriented[1] > 0.0 || oriented[2] > 0.0) {
+    std::sort(oriented.begin(), oriented.end(), std::greater<double>());
+    add("Oriented box size", sizeText(2.0 * oriented[0], 2.0 * oriented[1], 2.0 * oriented[2], o));
+  }
+
+  // Comparing with the file's claims only makes sense for one part instance: the declared
+  // values of several parts cannot be combined reliably.
+  if (items.size() == 1 && items.front().declared && !items.front().declared->empty()) {
+    validationRows(items.front(), mass, o, m);
+  }
+
+  boxWitness(mass, m.witness);
+  m.witness.markers.push_back(mass.centroid);
+  m.witness.labelAnchor = mass.centroid;
+  m.witness.label = m.headline;
+  m.ok = true;
   return m;
 }
 

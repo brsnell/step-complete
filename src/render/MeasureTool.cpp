@@ -35,6 +35,7 @@ std::vector<int> MeasureTool::selectionModesFor(core::MeasureMode mode) const {
   case core::MeasureMode::EntityInfo:
   case core::MeasureMode::Distance:
   case core::MeasureMode::PointToPoint:
+  case core::MeasureMode::MassProperties: // not a pick mode; never set on the tool
     break;
   }
   return SceneManager::subShapeModes(true, true, true);

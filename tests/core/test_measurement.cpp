@@ -8,6 +8,7 @@
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <gp_Circ.hxx>
+#include <gp_Trsf.hxx>
 
 #include <gtest/gtest.h>
 
@@ -208,4 +209,185 @@ TEST(Measurement, ClipboardAndCsvExport) {
   EXPECT_NE(csv.find("Distance,30.000 mm,\"Face (Plane) on Plate, top; Face (Plane)\","), std::string::npos)
       << csv;
   EXPECT_EQ(std::count(csv.begin(), csv.end(), '\n'), 3);
+}
+
+// --- Mass properties ---------------------------------------------------------------
+
+namespace {
+
+MassItem boxItem(const std::string& name, const gp_Vec& offset = gp_Vec(0, 0, 0)) {
+  MassItem item;
+  gp_Trsf move;
+  move.SetTranslation(offset);
+  item.location = TopLoc_Location(move);
+  item.worldShape = BRepPrimAPI_MakeBox(10, 20, 30).Shape().Moved(item.location);
+  item.name = name;
+  return item;
+}
+
+ValidationProperties exactBoxProperties() {
+  ValidationProperties declared;
+  declared.volume = 6000.0;
+  declared.area = 2200.0;
+  declared.centroid = gp_Pnt(5, 10, 15); // prototype coordinates
+  return declared;
+}
+
+bool contains(const std::string& text, const std::string& part) {
+  return text.find(part) != std::string::npos;
+}
+
+} // namespace
+
+TEST(MassProperties, ModeMetadata) {
+  EXPECT_STREQ(toString(MeasureMode::MassProperties), "Mass properties");
+  EXPECT_EQ(picksRequired(MeasureMode::MassProperties), 0);
+  const Measurement viaPicks = computeMeasurement(MeasureMode::MassProperties, {}, {});
+  EXPECT_FALSE(viaPicks.ok);
+  EXPECT_FALSE(viaPicks.error.empty());
+}
+
+TEST(MassProperties, SingleBox) {
+  const Measurement m = computeMassProperties({boxItem("Plate")}, {});
+  ASSERT_TRUE(m.ok) << m.error;
+  EXPECT_EQ(m.mode, MeasureMode::MassProperties);
+  EXPECT_EQ(m.headline, "6000.000 mm\xC2\xB3");
+  EXPECT_EQ(detail(m, "Solids"), "1");
+  EXPECT_EQ(detail(m, "Volume"), "6000.000 mm\xC2\xB3");
+  EXPECT_EQ(detail(m, "Surface area"), "2200.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(m, "Centroid"), "5.000, 10.000, 15.000 mm");
+  EXPECT_EQ(detail(m, "Bounding box size"), "10.000 \xC3\x97 20.000 \xC3\x97 30.000 mm");
+  EXPECT_EQ(detail(m, "Bounding box min"), "0.000, 0.000, 0.000 mm");
+  EXPECT_EQ(detail(m, "Bounding box max"), "10.000, 20.000, 30.000 mm");
+  EXPECT_EQ(detail(m, "Oriented box size"), "30.000 \xC3\x97 20.000 \xC3\x97 10.000 mm");
+
+  // Unit density: m/12 (b^2 + c^2) for each axis, in mm^5.
+  const std::string moments = detail(m, "Principal moments (unit density)");
+  for (const char* expected :
+       {"250000.000 mm\xE2\x81\xB5", "500000.000 mm\xE2\x81\xB5", "650000.000 mm\xE2\x81\xB5"}) {
+    EXPECT_TRUE(contains(moments, expected)) << moments;
+  }
+  EXPECT_EQ(m.entities, std::vector<std::string>{"Plate"});
+}
+
+TEST(MassProperties, WitnessIsTheBoundingBoxWithCentroidMarker) {
+  const Measurement m = computeMassProperties({boxItem("Plate")}, {});
+  ASSERT_TRUE(m.ok);
+  EXPECT_EQ(m.witness.polylines.size(), 12u);
+  for (const auto& edge : m.witness.polylines) {
+    ASSERT_EQ(edge.size(), 2u);
+    // Each edge of an axis-aligned box changes exactly one coordinate.
+    const int changed = (std::abs(edge[0].X() - edge[1].X()) > 1e-9) +
+                        (std::abs(edge[0].Y() - edge[1].Y()) > 1e-9) +
+                        (std::abs(edge[0].Z() - edge[1].Z()) > 1e-9);
+    EXPECT_EQ(changed, 1);
+  }
+  ASSERT_EQ(m.witness.markers.size(), 1u);
+  EXPECT_NEAR(m.witness.markers[0].Distance(gp_Pnt(5, 10, 15)), 0.0, 1e-9);
+  EXPECT_NEAR(m.witness.labelAnchor.Distance(gp_Pnt(5, 10, 15)), 0.0, 1e-9);
+  EXPECT_EQ(m.witness.label, m.headline);
+}
+
+TEST(MassProperties, TwoBoxesAreCombined) {
+  const Measurement m = computeMassProperties({boxItem("A"), boxItem("B", gp_Vec(100, 0, 0))}, {});
+  ASSERT_TRUE(m.ok) << m.error;
+  EXPECT_EQ(m.headline, "12000.000 mm\xC2\xB3");
+  EXPECT_EQ(detail(m, "Solids"), "2");
+  EXPECT_EQ(detail(m, "Surface area"), "4400.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(m, "Centroid"), "55.000, 10.000, 15.000 mm");
+  EXPECT_EQ(detail(m, "Bounding box size"), "110.000 \xC3\x97 20.000 \xC3\x97 30.000 mm");
+  EXPECT_EQ(m.entities.size(), 2u);
+}
+
+TEST(MassProperties, EntityListIsCapped) {
+  std::vector<MassItem> items;
+  for (int i = 0; i < 13; ++i) {
+    items.push_back(boxItem("Box " + std::to_string(i), gp_Vec(100.0 * i, 0, 0)));
+  }
+  const Measurement m = computeMassProperties(items, {});
+  ASSERT_TRUE(m.ok);
+  ASSERT_EQ(m.entities.size(), 11u);
+  EXPECT_EQ(m.entities.front(), "Box 0");
+  EXPECT_EQ(m.entities.back(), "and 3 more");
+}
+
+TEST(MassProperties, MatchingDeclaredPropertiesValidate) {
+  MassItem item = boxItem("Plate", gp_Vec(100, 0, 0)); // placed: the declared centroid must move too
+  item.declared = exactBoxProperties();
+  const Measurement m = computeMassProperties({item}, {});
+  ASSERT_TRUE(m.ok) << m.error;
+  EXPECT_EQ(detail(m, "Declared volume"), "6000.000 mm\xC2\xB3");
+  EXPECT_EQ(detail(m, "Declared area"), "2200.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(m, "Declared centroid"), "105.000, 10.000, 15.000 mm");
+  EXPECT_EQ(detail(m, "Validation"), "Matches");
+}
+
+TEST(MassProperties, DeclaredVolumeOffByOnePercentDiffers) {
+  MassItem item = boxItem("Plate");
+  item.declared = exactBoxProperties();
+  item.declared->volume = 6000.0 / 1.01; // the computed volume is 1% above the claim
+  const Measurement m = computeMassProperties({item}, {});
+  ASSERT_TRUE(m.ok);
+  const std::string verdict = detail(m, "Validation");
+  EXPECT_EQ(verdict.rfind("Differs: ", 0), 0u) << verdict;
+  EXPECT_TRUE(contains(verdict, "volume +1.00%")) << verdict;
+  EXPECT_FALSE(contains(verdict, "area")) << verdict;
+  EXPECT_FALSE(contains(verdict, "centroid")) << verdict;
+}
+
+TEST(MassProperties, DeclaredCentroidInWrongSpaceDiffers) {
+  // Forgetting the instance placement is exactly the mistake the comparison must expose.
+  MassItem item = boxItem("Plate", gp_Vec(100, 0, 0));
+  item.declared = exactBoxProperties();
+  item.location = TopLoc_Location();
+  const Measurement m = computeMassProperties({item}, {});
+  ASSERT_TRUE(m.ok);
+  EXPECT_TRUE(contains(detail(m, "Validation"), "centroid 100.000 mm off")) << detail(m, "Validation");
+}
+
+TEST(MassProperties, ValidationOnlyForASingleInstance) {
+  MassItem a = boxItem("A");
+  MassItem b = boxItem("B", gp_Vec(100, 0, 0));
+  a.declared = exactBoxProperties();
+  const Measurement m = computeMassProperties({a, b}, {});
+  ASSERT_TRUE(m.ok);
+  EXPECT_EQ(detail(m, "Validation"), "<missing Validation>");
+  EXPECT_EQ(detail(m, "Declared volume"), "<missing Declared volume>");
+
+  // A single item without claims has nothing to compare either.
+  const Measurement none = computeMassProperties({boxItem("C")}, {});
+  EXPECT_EQ(detail(none, "Validation"), "<missing Validation>");
+}
+
+TEST(MassProperties, SurfaceOnlySelectionReportsArea) {
+  MassItem item;
+  item.name = "Sheet";
+  item.worldShape = boxFace({5, 10, 30});
+  const Measurement m = computeMassProperties({item}, {});
+  ASSERT_TRUE(m.ok) << m.error;
+  EXPECT_EQ(m.headline, "200.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(m, "Solids"), "0");
+  EXPECT_EQ(detail(m, "Volume"), "<missing Volume>");
+  EXPECT_EQ(detail(m, "Principal moments (unit density)"), "<missing Principal moments (unit density)>");
+  EXPECT_EQ(detail(m, "Centroid (surface)"), "5.000, 10.000, 30.000 mm");
+}
+
+TEST(MassProperties, NothingToMeasureIsAnError) {
+  EXPECT_FALSE(computeMassProperties({}, {}).ok);
+  MassItem empty;
+  empty.name = "Empty";
+  const Measurement m = computeMassProperties({empty}, {});
+  EXPECT_FALSE(m.ok);
+  EXPECT_FALSE(m.error.empty());
+}
+
+TEST(MassProperties, InchDisplayOptions) {
+  MeasureDisplayOptions inches;
+  inches.lengthUnit = LengthUnit::Inch;
+  const Measurement m = computeMassProperties({boxItem("Plate")}, inches);
+  ASSERT_TRUE(m.ok);
+  EXPECT_EQ(m.headline, "0.366 in\xC2\xB3"); // 6000 / 25.4^3
+  EXPECT_EQ(detail(m, "Surface area"), "3.410 in\xC2\xB2");
+  EXPECT_EQ(detail(m, "Bounding box size"), "0.394 \xC3\x97 0.787 \xC3\x97 1.181 in");
+  EXPECT_TRUE(contains(detail(m, "Principal moments (unit density)"), "in\xE2\x81\xB5"));
 }

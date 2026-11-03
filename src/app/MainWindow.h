@@ -78,6 +78,7 @@ private:
   // --- Measurement ------------------------------------------------------------
   void createMeasureMenu();
   void setMeasureMode(int mode); // -1 = off, else core::MeasureMode
+  void measureMassProperties();
   void onMeasured(const core::Measurement& measurement);
   void onPickProgress(int picked, int required);
   void applyMeasureOptions();
@@ -96,6 +97,7 @@ private:
   QDockWidget* m_measurementsDock = nullptr;
   QActionGroup* m_measureGroup = nullptr;
   QAction* m_stopMeasureAction = nullptr;
+  QAction* m_massPropertiesAction = nullptr;
   core::MeasureDisplayOptions m_measureOptions;
   QDockWidget* m_messagesDock = nullptr;
   QLabel* m_emptyHint = nullptr;

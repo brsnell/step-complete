@@ -94,7 +94,8 @@ void MeasurementsPanel::addMeasurement(const core::Measurement& m) {
     item->setForeground(1, QColor(180, 40, 40));
   }
   for (const std::string& entity : m.entities) {
-    auto* child = new QTreeWidgetItem(item, {tr("Picked"), qs(entity)});
+    auto* child = new QTreeWidgetItem(
+        item, {m.mode == core::MeasureMode::MassProperties ? tr("Part") : tr("Picked"), qs(entity)});
     child->setData(0, kIndexRole, index);
     child->setToolTip(1, child->text(1));
   }

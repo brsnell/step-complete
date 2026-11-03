@@ -323,6 +323,13 @@ void MainWindow::createMeasureMenu() {
     const int mode = int(m.mode);
     connect(action, &QAction::triggered, this, [this, mode] { setMeasureMode(mode); });
   }
+  menu->addSeparator();
+  m_massPropertiesAction = menu->addAction(tr("Mass &Properties"), this, [this] { measureMassProperties(); });
+  m_massPropertiesAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_M));
+  m_massPropertiesAction->setStatusTip(
+      tr("Volume, surface area, centroid, inertia and bounding box of the selected parts (all visible "
+         "parts when nothing is selected)"));
+  menu->addSeparator();
   m_stopMeasureAction = menu->addAction(tr("&Stop Measuring"), this, [this] { setMeasureMode(-1); });
   m_stopMeasureAction->setShortcut(Qt::Key_Escape);
 
@@ -431,6 +438,64 @@ void MainWindow::onMeasured(const core::Measurement& measurement) {
   }
 }
 
+// Mass properties are not a pick mode: they describe whole parts. The scope is
+//  - the parts below the current tree/3D selection (assemblies expand to their parts), or
+//  - every part instance when nothing is selected.
+// While a pick mode is active the selection holds sub-shape picks and the tree selection is
+// cleared, so that case also measures all parts rather than guessing from the picks. Hidden
+// parts are always skipped: what you see is what gets measured.
+void MainWindow::measureMassProperties() {
+  const std::shared_ptr<const core::AssemblyIndex> index = m_scene->model();
+  if (!index) {
+    statusBar()->showMessage(tr("Open a model to measure."), 4000);
+    return;
+  }
+  const std::vector<core::NodeId> selection =
+      m_measureTool->isActive() ? std::vector<core::NodeId>{} : selectedNodes();
+
+  std::vector<core::NodeId> parts;
+  if (selection.empty()) {
+    parts = index->partInstances();
+  } else {
+    for (const core::NodeId node : selection) {
+      const std::vector<core::NodeId> below = index->partsBelow(node);
+      parts.insert(parts.end(), below.begin(), below.end());
+    }
+    std::sort(parts.begin(), parts.end());
+    parts.erase(std::unique(parts.begin(), parts.end()), parts.end());
+  }
+  parts.erase(
+      std::remove_if(parts.begin(), parts.end(), [this](core::NodeId id) { return !m_scene->isVisible(id); }),
+      parts.end());
+  if (parts.empty()) {
+    statusBar()->showMessage(selection.empty() ? tr("There are no visible parts to measure.")
+                                               : tr("The selection has no visible parts."),
+                             5000);
+    return;
+  }
+
+  QApplication::setOverrideCursor(Qt::WaitCursor);
+  std::vector<core::MassItem> items;
+  items.reserve(parts.size());
+  for (const core::NodeId id : parts) {
+    core::MassItem item;
+    item.worldShape = index->worldShape(id);
+    item.name = index->displayPath(id);
+    item.declared = index->validationProperties(id);
+    item.location = index->node(id).location;
+    items.push_back(std::move(item));
+  }
+  const core::Measurement result = core::computeMassProperties(items, m_measureOptions);
+  QApplication::restoreOverrideCursor();
+
+  m_measurementsDock->show();
+  // Adding selects the new row, which draws its witness (see MeasurementsPanel::currentChanged).
+  m_measurements->addMeasurement(result);
+  if (!result.ok) {
+    statusBar()->showMessage(QString::fromStdString(result.error), 6000);
+  }
+}
+
 void MainWindow::updateActions() {
   const bool hasModel = m_scene->model() != nullptr;
   const bool hasSelection = hasModel && !selectedNodes().empty();
@@ -442,6 +507,7 @@ void MainWindow::updateActions() {
   m_showAllAction->setEnabled(hasModel);
   if (m_stopMeasureAction != nullptr) {
     m_stopMeasureAction->setEnabled(m_measureTool->isActive());
+    m_massPropertiesAction->setEnabled(hasModel);
     for (QAction* action : m_measureGroup->actions()) {
       action->setEnabled(hasModel);
     }
