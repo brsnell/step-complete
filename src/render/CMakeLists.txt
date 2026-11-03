@@ -10,6 +10,8 @@ add_library(sc_render STATIC
   WitnessPresentation.cpp
   MeasureTool.h
   MeasureTool.cpp
+  PmiScene.h
+  PmiScene.cpp
 )
 add_library(sc::render ALIAS sc_render)
 

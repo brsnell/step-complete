@@ -23,5 +23,6 @@ int main(int argc, char** argv) {
   failures += sc::test::runViewportSmokeTests(argc, argv);
   failures += sc::test::runSceneManagerTests(argc, argv);
   failures += sc::test::runMeasureToolTests(argc, argv);
+  failures += sc::test::runPmiSceneTests(argc, argv);
   return failures == 0 ? 0 : 1;
 }

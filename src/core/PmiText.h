@@ -52,12 +52,13 @@ std::string toleranceTypeName(XCAFDimTolObjects_GeomToleranceType type);
 //   [symbol] [zone: "⌀0.1 Ⓜ", "S⌀0.2", "0.05 Ⓟ 10", "0.1/25"...] [datum A Ⓜ] [datum B] ...
 // 'datums' are the tolerance's datum references in order (primary, secondary,
 // tertiary); each datum object's modifiers are shown with its letter.
-std::vector<std::string> featureControlFrame(const OccHandle<XCAFDimTolObjects_GeomToleranceObject>& tolerance,
-                                             const std::vector<OccHandle<XCAFDimTolObjects_DatumObject>>& datums,
-                                             int decimals = 3);
+std::vector<std::string>
+featureControlFrame(const OccHandle<XCAFDimTolObjects_GeomToleranceObject>& tolerance,
+                    const std::vector<OccHandle<XCAFDimTolObjects_DatumObject>>& datums, int decimals = 3);
 // The frame as one line, cells separated by " | ": "⌖ | ⌀0.1 Ⓜ | A | B | C".
 std::string toleranceText(const OccHandle<XCAFDimTolObjects_GeomToleranceObject>& tolerance,
-                          const std::vector<OccHandle<XCAFDimTolObjects_DatumObject>>& datums, int decimals = 3);
+                          const std::vector<OccHandle<XCAFDimTolObjects_DatumObject>>& datums,
+                          int decimals = 3);
 
 std::vector<Property> toleranceProperties(const OccHandle<XCAFDimTolObjects_GeomToleranceObject>& tolerance,
                                           const std::vector<OccHandle<XCAFDimTolObjects_DatumObject>>& datums,
@@ -69,6 +70,7 @@ std::vector<Property> toleranceProperties(const OccHandle<XCAFDimTolObjects_Geom
 std::string datumText(const OccHandle<XCAFDimTolObjects_DatumObject>& datum);
 // "Point", "Line", "Rectangle", "Circle", "Area" ... for datum targets.
 std::string datumTargetTypeName(XCAFDimTolObjects_DatumTargetType type);
-std::vector<Property> datumProperties(const OccHandle<XCAFDimTolObjects_DatumObject>& datum, int decimals = 3);
+std::vector<Property> datumProperties(const OccHandle<XCAFDimTolObjects_DatumObject>& datum,
+                                      int decimals = 3);
 
 } // namespace sc::core::pmi

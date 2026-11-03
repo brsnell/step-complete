@@ -256,10 +256,10 @@ void PmiModel::readTolerances() {
     }
     std::stable_sort(ordered.begin(), ordered.end(),
                      [](const auto& a, const auto& b) { return std::get<0>(a) < std::get<0>(b); });
-    for (const auto& [position, datum, object] : ordered) {
+    for (const auto& [position, datum, datumObject] : ordered) {
       (void)position;
       item.datums.push_back(datum);
-      datumObjects.push_back(object); // this reference's own object: it carries its modifiers (e.g. B Ⓜ)
+      datumObjects.push_back(datumObject); // this reference's own object: it carries its modifiers (e.g. B Ⓜ)
     }
 
     item.typeName = item.semantic ? pmi::toleranceTypeName(object->GetType()) : "Annotation";

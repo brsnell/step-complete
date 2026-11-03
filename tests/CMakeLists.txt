@@ -34,6 +34,7 @@ add_executable(sc_render_tests
   render/test_viewport_smoke.cpp
   render/test_scene_manager.cpp
   render/test_measure_tool.cpp
+  render/test_pmi_scene.cpp
 )
 target_link_libraries(sc_render_tests PRIVATE sc::render sc_test_support Qt6::Test)
 sc_target_defaults(sc_render_tests)
