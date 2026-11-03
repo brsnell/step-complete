@@ -44,18 +44,18 @@ jobs:
           - name: Windows x64
             os: windows-2022
             triplet: x64-windows
-            werror: "OFF"
+            werror: "ON"
           - name: macOS arm64
             os: macos-14
             triplet: arm64-osx-sc
             osx-arch: arm64
-            werror: "OFF"
+            werror: "ON"
           # 2016-era Macs are Intel; cross-compiled on the arm64 runner.
           - name: macOS x64
             os: macos-14
             triplet: x64-osx-sc
             osx-arch: x86_64
-            werror: "OFF"
+            werror: "ON"
             skip-tests: true
 
     steps:

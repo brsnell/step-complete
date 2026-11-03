@@ -235,7 +235,7 @@ then refinement, frustum culling (built into OCCT), lazy tree model, and a cance
 
 Each milestone ends with something runnable on all three platforms in CI.
 
-### M0: Foundations (≈1–2 weeks): ✅ implemented, CI pending first push
+### M0: Foundations (≈1–2 weeks): ✅ done
 - Repo, CMake presets, vcpkg manifest (OCCT 8.0.x with freetype; Qt base + opengl), pinned
   baseline.
 - GitHub Actions: Windows/MSVC, macOS/arm64, Ubuntu/GCC. Cache vcpkg binaries (the first OCCT
@@ -246,7 +246,7 @@ Each milestone ends with something runnable on all three platforms in CI.
 - **Exit:** the same binary behavior on all 3 OSes. This milestone proves the riskiest
   integration (Qt + OCCT GL) first.
 
-### M1: Open and view (≈3–4 weeks): ✅ implemented, pending CI on all platforms
+### M1: Open and view (≈3–4 weeks): ✅ done, green in CI on all platforms (OCCT 8.0.1)
 - ✅ `StepImporter` with progress/cancel on a worker thread; import messages panel.
 - ✅ `AssemblyIndex`, assembly tree, names, colors (incl. inherited instance colors), layers,
   user-defined attributes (OCCT ≥ 7.7), instancing (`AIS_ConnectedInteractive`).
@@ -326,9 +326,9 @@ people.
 ---
 
 ## 11. Next steps
-1. Push to GitHub and get CI green on Windows, macOS (arm64 and x64) and Linux. Enable
-   warnings-as-errors on MSVC and Apple Clang once clean.
-2. M1: `StepImporter` (background thread, progress, cancel), `AssemblyIndex`, assembly tree,
-   instancing, selection sync.
-3. Get a 2016-era test machine (or VM with an Intel iGPU passthrough) for manual performance
+1. ✅ CI green on Windows, macOS (arm64 and x64) and Linux, warnings-as-errors everywhere.
+2. ✅ M1.
+3. M2: `core/Measure` first (exact B-rep, world coordinates, analytic tests), then picking,
+   witness graphics and the Measurements panel.
+4. Get a 2016-era test machine (or VM with an Intel iGPU passthrough) for manual performance
    checks against §2a and §6.
