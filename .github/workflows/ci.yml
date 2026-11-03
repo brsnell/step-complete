@@ -172,14 +172,17 @@ jobs:
           if-no-files-found: ignore
 
       # Artifact storage is not reachable from every environment that reviews these
-      # images, so they are also printed to the log (small JPEGs, base64, one line each).
+      # images, so they are also printed to the log (small JPEGs, base64, chunked lines;
+      # decode by concatenating the chunks of each name in order).
       - name: Print PMI snapshots
         if: ${{ always() && matrix.render-tests }}
         shell: bash
         run: |
           for f in snapshots/nist_*.png; do
             [ -f "$f" ] || continue
-            echo "SNAPSHOT $(basename "$f" .png) $(convert "$f" -resize 960x -quality 80 jpg:- | base64 -w0)"
+            # The log drops lines over 64 KB: split each image into 30 KB chunks.
+            name=$(basename "$f" .png)
+            convert "$f" -resize 960x -quality 80 jpg:- | base64 -w 30000 | sed "s/^/SNAPSHOT $name /"
           done
 
       - name: Upload test frames on failure
