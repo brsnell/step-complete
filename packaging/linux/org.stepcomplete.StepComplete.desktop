@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=STEP Complete
+GenericName=STEP Viewer
+Comment=View STEP files with measurement and PMI
+Exec=StepComplete %F
+Icon=stepcomplete
+Terminal=false
+Categories=Graphics;Engineering;Viewer;Qt;
+MimeType=model/step;model/step+zip;application/step;application/x-step;application/step+zip;
+Keywords=STEP;CAD;3D;PMI;measure;viewer;
+StartupWMClass=StepComplete

@@ -1,0 +1,223 @@
+name: Release
+
+# Tag pushes (v*) build all packages and publish a GitHub Release.
+# Manual runs (workflow_dispatch) build and upload the packages as workflow artifacts only.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # Keep in sync with ci.yml: same Qt, same vcpkg commit, same cache key scheme.
+  QT_VERSION: "6.8.*"
+  VCPKG_COMMIT: 80aae04504a834399456d74605204bfe514762bf
+  VCPKG_BINARY_SOURCES: "clear;files,${{ github.workspace }}/.vcpkg-cache,readwrite"
+
+permissions:
+  contents: read
+
+jobs:
+  check-version:
+    name: Check tag matches project version
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compare
+        run: |
+          version=$(sed -n '/^project(/,/)/ s/^ *VERSION \([0-9][0-9.]*\).*/\1/p' CMakeLists.txt | head -1)
+          echo "CMakeLists.txt version: $version, tag: $GITHUB_REF_NAME"
+          [ "v$version" = "$GITHUB_REF_NAME" ] || { echo "::error::Tag $GITHUB_REF_NAME does not match project version $version"; exit 1; }
+
+  build:
+    name: Package ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Oldest supported Linux baseline (glibc 2.35), so the AppImage runs on older distros.
+          - name: Linux x64
+            os: ubuntu-22.04
+            triplet: x64-linux-dynamic
+            artifact: linux-x64
+          - name: Windows x64
+            os: windows-2022
+            triplet: x64-windows
+            artifact: windows-x64
+          - name: macOS arm64
+            os: macos-14
+            triplet: arm64-osx-sc
+            osx-arch: arm64
+            sc-arch: arm64
+            artifact: macos-arm64
+          # 2016-era Macs are Intel; cross-compiled on the arm64 runner (as in ci.yml).
+          - name: macOS x64
+            os: macos-14
+            triplet: x64-osx-sc
+            osx-arch: x86_64
+            sc-arch: x64
+            artifact: macos-x64
+
+    env:
+      # Optional signing/notarization secrets; steps skip cleanly when they are empty.
+      MACOS_CERT_P12_BASE64: ${{ secrets.MACOS_CERT_P12_BASE64 }}
+      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
+      MACOS_NOTARY_APPLE_ID: ${{ secrets.MACOS_NOTARY_APPLE_ID }}
+      MACOS_NOTARY_TEAM_ID: ${{ secrets.MACOS_NOTARY_TEAM_ID }}
+      MACOS_NOTARY_PASSWORD: ${{ secrets.MACOS_NOTARY_PASSWORD }}
+      WINDOWS_CERT_PFX_BASE64: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux packages
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build bison gperf autoconf autoconf-archive automake libtool \
+            libgl1-mesa-dev libglu1-mesa-dev libx11-dev libxi-dev libxext-dev libxrandr-dev \
+            libxkbcommon-x11-0 libxcb-cursor0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
+            libxcb-randr0 libxcb-render-util0 libxcb-shape0 libxcb-xinerama0 libxcb-xkb1 libegl1 \
+            xvfb libgl1-mesa-dri
+
+      - name: Install macOS packages
+        if: runner.os == 'macOS'
+        run: brew install ninja autoconf autoconf-archive automake libtool
+
+      - name: Set up MSVC
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          cache: true
+
+      # Same key scheme as ci.yml, so this hits the cache CI already populated.
+      - name: Restore vcpkg binary cache
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .vcpkg-cache
+          key: vcpkg-${{ matrix.triplet }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/**') }}
+          restore-keys: vcpkg-${{ matrix.triplet }}-
+
+      - name: Create vcpkg cache directory
+        shell: bash
+        run: mkdir -p .vcpkg-cache
+
+      - name: Set up vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+
+      - name: Configure
+        shell: bash
+        run: |
+          extra=()
+          if [ -n "${{ matrix.osx-arch }}" ]; then
+            extra+=("-DCMAKE_OSX_ARCHITECTURES=${{ matrix.osx-arch }}")
+          fi
+          cmake --preset release \
+            -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
+            "${extra[@]}"
+
+      - name: Save vcpkg binary cache
+        if: ${{ always() && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: .vcpkg-cache
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
+
+      - name: Build
+        run: cmake --build --preset release
+
+      # --- Linux: AppImage ----------------------------------------------------------
+      - name: Package (AppImage)
+        if: runner.os == 'Linux'
+        env:
+          SC_LIB_DIRS: ${{ github.workspace }}/build/release/vcpkg_installed/${{ matrix.triplet }}/lib
+        run: packaging/linux/build-appimage.sh build/release dist
+
+      - name: Smoke test AppImage
+        if: runner.os == 'Linux'
+        run: |
+          cd dist
+          ./StepComplete-*-x86_64.AppImage --appimage-extract-and-run --version
+          timeout 5 xvfb-run -a ./StepComplete-*-x86_64.AppImage --appimage-extract-and-run || [ $? -eq 124 ]
+
+      # --- Windows: installer + portable zip ------------------------------------------
+      - name: Package (installer + zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: packaging\windows\build-package.ps1 -BuildDir build\release -OutputDir dist
+
+      # --- macOS: DMG -------------------------------------------------------------------
+      - name: Import signing certificate
+        if: runner.os == 'macOS' && env.MACOS_CERT_P12_BASE64 != '' && env.MACOS_SIGN_IDENTITY != ''
+        shell: bash
+        run: |
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          keychain_password=$(uuidgen)
+          echo "$MACOS_CERT_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -k "$keychain_password" "$keychain"
+          security list-keychains -d user -s "$keychain" login.keychain
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+      - name: Package (DMG)
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          SC_ARCH: ${{ matrix.sc-arch }}
+          SC_VCPKG_LIB_DIR: ${{ github.workspace }}/build/release/vcpkg_installed/${{ matrix.triplet }}/lib
+        run: packaging/macos/build-dmg.sh build/release dist
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.artifact }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
+
+  # Publishing needs write access; nothing else in this workflow has it.
+  release:
+    name: Publish GitHub Release
+    needs: [check-version, build]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: release
+          merge-multiple: true
+
+      - name: Checksums
+        working-directory: release
+        run: |
+          
+          ls -la
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

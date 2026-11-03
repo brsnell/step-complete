@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Supplements shared-mime-info on systems whose database predates the STEP types.
+     Definitions are merged with (and identical in glob to) the upstream ones. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <mime-type type="model/step">
+    <comment>STEP CAD model</comment>
+    <alias type="application/step"/>
+    <alias type="application/x-step"/>
+    <glob pattern="*.step"/>
+    <glob pattern="*.stp"/>
+    <glob pattern="*.p21"/>
+  </mime-type>
+  <mime-type type="model/step+zip">
+    <comment>Compressed STEP CAD model</comment>
+    <alias type="application/step+zip"/>
+    <glob pattern="*.stpz"/>
+  </mime-type>
+</mime-info>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.stepcomplete.StepComplete</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>STEP Complete</name>
+  <summary>View STEP files with measurement and PMI</summary>
+  <description>
+    <p>
+      STEP Complete is a lightweight, cross-platform viewer for STEP (ISO 10303) CAD files.
+      It shows assemblies and parts, measures distances, angles, radii and lengths,
+      displays product and manufacturing information (PMI), and supports section views.
+    </p>
+  </description>
+  <launchable type="desktop-id">org.stepcomplete.StepComplete.desktop</launchable>
+  <url type="homepage">@PROJECT_HOMEPAGE_URL@</url>
+  <url type="bugtracker">@PROJECT_HOMEPAGE_URL@/issues</url>
+  <provides>
+    <binary>StepComplete</binary>
+  </provides>
+  <mimetypes>
+    <mimetype>model/step</mimetype>
+    <mimetype>model/step+zip</mimetype>
+  </mimetypes>
+  <categories>
+    <category>Graphics</category>
+    <category>Engineering</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <releases>
+    <release version="@PROJECT_VERSION@" date="@SC_RELEASE_DATE@"/>
+  </releases>
+</component>

@@ -5,10 +5,59 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <QFileOpenEvent>
+#include <QIcon>
+#include <QStringList>
 
+#include <cstdio>
 #include <cstring>
+#include <functional>
+#include <utility>
 
 namespace {
+
+// Finder (and "Open With" on macOS) delivers documents as QFileOpenEvent instead of argv.
+// Events can arrive before the main window exists, so they are queued until a handler is set.
+class StepApplication : public QApplication {
+public:
+  using QApplication::QApplication;
+
+  void setOpenHandler(std::function<void(const QString&)> handler) {
+    m_handler = std::move(handler);
+    const QStringList queued = std::exchange(m_queued, {});
+    for (const QString& path : queued) {
+      m_handler(path);
+    }
+  }
+
+protected:
+  bool event(QEvent* e) override {
+    if (e->type() == QEvent::FileOpen) {
+      const QString path = static_cast<QFileOpenEvent*>(e)->file();
+      if (!path.isEmpty()) {
+        if (m_handler) {
+          m_handler(path);
+        } else {
+          m_queued.append(path);
+        }
+      }
+      return true;
+    }
+    return QApplication::event(e);
+  }
+
+private:
+  std::function<void(const QString&)> m_handler;
+  QStringList m_queued;
+};
+
+QIcon loadAppIcon() {
+  QIcon icon;
+  for (const int size : {16, 24, 32, 48, 64, 128, 256, 512}) {
+    icon.addFile(QStringLiteral(":/icons/stepcomplete-%1.png").arg(size), QSize(size, size));
+  }
+  return icon;
+}
 
 bool hasArgument(int argc, char** argv, const char* name) {
   for (int i = 1; i < argc; ++i) {
@@ -47,9 +96,15 @@ void configureGraphics(bool softwareGl) {
 } // namespace
 
 int main(int argc, char** argv) {
+  // Answer --version without needing a display (scripts, packaging checks).
+  if (hasArgument(argc, argv, "--version") || hasArgument(argc, argv, "-v")) {
+    std::printf("%s %s\n", sc::core::kAppName, sc::core::kAppVersion);
+    return 0;
+  }
   configureGraphics(hasArgument(argc, argv, "--software-gl"));
 
-  QApplication app(argc, argv);
+  StepApplication app(argc, argv);
+  QApplication::setWindowIcon(loadAppIcon());
   QApplication::setApplicationName(QString::fromUtf8(sc::core::kAppName));
   QApplication::setApplicationVersion(QString::fromUtf8(sc::core::kAppVersion));
   QApplication::setOrganizationName(QStringLiteral("STEP Complete"));
@@ -69,5 +124,7 @@ int main(int argc, char** argv) {
   if (!parser.positionalArguments().isEmpty()) {
     window.openFileWhenReady(parser.positionalArguments().constFirst());
   }
+  // Also flushes file-open events that arrived while the window was being created.
+  app.setOpenHandler([&window](const QString& path) { window.openFileWhenReady(path); });
   return QApplication::exec();
 }
