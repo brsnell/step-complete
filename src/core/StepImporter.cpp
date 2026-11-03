@@ -360,7 +360,7 @@ bool storeLocked(const std::string& key, const ImportResult& result, const Impor
   if (key.empty() || !result.ok || result.stats.fromCache) {
     return false;
   }
-  return DocumentCache(options.cacheDir)
+  return DocumentCache(std::filesystem::u8path(options.cacheDir))
       .store(key, *result.document, result.messages, result.stats.rootCount, result.stats.uniqueParts);
 }
 
@@ -376,7 +376,7 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
     const std::string cacheId = cacheKeyFor(utf8Path, options);
     if (!cacheId.empty()) {
       const Clock::time_point loadStart = Clock::now();
-      if (auto cached = DocumentCache(options.cacheDir).load(cacheId)) {
+      if (auto cached = DocumentCache(std::filesystem::u8path(options.cacheDir)).load(cacheId)) {
         cached->document->setSourcePath(utf8Path);
         result.document = std::move(cached->document);
         result.messages = std::move(cached->messages);

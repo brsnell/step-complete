@@ -1,10 +1,18 @@
 #include "app/PreferencesDialog.h"
 
+#include "app/ImportJob.h"
+
 #include <QCheckBox>
 #include <QColorDialog>
 #include <QComboBox>
 #include <QDialogButtonBox>
+#include <QDir>
+#include <QDirIterator>
 #include <QFormLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QLocale>
 #include <QPixmap>
 #include <QPushButton>
 #include <QSettings>
@@ -105,12 +113,37 @@ PreferencesDialog::PreferencesDialog(const ViewPreferences& initial, QWidget* pa
   form->addRow(tr("Lighting:"), m_lightingCombo);
   form->addRow(tr("Antialiasing:"), m_antialiasing);
 
+  // Open-file cache: applied on OK (it only affects the next file opened).
+  m_cacheEnabled = new QCheckBox(tr("Keep a cache of opened files so they reopen quickly"), this);
+  m_cacheEnabled->setObjectName(QStringLiteral("cacheEnabled"));
+  m_cacheEnabled->setChecked(ImportJob::cacheEnabled());
+  m_cacheSize = new QLabel(this);
+  m_cacheSize->setObjectName(QStringLiteral("cacheSize"));
+  m_clearCache = new QPushButton(tr("Clear Cache"), this);
+  m_clearCache->setObjectName(QStringLiteral("clearCache"));
+  connect(m_clearCache, &QPushButton::clicked, this, [this] {
+    const QString dir = ImportJob::documentCacheDir();
+    if (!dir.isEmpty()) {
+      QDir(dir).removeRecursively();
+    }
+    updateCacheSize();
+  });
+  auto* cacheRow = new QHBoxLayout;
+  cacheRow->addWidget(m_cacheSize, 1);
+  cacheRow->addWidget(m_clearCache);
+  auto* cacheBox = new QGroupBox(tr("Cache"), this);
+  auto* cacheLayout = new QVBoxLayout(cacheBox);
+  cacheLayout->addWidget(m_cacheEnabled);
+  cacheLayout->addLayout(cacheRow);
+  updateCacheSize();
+
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, this);
   connect(buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
 
   auto* layout = new QVBoxLayout(this);
   layout->addLayout(form);
+  layout->addWidget(cacheBox);
   layout->addWidget(buttons);
 
   connect(m_styleCombo, &QComboBox::currentIndexChanged, this, [this] {
@@ -170,6 +203,25 @@ void PreferencesDialog::setPreferences(const ViewPreferences& preferences) {
   }
   m_current = preferences;
   edited();
+}
+
+void PreferencesDialog::updateCacheSize() {
+  qint64 bytes = 0;
+  const QString dir = ImportJob::documentCacheDir();
+  if (!dir.isEmpty()) {
+    QDirIterator it(dir, QDir::Files);
+    while (it.hasNext()) {
+      it.next();
+      bytes += it.fileInfo().size();
+    }
+  }
+  m_cacheSize->setText(tr("Cache size: %1").arg(QLocale().formattedDataSize(bytes)));
+  m_clearCache->setEnabled(bytes > 0);
+}
+
+void PreferencesDialog::accept() {
+  ImportJob::setCacheEnabled(m_cacheEnabled->isChecked());
+  QDialog::accept();
 }
 
 void PreferencesDialog::reject() {

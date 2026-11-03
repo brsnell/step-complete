@@ -23,6 +23,12 @@ public:
   explicit ImportJob(QString path, QObject* parent = nullptr);
   ~ImportJob() override; // cancels and waits for the worker
 
+  // Where opened files are cached (empty if the platform has no cache location),
+  // and whether caching is on (QSettings "cache/enabled", default true).
+  static QString documentCacheDir();
+  static bool cacheEnabled();
+  static void setCacheEnabled(bool enabled);
+
   void start();
   void cancel() { m_cancel.cancel(); }
 

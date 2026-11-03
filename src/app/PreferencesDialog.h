@@ -6,6 +6,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QLabel;
 class QPushButton;
 
 namespace sc::app {
@@ -41,12 +42,14 @@ Q_SIGNALS:
   void preferencesChanged(const ViewPreferences& preferences);
 
 public:
+  void accept() override;
   void reject() override;
 
 private:
   void chooseColor(QColor& target, const QString& title);
   void updateWidgets();
   void edited();
+  void updateCacheSize();
 
   ViewPreferences m_initial;
   ViewPreferences m_current;
@@ -56,6 +59,9 @@ private:
   QPushButton* m_solidButton = nullptr;
   QComboBox* m_lightingCombo = nullptr;
   QCheckBox* m_antialiasing = nullptr;
+  QCheckBox* m_cacheEnabled = nullptr;
+  QLabel* m_cacheSize = nullptr;
+  QPushButton* m_clearCache = nullptr;
 };
 
 } // namespace sc::app

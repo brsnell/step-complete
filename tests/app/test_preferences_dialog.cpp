@@ -2,16 +2,21 @@
 // Runs on the offscreen platform (no display or OpenGL needed).
 
 #include "app/ExportImageDialog.h"
+#include "app/ImportJob.h"
 #include "app/PreferencesDialog.h"
 
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
+#include <QFile>
+#include <QLabel>
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSettings>
 #include <QSignalSpy>
 #include <QSpinBox>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 #include <QTest>
 
@@ -117,6 +122,39 @@ private Q_SLOTS:
     QCOMPARE(spy.count(), 2);
     QCOMPARE(spy.last().at(0).value<ViewPreferences>(), initial);
     QCOMPARE(dialog.preferences(), initial);
+  }
+
+  void cacheOptionIsSavedOnOkOnly() {
+    QVERIFY(sc::app::ImportJob::cacheEnabled()); // default on
+    {
+      PreferencesDialog dialog(ViewPreferences{});
+      dialog.findChild<QCheckBox*>(QStringLiteral("cacheEnabled"))->setChecked(false);
+      dialog.reject();
+    }
+    QVERIFY(sc::app::ImportJob::cacheEnabled());
+    PreferencesDialog dialog(ViewPreferences{});
+    dialog.findChild<QCheckBox*>(QStringLiteral("cacheEnabled"))->setChecked(false);
+    dialog.accept();
+    QVERIFY(!sc::app::ImportJob::cacheEnabled());
+  }
+
+  void clearCacheEmptiesTheCacheFolder() {
+    QStandardPaths::setTestModeEnabled(true); // never touch the real user cache
+    const QString dir = sc::app::ImportJob::documentCacheDir();
+    QVERIFY(!dir.isEmpty());
+    QVERIFY(QDir().mkpath(dir));
+    QFile entry(dir + QStringLiteral("/test.cbf"));
+    QVERIFY(entry.open(QIODevice::WriteOnly));
+    entry.write(QByteArray(4096, 'x'));
+    entry.close();
+
+    PreferencesDialog dialog(ViewPreferences{});
+    auto* clear = dialog.findChild<QPushButton*>(QStringLiteral("clearCache"));
+    QVERIFY(clear->isEnabled());
+    clear->click();
+    QVERIFY(!QFile::exists(entry.fileName()));
+    QVERIFY(!clear->isEnabled());
+    QVERIFY(dialog.findChild<QLabel*>(QStringLiteral("cacheSize"))->text().contains(QLatin1String("0")));
   }
 
   void exportDialogSizeAndBackground() {

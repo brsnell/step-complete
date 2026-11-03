@@ -17,17 +17,27 @@ ImportJob::~ImportJob() {
   }
 }
 
+QString ImportJob::documentCacheDir() {
+  const QString cacheRoot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+  return cacheRoot.isEmpty() ? QString() : cacheRoot + QStringLiteral("/documents");
+}
+
+bool ImportJob::cacheEnabled() {
+  return QSettings().value(QStringLiteral("cache/enabled"), true).toBool();
+}
+
+void ImportJob::setCacheEnabled(bool enabled) {
+  QSettings().setValue(QStringLiteral("cache/enabled"), enabled);
+}
+
 void ImportJob::start() {
   m_timer.start();
   const std::string utf8Path = m_path.toStdString();
 
   // Open-file cache; the "cache/enabled" setting (default on) is read on the UI thread.
   core::ImportOptions options;
-  if (QSettings().value(QStringLiteral("cache/enabled"), true).toBool()) {
-    const QString cacheRoot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
-    if (!cacheRoot.isEmpty()) {
-      options.cacheDir = (cacheRoot + QStringLiteral("/documents")).toStdString();
-    }
+  if (cacheEnabled()) {
+    options.cacheDir = documentCacheDir().toStdString();
   }
 
   m_thread = QThread::create([this, utf8Path, options] {
