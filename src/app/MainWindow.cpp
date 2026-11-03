@@ -2,9 +2,11 @@
 
 #include "app/AssemblyTreeModel.h"
 #include "app/ImportJob.h"
+#include "app/MeasurementsPanel.h"
 #include "app/PropertiesPanel.h"
 #include "core/OcctInfo.h"
 #include "core/Version.h"
+#include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
 #include "render/SceneManager.h"
 #include "render/SceneStyle.h"
@@ -48,6 +50,9 @@ constexpr int kMaxRecentFiles = 10;
 constexpr double kTransparency = 0.6;
 const char* const kRecentFilesKey = "recentFiles";
 const char* const kLastDirKey = "lastOpenDir";
+const char* const kMeasureUnitKey = "measure/lengthUnit";
+const char* const kMeasureDecimalsKey = "measure/decimals";
+const char* const kMeasureAngleUnitKey = "measure/angleUnit";
 
 bool isStepFile(const QString& path) {
   const QString suffix = QFileInfo(path).suffix().toLower();
@@ -76,6 +81,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   m_viewport = new render::OcctViewport(this);
   setCentralWidget(m_viewport);
   m_scene = std::make_unique<render::SceneManager>(m_viewport->context());
+  m_measureTool = new render::MeasureTool(m_viewport, m_scene.get(), this);
+  connect(m_measureTool, &render::MeasureTool::measured, this, &MainWindow::onMeasured);
+  connect(m_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
   connect(m_viewport, &render::OcctViewport::glInitialized, this, &MainWindow::onGlInitialized);
   connect(m_viewport, &render::OcctViewport::selectionChanged, this, &MainWindow::onViewportSelectionChanged);
   m_viewport->setContextMenuPolicy(Qt::CustomContextMenu);
@@ -103,7 +111,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {
-  delete m_import; // cancels and waits for a running import
+  delete m_import;      // cancels and waits for a running import
+  delete m_measureTool; // removes its witness while the viewer exists
   // Presentations must be removed while the viewer still exists.
   m_scene.reset();
 }
@@ -146,6 +155,23 @@ void MainWindow::createDocks() {
   m_messagesDock->setWidget(m_messages);
   addDockWidget(Qt::BottomDockWidgetArea, m_messagesDock);
   m_messagesDock->hide();
+
+  m_measurements = new MeasurementsPanel(this);
+  m_measurementsDock = new QDockWidget(tr("Measurements"), this);
+  m_measurementsDock->setObjectName(QStringLiteral("MeasurementsDock"));
+  m_measurementsDock->setWidget(m_measurements);
+  addDockWidget(Qt::RightDockWidgetArea, m_measurementsDock);
+  resizeDocks({m_measurementsDock}, {320}, Qt::Horizontal);
+  m_measurementsDock->hide();
+  connect(m_measurements, &MeasurementsPanel::currentChanged, this, [this](int index) {
+    const auto& results = m_measurements->measurements();
+    if (index >= 0 && index < static_cast<int>(results.size()) && results[static_cast<size_t>(index)].ok) {
+      m_measureTool->showWitness(results[static_cast<size_t>(index)].witness);
+    } else {
+      m_measureTool->clearWitness();
+    }
+    m_viewport->invalidateScene();
+  });
 }
 
 void MainWindow::createActions() {
@@ -247,12 +273,162 @@ void MainWindow::createActions() {
     panels->addAction(dock->toggleViewAction());
   }
 
+  createMeasureMenu();
+  m_measurements->setHint(tr("Choose a measurement from the Measure menu."));
+
   // --- Help -----------------------------------------------------------------
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
   helpMenu->addAction(tr("&Graphics Information..."), this, &MainWindow::showGraphicsInfo);
   helpMenu->addSeparator();
   helpMenu->addAction(tr("&About %1").arg(QString::fromUtf8(core::kAppName)), this, &MainWindow::showAbout);
   helpMenu->addAction(tr("About &Qt"), qApp, &QApplication::aboutQt);
+}
+
+void MainWindow::createMeasureMenu() {
+  QSettings settings;
+  m_measureOptions.lengthUnit = static_cast<core::LengthUnit>(
+      settings.value(kMeasureUnitKey, int(core::LengthUnit::Millimeter)).toInt());
+  m_measureOptions.decimals = std::clamp(settings.value(kMeasureDecimalsKey, 3).toInt(), 0, 8);
+  m_measureOptions.angleUnit = static_cast<core::AngleUnit>(
+      settings.value(kMeasureAngleUnitKey, int(core::AngleUnit::Degree)).toInt());
+  m_measureTool->setDisplayOptions(m_measureOptions);
+
+  QMenu* menu = menuBar()->addMenu(tr("&Measure"));
+  m_measureGroup = new QActionGroup(this);
+  struct NamedMode {
+    const char* label;
+    core::MeasureMode mode;
+    QKeySequence key;
+    const char* tip;
+  };
+  const NamedMode modes[] = {
+      {QT_TR_NOOP("Entity &Info"), core::MeasureMode::EntityInfo, QKeySequence(Qt::Key_M),
+       QT_TR_NOOP("Type, size and position of a vertex, edge or face")},
+      {QT_TR_NOOP("&Distance"), core::MeasureMode::Distance, QKeySequence(Qt::Key_D),
+       QT_TR_NOOP("Minimum distance between two entities, plus center and parallel distances")},
+      {QT_TR_NOOP("&Point to Point"), core::MeasureMode::PointToPoint, QKeySequence(Qt::SHIFT | Qt::Key_D),
+       QT_TR_NOOP("Distance between two snapped points: vertices, edge midpoints, circle centers")},
+      {QT_TR_NOOP("&Angle"), core::MeasureMode::Angle, QKeySequence(Qt::Key_A),
+       QT_TR_NOOP("Angle between straight edges, planar faces or axes")},
+      {QT_TR_NOOP("&Radius / Diameter"), core::MeasureMode::Radius, QKeySequence(Qt::Key_R),
+       QT_TR_NOOP("Radius of a circular edge or a cylindrical, spherical or toroidal face")},
+  };
+  for (const NamedMode& m : modes) {
+    QAction* action = menu->addAction(tr(m.label));
+    action->setCheckable(true);
+    action->setShortcut(m.key);
+    action->setStatusTip(tr(m.tip));
+    action->setData(int(m.mode));
+    m_measureGroup->addAction(action);
+    const int mode = int(m.mode);
+    connect(action, &QAction::triggered, this, [this, mode] { setMeasureMode(mode); });
+  }
+  m_stopMeasureAction = menu->addAction(tr("&Stop Measuring"), this, [this] { setMeasureMode(-1); });
+  m_stopMeasureAction->setShortcut(Qt::Key_Escape);
+
+  menu->addSeparator();
+  QMenu* units = menu->addMenu(tr("Length &Unit"));
+  auto* unitGroup = new QActionGroup(this);
+  for (const core::LengthUnit unit :
+       {core::LengthUnit::Micrometer, core::LengthUnit::Millimeter, core::LengthUnit::Centimeter,
+        core::LengthUnit::Meter, core::LengthUnit::Inch, core::LengthUnit::Foot}) {
+    QAction* action = units->addAction(QString::fromUtf8(core::displayName(unit).data()));
+    action->setCheckable(true);
+    action->setChecked(unit == m_measureOptions.lengthUnit);
+    unitGroup->addAction(action);
+    connect(action, &QAction::triggered, this, [this, unit] {
+      m_measureOptions.lengthUnit = unit;
+      QSettings().setValue(kMeasureUnitKey, int(unit));
+      applyMeasureOptions();
+    });
+  }
+  QMenu* precision = menu->addMenu(tr("&Precision"));
+  auto* precisionGroup = new QActionGroup(this);
+  for (int decimals = 0; decimals <= 6; ++decimals) {
+    QAction* action = precision->addAction(tr("%n decimal(s)", nullptr, decimals));
+    action->setCheckable(true);
+    action->setChecked(decimals == m_measureOptions.decimals);
+    precisionGroup->addAction(action);
+    connect(action, &QAction::triggered, this, [this, decimals] {
+      m_measureOptions.decimals = decimals;
+      QSettings().setValue(kMeasureDecimalsKey, decimals);
+      applyMeasureOptions();
+    });
+  }
+  QMenu* angles = menu->addMenu(tr("A&ngle Unit"));
+  auto* angleGroup = new QActionGroup(this);
+  const std::pair<core::AngleUnit, const char*> angleUnits[] = {
+      {core::AngleUnit::Degree, QT_TR_NOOP("Degrees")}, {core::AngleUnit::Radian, QT_TR_NOOP("Radians")}};
+  for (const auto& [unit, label] : angleUnits) {
+    QAction* action = angles->addAction(tr(label));
+    action->setCheckable(true);
+    action->setChecked(unit == m_measureOptions.angleUnit);
+    angleGroup->addAction(action);
+    const core::AngleUnit angleUnit = unit;
+    connect(action, &QAction::triggered, this, [this, angleUnit] {
+      m_measureOptions.angleUnit = angleUnit;
+      QSettings().setValue(kMeasureAngleUnitKey, int(angleUnit));
+      applyMeasureOptions();
+    });
+  }
+  menu->addSeparator();
+  menu->addAction(m_measurementsDock->toggleViewAction());
+}
+
+void MainWindow::applyMeasureOptions() {
+  // New results use the new units; existing results keep the text they were measured with.
+  m_measureTool->setDisplayOptions(m_measureOptions);
+  statusBar()->showMessage(tr("New measurements use %1, %n decimal(s).", nullptr, m_measureOptions.decimals)
+                               .arg(QString::fromUtf8(core::displayName(m_measureOptions.lengthUnit).data())),
+                           5000);
+}
+
+void MainWindow::setMeasureMode(int mode) {
+  std::optional<core::MeasureMode> newMode =
+      mode < 0 ? std::nullopt : std::optional<core::MeasureMode>(static_cast<core::MeasureMode>(mode));
+  if (newMode && !m_scene->model()) {
+    statusBar()->showMessage(tr("Open a model to measure."), 4000);
+    newMode.reset();
+  }
+  for (QAction* action : m_measureGroup->actions()) {
+    action->setChecked(newMode && action->data().toInt() == mode);
+  }
+  if (newMode) {
+    // Measuring works on sub-shapes: drop the part selection first.
+    m_syncingSelection = true;
+    m_treeView->clearSelection();
+    m_syncingSelection = false;
+    m_measurementsDock->show();
+  }
+  m_measureTool->setMode(newMode);
+  if (!newMode) {
+    m_measurements->setHint(tr("Choose a measurement from the Measure menu."));
+    statusBar()->clearMessage();
+  }
+  updateActions();
+}
+
+void MainWindow::onPickProgress(int picked, int required) {
+  const auto mode = m_measureTool->mode();
+  if (!mode) {
+    return;
+  }
+  const QString name = QString::fromUtf8(core::toString(*mode));
+  const QString hint = required == 1
+                           ? tr("%1: click an entity. Esc stops measuring.").arg(name)
+                           : tr("%1: pick %2 of %3. Click a pick again to undo it; Esc stops measuring.")
+                                 .arg(name)
+                                 .arg(picked + 1)
+                                 .arg(required);
+  m_measurements->setHint(hint);
+  statusBar()->showMessage(hint);
+}
+
+void MainWindow::onMeasured(const core::Measurement& measurement) {
+  m_measurements->addMeasurement(measurement);
+  if (!measurement.ok) {
+    statusBar()->showMessage(QString::fromStdString(measurement.error), 6000);
+  }
 }
 
 void MainWindow::updateActions() {
@@ -264,6 +440,12 @@ void MainWindow::updateActions() {
   m_transparentAction->setEnabled(hasSelection);
   m_fitSelectionAction->setEnabled(hasSelection);
   m_showAllAction->setEnabled(hasModel);
+  if (m_stopMeasureAction != nullptr) {
+    m_stopMeasureAction->setEnabled(m_measureTool->isActive());
+    for (QAction* action : m_measureGroup->actions()) {
+      action->setEnabled(hasModel);
+    }
+  }
 }
 
 void MainWindow::onGlInitialized(bool ok, const QString& message) {
@@ -361,6 +543,7 @@ void MainWindow::onImportFinished() {
     // Replace the previous model only once the new one loaded successfully.
     std::shared_ptr<const core::AssemblyIndex> index = job->index();
     m_transparentParts.clear();
+    m_measureTool->reset();
     m_scene->setModel(index);
     render::SceneManager* scene = m_scene.get();
     m_treeModel->setModel(index, [scene](core::NodeId id) { return scene->isVisible(id); });
@@ -409,6 +592,7 @@ void MainWindow::onImportFinished() {
 }
 
 void MainWindow::closeModel() {
+  setMeasureMode(-1);
   m_scene->setModel(nullptr);
   m_treeModel->setModel(nullptr, {});
   m_properties->clear();
@@ -488,6 +672,9 @@ void MainWindow::onTreeSelectionChanged() {
   if (m_syncingSelection) {
     return;
   }
+  if (m_measureTool->isActive()) {
+    return; // in measure mode the 3D selection holds picks, not parts
+  }
   m_syncingSelection = true;
   m_scene->select(nodes);
   m_viewport->invalidateScene();
@@ -495,7 +682,7 @@ void MainWindow::onTreeSelectionChanged() {
 }
 
 void MainWindow::onViewportSelectionChanged() {
-  if (m_syncingSelection) {
+  if (m_syncingSelection || m_measureTool->isActive()) {
     return;
   }
   m_syncingSelection = true;

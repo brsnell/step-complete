@@ -15,6 +15,8 @@ add_library(sc_core STATIC
   AssemblyIndex.cpp
   Measure.h
   Measure.cpp
+  Measurement.h
+  Measurement.cpp
 )
 add_library(sc::core ALIAS sc_core)
 

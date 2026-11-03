@@ -209,6 +209,19 @@ void OcctViewport::configureNavigation() {
   gestures.Bind(Aspect_VKeyMouse_MiddleButton | Aspect_VKeyFlags_CTRL, AIS_MouseGesture_Zoom);
 }
 
+void OcctViewport::setAccumulatingSelection(bool accumulate) {
+  auto& schemes = ChangeMouseSelectionSchemes();
+  schemes.Bind(Aspect_VKeyMouse_LeftButton,
+               accumulate ? AIS_SelectionScheme_XOR : AIS_SelectionScheme_Replace);
+}
+
+double OcctViewport::pixelsToModel(double logicalPixels) const {
+  if (m_view.IsNull() || m_view->Window().IsNull()) {
+    return 0.0;
+  }
+  return m_view->Convert(static_cast<int>(std::lround(logicalPixels * devicePixelRatioF())));
+}
+
 void OcctViewport::initializeGL() {
   if (m_glFailed) {
     return;

@@ -8,6 +8,8 @@ qt_add_executable(stepcomplete WIN32 MACOSX_BUNDLE
   AssemblyTreeModel.cpp
   PropertiesPanel.h
   PropertiesPanel.cpp
+  MeasurementsPanel.h
+  MeasurementsPanel.cpp
 )
 
 set_target_properties(stepcomplete PROPERTIES

@@ -6,6 +6,10 @@ add_library(sc_render STATIC
   SceneStyle.cpp
   SceneManager.h
   SceneManager.cpp
+  WitnessPresentation.h
+  WitnessPresentation.cpp
+  MeasureTool.h
+  MeasureTool.cpp
 )
 add_library(sc::render ALIAS sc_render)
 

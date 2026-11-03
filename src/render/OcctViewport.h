@@ -64,6 +64,12 @@ public:
   int msaaSamples() const;
   void setShowFrameRate(bool enabled);
 
+  // While measuring, left clicks toggle entities in the selection (accumulating
+  // picks) instead of replacing it. Shift+click always toggles.
+  void setAccumulatingSelection(bool accumulate);
+  // Model-space length (mm) covered by this many logical pixels at the view center.
+  double pixelsToModel(double logicalPixels) const;
+
   QSize minimumSizeHint() const override { return {200, 150}; }
 
 Q_SIGNALS:

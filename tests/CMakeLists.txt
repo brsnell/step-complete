@@ -17,6 +17,7 @@ add_executable(sc_core_tests
   core/test_step_import.cpp
   core/test_real_models.cpp
   core/test_measure.cpp
+  core/test_measurement.cpp
 )
 target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support GTest::gtest_main)
 sc_target_defaults(sc_core_tests)
@@ -28,6 +29,7 @@ add_executable(sc_render_tests
   render/RenderTestUtils.h
   render/test_viewport_smoke.cpp
   render/test_scene_manager.cpp
+  render/test_measure_tool.cpp
 )
 target_link_libraries(sc_render_tests PRIVATE sc::render sc_test_support Qt6::Test)
 sc_target_defaults(sc_render_tests)

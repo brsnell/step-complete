@@ -2,8 +2,10 @@
 
 #include <AIS_ConnectedInteractive.hxx>
 #include <AIS_DisplayMode.hxx>
+#include <AIS_Shape.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <Prs3d_LineAspect.hxx>
+#include <StdSelect_BRepOwner.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <TDF_Tool.hxx>
 #include <XCAFPrs_AISObject.hxx>
@@ -103,7 +105,7 @@ void SceneManager::setModel(std::shared_ptr<const core::AssemblyIndex> index) {
     m_objectToPart[part.object.get()] = id;
     part.visible = node.visibleInFile;
     if (part.visible) {
-      m_context->Display(part.object, false);
+      displayPart(part.object);
     }
   }
 }
@@ -149,7 +151,7 @@ void SceneManager::detach(core::NodeId id) {
   part->detached = true;
   m_objectToPart[own.get()] = id;
   if (part->visible) {
-    m_context->Display(own, false);
+    displayPart(own);
     if (wasSelected) {
       m_context->AddOrRemoveSelected(own, false);
     }
@@ -228,7 +230,7 @@ void SceneManager::setVisible(const std::vector<core::NodeId>& nodes, bool visib
     }
     part->visible = visible;
     if (visible) {
-      m_context->Display(part->object, false);
+      displayPart(part->object);
     } else {
       m_context->Erase(part->object, false);
     }
@@ -290,6 +292,68 @@ core::NodeId SceneManager::partOf(const OccHandle<AIS_InteractiveObject>& object
   }
   const auto it = m_objectToPart.find(object.get());
   return it == m_objectToPart.end() ? core::kNoNode : it->second;
+}
+
+void SceneManager::displayPart(const OccHandle<AIS_InteractiveObject>& object) {
+  // Display with the first active selection mode (which also loads the object
+  // into the selector; per-object Activate() does nothing for objects that are
+  // not loaded), then activate the remaining modes the current tool wants.
+  const std::vector<int> modes = activeSelectionModes();
+  m_context->Display(object, aisMode(m_style), modes.front(), false);
+  for (size_t i = 1; i < modes.size(); ++i) {
+    m_context->Activate(object, modes[i]);
+  }
+}
+
+std::vector<int> SceneManager::activeSelectionModes() const {
+  return m_selectionModes.empty() ? std::vector<int>{0} : m_selectionModes;
+}
+
+void SceneManager::setSelectionModes(const std::vector<int>& modes) {
+  if (modes == m_selectionModes) {
+    return;
+  }
+  m_context->ClearSelected(false);
+  m_selectionModes = modes;
+  const std::vector<int> active = activeSelectionModes();
+  for (const PartEntry& part : m_parts) {
+    if (part.object.IsNull() || !part.visible) {
+      continue;
+    }
+    m_context->Deactivate(part.object);
+    for (const int mode : active) {
+      m_context->Activate(part.object, mode);
+    }
+  }
+}
+
+std::vector<int> SceneManager::subShapeModes(bool vertices, bool edges, bool faces) {
+  std::vector<int> modes;
+  if (vertices) {
+    modes.push_back(AIS_Shape::SelectionMode(TopAbs_VERTEX));
+  }
+  if (edges) {
+    modes.push_back(AIS_Shape::SelectionMode(TopAbs_EDGE));
+  }
+  if (faces) {
+    modes.push_back(AIS_Shape::SelectionMode(TopAbs_FACE));
+  }
+  return modes;
+}
+
+std::optional<SceneManager::PickedEntity>
+SceneManager::pickedEntity(const OccHandle<SelectMgr_EntityOwner>& owner) const {
+  const OccHandle<StdSelect_BRepOwner> brepOwner = OccHandle<StdSelect_BRepOwner>::DownCast(owner);
+  if (brepOwner.IsNull() || !brepOwner->HasShape() || !m_index) {
+    return std::nullopt;
+  }
+  const core::NodeId part = partOf(OccHandle<AIS_InteractiveObject>::DownCast(brepOwner->Selectable()));
+  if (part == core::kNoNode) {
+    return std::nullopt;
+  }
+  // Owners of connected and detached instances hold the prototype-space shape;
+  // the instance placement is the node's accumulated location.
+  return PickedEntity{part, brepOwner->Shape().Moved(m_index->node(part).location)};
 }
 
 std::vector<core::NodeId> SceneManager::selectedParts() const {

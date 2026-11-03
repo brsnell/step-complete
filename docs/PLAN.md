@@ -262,10 +262,18 @@ Each milestone ends with something runnable on all three platforms in CI.
   (3.3 MB STEP) load in 2.2 s; peak RSS 464 MB; empty app 236 MB. Both RSS figures include
   Mesa's in-process software renderer, so re-measure on a real GPU against §2a.
 
-### M2: Measurement (≈3–4 weeks)
-- `core/Measure` with full unit tests (analytic shapes with known answers).
-- Snapping and pre-highlight; all modes in §4; witness graphics; results list; units/precision
-  preferences; mass properties with validation-property comparison.
+### M2: Measurement (≈3–4 weeks): in progress
+- ✅ `core/Measure` with full unit tests (analytic shapes with known answers), including every
+  mode on a rotated and translated instance.
+- ✅ `core/Measurement`: picks → formatted result + witness geometry, point snapping
+  (vertices, edge ends/midpoints, circle centers), clipboard text and CSV. Headless tests.
+- ✅ `MeasureTool`: sub-shape picking on instanced parts with hover pre-highlight, click to
+  pick / click again to un-pick, witness drawn on top. Render tests drive real picks.
+- ✅ Measure menu (Entity Info, Distance, Point to Point, Angle, Radius), Measurements panel
+  (copy, CSV export, remove), length unit / precision / angle unit preferences.
+- ✅ STEP validation properties read from the file (`AssemblyIndex::validationProperties`).
+- ⏳ Mass properties UI with validation-property comparison; snap markers while hovering;
+  results that follow section views (M4).
 - **Exit:** test suite covers every mode across transformed instances.
 
 ### M3: PMI (≈4–6 weeks)

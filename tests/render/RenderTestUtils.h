@@ -50,5 +50,6 @@ inline void dumpImage(const QImage& image, const char* name) {
 // Run each render test class; defined in its own translation unit.
 int runViewportSmokeTests(int argc, char** argv);
 int runSceneManagerTests(int argc, char** argv);
+int runMeasureToolTests(int argc, char** argv);
 
 } // namespace sc::test

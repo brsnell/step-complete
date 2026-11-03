@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/AssemblyIndex.h"
+#include "core/Measurement.h"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -19,6 +20,7 @@ class QProgressDialog;
 class QTreeView;
 
 namespace sc::render {
+class MeasureTool;
 class OcctViewport;
 class SceneManager;
 } // namespace sc::render
@@ -27,6 +29,7 @@ namespace sc::app {
 
 class AssemblyTreeModel;
 class ImportJob;
+class MeasurementsPanel;
 class PropertiesPanel;
 
 class MainWindow : public QMainWindow {
@@ -72,6 +75,13 @@ private:
   void showContextMenu(QWidget* source, const QPoint& pos);
   void updateActions();
 
+  // --- Measurement ------------------------------------------------------------
+  void createMeasureMenu();
+  void setMeasureMode(int mode); // -1 = off, else core::MeasureMode
+  void onMeasured(const core::Measurement& measurement);
+  void onPickProgress(int picked, int required);
+  void applyMeasureOptions();
+
   void showGraphicsInfo();
   void showAbout();
 
@@ -81,6 +91,12 @@ private:
   QTreeView* m_treeView = nullptr;
   PropertiesPanel* m_properties = nullptr;
   QListWidget* m_messages = nullptr;
+  render::MeasureTool* m_measureTool = nullptr;
+  MeasurementsPanel* m_measurements = nullptr;
+  QDockWidget* m_measurementsDock = nullptr;
+  QActionGroup* m_measureGroup = nullptr;
+  QAction* m_stopMeasureAction = nullptr;
+  core::MeasureDisplayOptions m_measureOptions;
   QDockWidget* m_messagesDock = nullptr;
   QLabel* m_emptyHint = nullptr;
   QLabel* m_glStatus = nullptr;

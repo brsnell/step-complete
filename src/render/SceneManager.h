@@ -7,9 +7,12 @@
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_InteractiveObject.hxx>
 #include <Bnd_Box.hxx>
+#include <SelectMgr_EntityOwner.hxx>
+#include <TopoDS_Shape.hxx>
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -65,6 +68,22 @@ public:
   // Replaces the context selection with the visible parts below the given nodes.
   void select(const std::vector<core::NodeId>& nodes);
 
+  // --- Picking modes -------------------------------------------------------------
+  // Selection modes active on every displayed part (AIS_Shape::SelectionMode
+  // values). Empty means whole parts (mode 0), the default. Changing modes
+  // clears the selection.
+  void setSelectionModes(const std::vector<int>& modes);
+  const std::vector<int>& selectionModes() const { return m_selectionModes; }
+  static std::vector<int> subShapeModes(bool vertices, bool edges, bool faces);
+
+  struct PickedEntity {
+    core::NodeId part = core::kNoNode;
+    TopoDS_Shape worldShape; // picked vertex/edge/face, placed in world coordinates
+  };
+  // The B-rep entity behind a sub-shape selection owner, or nullopt (whole
+  // objects, the view cube, measurement witnesses).
+  std::optional<PickedEntity> pickedEntity(const OccHandle<SelectMgr_EntityOwner>& owner) const;
+
   // World bounding box of the visible parts below the nodes (void if none).
   Bnd_Box boundingBox(const std::vector<core::NodeId>& nodes) const;
 
@@ -82,6 +101,8 @@ private:
   OccHandle<XCAFPrs_AISObject> prototypeFor(const core::AssemblyNode& node);
   OccHandle<AIS_InteractiveObject> createInstance(const core::AssemblyNode& node);
   void detach(core::NodeId part);
+  void displayPart(const OccHandle<AIS_InteractiveObject>& object);
+  std::vector<int> activeSelectionModes() const;
   void applyStyleTo(const OccHandle<AIS_InteractiveObject>& object);
   void applyHighlightMode();
   std::vector<core::NodeId> expandToParts(const std::vector<core::NodeId>& nodes) const;
@@ -94,6 +115,7 @@ private:
   std::unordered_map<const AIS_InteractiveObject*, core::NodeId> m_objectToPart;
   std::map<std::string, OccHandle<XCAFPrs_AISObject>> m_prototypes;
   DisplayStyle m_style = DisplayStyle::ShadedWithEdges;
+  std::vector<int> m_selectionModes;
 };
 
 } // namespace sc::render
