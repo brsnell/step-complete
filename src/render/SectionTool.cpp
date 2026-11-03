@@ -8,6 +8,7 @@
 #include <Graphic3d_AspectLine3d.hxx>
 #include <Graphic3d_Camera.hxx>
 #include <Graphic3d_Group.hxx>
+#include <Prs3d_Drawer.hxx>
 #include <Prs3d_Presentation.hxx>
 #include <Select3D_SensitiveTriangle.hxx>
 #include <SelectMgr_EntityOwner.hxx>
@@ -39,6 +40,20 @@ public:
   SectionHandle() {
     SetInfiniteState(false);
     SetMutable(true);
+    // OCCT's default hover/selection styles repaint the whole quad opaque, hiding the model.
+    // Keep the handle translucent and just tint it brighter.
+    for (const bool dynamic : {true, false}) {
+      OccHandle<Prs3d_Drawer> style = new Prs3d_Drawer();
+      style->SetColor(Quantity_Color(0.35, 0.75, 1.0, Quantity_TOC_sRGB));
+      style->SetTransparency(0.6f);
+      style->SetDisplayMode(0);
+      style->SetZLayer(Graphic3d_ZLayerId_UNKNOWN); // same layer as the handle
+      if (dynamic) {
+        SetDynamicHilightAttributes(style);
+      } else {
+        SetHilightAttributes(style);
+      }
+    }
   }
 
   void setGeometry(const gp_Pnt& center, const gp_Dir& normal, double halfSize) {

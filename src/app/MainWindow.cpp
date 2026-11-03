@@ -7,6 +7,7 @@
 #include "app/PmiPanel.h"
 #include "app/PreferencesDialog.h"
 #include "app/PropertiesPanel.h"
+#include "app/SectionPanel.h"
 #include "core/OcctInfo.h"
 #include "core/Version.h"
 #include "render/MeasureTool.h"
@@ -14,6 +15,7 @@
 #include "render/PmiScene.h"
 #include "render/SceneManager.h"
 #include "render/SceneStyle.h"
+#include "render/SectionTool.h"
 
 #include <QAction>
 #include <QActionGroup>
@@ -88,6 +90,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setCentralWidget(m_viewport);
   m_scene = std::make_unique<render::SceneManager>(m_viewport->context());
   m_pmiScene = std::make_unique<render::PmiScene>(m_viewport->context());
+  m_sectionTool = new render::SectionTool(m_viewport, m_scene.get(), this);
   // PMI labels are screen-space boxes: re-separate them once the camera stops moving.
   m_declutterTimer = new QTimer(this);
   m_declutterTimer->setSingleShot(true);
@@ -132,6 +135,7 @@ MainWindow::~MainWindow() {
   delete m_import;      // cancels and waits for a running import
   delete m_measureTool; // removes its witness while the viewer exists
   // Presentations must be removed while the viewer still exists.
+  delete m_sectionTool; // removes its handles and the parts' clip planes
   m_pmiScene.reset();
   m_scene.reset();
 }
@@ -189,12 +193,27 @@ void MainWindow::createDocks() {
             m_viewport->invalidateScene();
           });
 
+  m_sectionPanel = new SectionPanel(m_sectionTool, this);
+  m_sectionDock = new QDockWidget(tr("Section"), this);
+  m_sectionDock->setObjectName(QStringLiteral("SectionDock"));
+  m_sectionDock->setWidget(m_sectionPanel);
+  addDockWidget(Qt::RightDockWidgetArea, m_sectionDock);
+  m_sectionDock->hide();
+  connect(m_sectionPanel, &SectionPanel::sectionChanged, this, [this] {
+    if (m_sectionAction != nullptr) {
+      const QSignalBlocker blocker(m_sectionAction);
+      m_sectionAction->setChecked(m_sectionTool->isActive());
+    }
+    m_viewport->invalidateScene();
+  });
+
   m_measurements = new MeasurementsPanel(this);
   m_measurementsDock = new QDockWidget(tr("Measurements"), this);
   m_measurementsDock->setObjectName(QStringLiteral("MeasurementsDock"));
   m_measurementsDock->setWidget(m_measurements);
   addDockWidget(Qt::RightDockWidgetArea, m_measurementsDock);
   tabifyDockWidget(m_pmiDock, m_measurementsDock);
+  tabifyDockWidget(m_pmiDock, m_sectionDock);
   resizeDocks({m_pmiDock}, {340}, Qt::Horizontal);
   m_measurementsDock->hide();
   connect(m_measurements, &MeasurementsPanel::currentChanged, this, [this](int index) {
@@ -299,6 +318,12 @@ void MainWindow::createActions() {
       viewMenu->addAction(tr("&Transparent"), this, &MainWindow::toggleTransparencySelected);
   m_transparentAction->setShortcut(Qt::Key_T);
 
+  m_sectionAction = viewMenu->addAction(tr("Se&ction View"));
+  m_sectionAction->setCheckable(true);
+  m_sectionAction->setShortcut(Qt::Key_X);
+  m_sectionAction->setStatusTip(
+      tr("Cut the model with up to three planes (drag a plane's handle to move it)"));
+  connect(m_sectionAction, &QAction::toggled, this, &MainWindow::setSectionView);
   m_showAllPmiAction = viewMenu->addAction(tr("Show All &PMI"), this, &MainWindow::showAllPmi);
   m_showAllPmiAction->setStatusTip(tr("Show every annotation and remove saved-view clipping"));
   m_semanticLabelsAction = viewMenu->addAction(tr("PMI &Labels from Semantics"));
@@ -566,6 +591,7 @@ void MainWindow::updateActions() {
   m_showAllAction->setEnabled(hasModel);
   m_showAllPmiAction->setEnabled(m_pmi && !m_pmi->isEmpty());
   m_semanticLabelsAction->setEnabled(m_pmi && !m_pmi->isEmpty());
+  m_sectionAction->setEnabled(hasModel);
   if (m_stopMeasureAction != nullptr) {
     m_stopMeasureAction->setEnabled(m_measureTool->isActive());
     m_massPropertiesAction->setEnabled(hasModel);
@@ -673,7 +699,10 @@ void MainWindow::onImportFinished() {
     m_transparentParts.clear();
     m_measureTool->reset();
     m_pmiScene->clearViewClipping(m_viewport->view());
+    m_sectionTool->reset();
     m_scene->setModel(index);
+    m_sectionTool->setBounds(m_scene->boundingBox(index->roots()));
+    m_sectionPanel->refresh();
     m_pmi = job->pmi();
     m_pmiScene->setModel(m_pmi, index, m_viewport->devicePixelRatioF());
     m_pmiPanel->setModel(m_pmi);
@@ -734,6 +763,7 @@ void MainWindow::onImportFinished() {
 
 void MainWindow::closeModel() {
   setMeasureMode(-1);
+  setSectionView(false);
   m_pmiScene->clearViewClipping(m_viewport->view());
   m_pmiScene->clear();
   m_pmiPanel->clear();
@@ -968,6 +998,30 @@ void MainWindow::showContextMenu(QWidget* source, const QPoint& pos) {
 // ---------------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------------
+
+void MainWindow::setSectionView(bool on) {
+  if (on && !m_scene->model()) {
+    statusBar()->showMessage(tr("Open a model to cut it."), 4000);
+    on = false;
+  }
+  if (on) {
+    if (!m_sectionTool->isActive()) {
+      render::SectionPlane first = m_sectionTool->plane(0);
+      first.enabled = true;
+      m_sectionTool->setPlane(0, first);
+    }
+    m_sectionDock->show();
+    m_sectionDock->raise();
+  } else {
+    m_sectionTool->reset();
+  }
+  {
+    const QSignalBlocker blocker(m_sectionAction);
+    m_sectionAction->setChecked(on);
+  }
+  m_sectionPanel->refresh();
+  m_viewport->invalidateScene();
+}
 
 // ---------------------------------------------------------------------------------
 // PMI

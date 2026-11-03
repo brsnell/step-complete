@@ -23,6 +23,7 @@ class QTreeView;
 
 namespace sc::render {
 class MeasureTool;
+class SectionTool;
 class PmiScene;
 class OcctViewport;
 class SceneManager;
@@ -34,6 +35,7 @@ class AssemblyTreeModel;
 class ImportJob;
 class MeasurementsPanel;
 class PmiPanel;
+class SectionPanel;
 struct ViewPreferences;
 class PropertiesPanel;
 
@@ -89,6 +91,8 @@ private:
   void onPickProgress(int picked, int required);
   void applyMeasureOptions();
 
+  void setSectionView(bool on);
+
   // --- PMI --------------------------------------------------------------------
   void onPmiSelected(const std::vector<core::PmiId>& ids);
   void activateSavedView(int viewId);
@@ -115,6 +119,10 @@ private:
   QDockWidget* m_pmiDock = nullptr;
   QAction* m_showAllPmiAction = nullptr;
   QAction* m_semanticLabelsAction = nullptr;
+  render::SectionTool* m_sectionTool = nullptr;
+  SectionPanel* m_sectionPanel = nullptr;
+  QDockWidget* m_sectionDock = nullptr;
+  QAction* m_sectionAction = nullptr;
   QTimer* m_declutterTimer = nullptr; // re-lays out PMI labels once the camera settles
   QAction* m_antialiasingAction = nullptr;
   QAction* m_exportImageAction = nullptr;

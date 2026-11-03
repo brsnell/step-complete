@@ -27,6 +27,7 @@
 #include <StepGeom_Direction.hxx>
 #include <StepGeom_GeomRepContextAndGlobUnitAssCtxAndGlobUncertaintyAssCtx.hxx>
 #include <StepGeom_GeometricRepresentationContextAndGlobalUnitAssignedContext.hxx>
+#include <StepRepr_ReprItemAndMeasureWithUnit.hxx>
 #include <StepVisual_CameraModelD3.hxx>
 #include <StepVisual_PlanarBox.hxx>
 #include <StepVisual_ViewVolume.hxx>
@@ -127,7 +128,17 @@ double lengthUnitInMillimeters(const OccHandle<StepBasic_NamedUnit>& unit, int d
     return 1000.0 * std::pow(10.0, exponent);
   }
   if (const auto converted = OccHandle<StepBasic_ConversionBasedUnit>::DownCast(unit); !converted.IsNull()) {
-    const OccHandle<StepBasic_MeasureWithUnit> factor = converted->ConversionFactor();
+    // OCCT 8 returns the factor as Standard_Transient: a measure, or a complex
+    // representation item that wraps one.
+    OccHandle<StepBasic_MeasureWithUnit> factor = OccHandle<StepBasic_MeasureWithUnit>::DownCast(
+        OccHandle<Standard_Transient>(converted->ConversionFactor()));
+    if (factor.IsNull()) {
+      if (const auto item = OccHandle<StepRepr_ReprItemAndMeasureWithUnit>::DownCast(
+              OccHandle<Standard_Transient>(converted->ConversionFactor()));
+          !item.IsNull()) {
+        factor = item->GetMeasureWithUnit();
+      }
+    }
     if (factor.IsNull()) {
       return 0.0;
     }
