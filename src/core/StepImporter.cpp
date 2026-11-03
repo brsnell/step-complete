@@ -9,6 +9,8 @@
 #include <IFSelect_ReturnStatus.hxx>
 #include <Interface_Check.hxx>
 #include <Interface_CheckIterator.hxx>
+#include <Interface_EntityIterator.hxx>
+#include <Interface_Graph.hxx>
 #include <Interface_InterfaceModel.hxx>
 #include <Message_ProgressIndicator.hxx>
 #include <Message_ProgressScope.hxx>
@@ -28,11 +30,17 @@
 #include <StepBasic_SiUnitName.hxx>
 #include <StepBasic_Unit.hxx>
 #include <StepGeom_Axis2Placement3d.hxx>
+#include <StepGeom_BSplineCurve.hxx>
+#include <StepGeom_BSplineSurface.hxx>
 #include <StepGeom_CartesianPoint.hxx>
 #include <StepGeom_Direction.hxx>
 #include <StepGeom_GeomRepContextAndGlobUnitAssCtxAndGlobUncertaintyAssCtx.hxx>
 #include <StepGeom_GeometricRepresentationContextAndGlobalUnitAssignedContext.hxx>
+#include <StepGeom_HArray1OfCartesianPoint.hxx>
+#include <StepGeom_HArray2OfCartesianPoint.hxx>
+#include <StepGeom_Pcurve.hxx>
 #include <StepRepr_ReprItemAndMeasureWithUnit.hxx>
+#include <StepShape_FaceSurface.hxx>
 #include <StepVisual_CameraModelD3.hxx>
 #include <StepVisual_PlanarBox.hxx>
 #include <StepVisual_ViewVolume.hxx>
@@ -321,6 +329,121 @@ void collectChecks(const Interface_CheckIterator& checks, std::vector<ImportMess
   }
 }
 
+template <class Spline>
+bool hasNullControlPoint(const OccHandle<Spline>& spline);
+
+template <>
+bool hasNullControlPoint(const OccHandle<StepGeom_BSplineSurface>& surface) {
+  const auto points = surface->ControlPointsList();
+  if (points.IsNull()) {
+    return true;
+  }
+  for (int i = points->LowerRow(); i <= points->UpperRow(); ++i) {
+    for (int j = points->LowerCol(); j <= points->UpperCol(); ++j) {
+      if (points->Value(i, j).IsNull()) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+template <>
+bool hasNullControlPoint(const OccHandle<StepGeom_BSplineCurve>& curve) {
+  const auto points = curve->ControlPointsList();
+  if (points.IsNull()) {
+    return true;
+  }
+  for (int i = points->Lower(); i <= points->Upper(); ++i) {
+    if (points->Value(i).IsNull()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// The entities' labels as written in the file (#82013), at most five.
+std::string entityList(const OccHandle<Interface_InterfaceModel>& model,
+                       const std::vector<OccHandle<Standard_Transient>>& entities) {
+  std::string out;
+  for (size_t i = 0; i < entities.size() && i < 5; ++i) {
+    const OccHandle<TCollection_HAsciiString> label = model->StringLabel(entities[i]);
+    out += (i == 0 ? "" : ", ") + std::string(label.IsNull() ? "?" : label->ToCString());
+  }
+  return entities.size() > 5 ? out + ", ..." : out;
+}
+
+// Some exporters (seen from ST-DEVELOPER v20) write B-spline control points that
+// reference other entity types (LINE, VECTOR). The parser leaves those points null
+// and OCCT's translator dereferences them without a check, crashing the import.
+// A face on such a surface gets an empty placeholder surface instead, which the
+// translator rejects cleanly, so the rest of the model still imports. Any other use
+// of a broken spline (pcurves aside) cannot be skipped safely: the returned error
+// rejects the file.
+std::string neutralizeBrokenSplines(const OccHandle<Interface_InterfaceModel>& model,
+                                    std::vector<ImportMessage>& messages) {
+  std::vector<OccHandle<Standard_Transient>> broken;
+  for (int i = 1; i <= model->NbEntities(); ++i) {
+    const OccHandle<Standard_Transient>& entity = model->Value(i);
+    const auto surface = OccHandle<StepGeom_BSplineSurface>::DownCast(entity);
+    const auto curve = OccHandle<StepGeom_BSplineCurve>::DownCast(entity);
+    const bool brokenSurface = !surface.IsNull() && hasNullControlPoint(surface);
+    const bool brokenCurve = !curve.IsNull() && hasNullControlPoint(curve);
+    if (brokenSurface || brokenCurve) {
+      broken.push_back(entity);
+    }
+  }
+  if (broken.empty()) {
+    return {};
+  }
+
+  const Interface_Graph graph(model);
+  std::vector<OccHandle<Standard_Transient>> skipped, unrecoverable;
+  for (const OccHandle<Standard_Transient>& spline : broken) {
+    std::vector<OccHandle<StepShape_FaceSurface>> faces;
+    bool onlyFaces = !OccHandle<StepGeom_Surface>::DownCast(spline).IsNull();
+    for (Interface_EntityIterator users = graph.Sharings(spline); onlyFaces && users.More(); users.Next()) {
+      // Pcurves are only read for the face whose surface they lie on, and the
+      // placeholder matches none of them, so they are left alone.
+      if (!OccHandle<StepGeom_Pcurve>::DownCast(users.Value()).IsNull()) {
+        continue;
+      }
+      const auto face = OccHandle<StepShape_FaceSurface>::DownCast(users.Value());
+      if (face.IsNull() || face->FaceGeometry() != spline) {
+        onlyFaces = false;
+      } else {
+        faces.push_back(face);
+      }
+    }
+    if (!onlyFaces) {
+      unrecoverable.push_back(spline);
+      continue;
+    }
+    for (const auto& face : faces) {
+      OccHandle<StepGeom_Surface> placeholder = new StepGeom_Surface();
+      placeholder->Init(OccHandle<StepGeom_Surface>::DownCast(spline)->Name());
+      face->SetFaceGeometry(placeholder);
+    }
+    skipped.push_back(spline);
+  }
+
+  if (!unrecoverable.empty()) {
+    std::string error = "The file is malformed: ";
+    error += std::to_string(unrecoverable.size());
+    error += " B-spline curve(s) or surface(s) have invalid control points (";
+    error += entityList(model, unrecoverable);
+    error += "). The exporting program wrote references to other entity types where points belong.";
+    return error;
+  }
+  std::string warning = "Skipped the faces of ";
+  warning += std::to_string(skipped.size());
+  warning += " B-spline surface(s) with invalid control points (";
+  warning += entityList(model, skipped);
+  warning += "); the file is malformed.";
+  messages.push_back({ImportMessage::Severity::Warning, std::move(warning)});
+  return {};
+}
+
 bool cancelled(const CancelToken* cancel) {
   return cancel != nullptr && cancel->isCancelled();
 }
@@ -455,6 +578,11 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
     }
     if (cancelled(cancel)) {
       result.cancelled = true;
+      return result;
+    }
+    if (std::string broken = neutralizeBrokenSplines(reader.Reader().Model(), result.messages);
+        !broken.empty()) {
+      result.error = std::move(broken);
       return result;
     }
     root.Next(10.0); // parsing reports no progress of its own

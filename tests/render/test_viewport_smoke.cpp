@@ -115,6 +115,15 @@ private Q_SLOTS:
     const QRect viewArea = toImageRect(viewport->geometry()).intersected(shot.rect());
     qInfo("brightness: menu %.0f, status %.0f, viewport %.0f", meanBrightness(shot, menuArea),
           meanBrightness(shot, statusArea), meanBrightness(shot, viewArea));
+    // A grab that is black everywhere, viewport included, means the screen cannot be
+    // read back (XWayland under a Wayland compositor), not the regression, which
+    // leaves the viewport drawn. Run under Xvfb to exercise this test.
+    if (meanBrightness(shot, shot.rect()) < 1.0) {
+      // (Not QSKIP: its one-argument form trips -Wpedantic with Qt 6.8 on clang.)
+      QTest::qSkip("screen grab is blank (Wayland session?); run under xvfb-run to test composition",
+                   __FILE__, __LINE__);
+      return;
+    }
     QVERIFY2(meanBrightness(shot, menuArea) > 60, "menu bar is black: window composition is broken");
     QVERIFY2(meanBrightness(shot, statusArea) > 60, "status bar is black: window composition is broken");
     QVERIFY2(meanBrightness(shot, viewArea) > 60, "viewport is black");

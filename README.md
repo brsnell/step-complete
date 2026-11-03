@@ -34,7 +34,7 @@ supports both.
 
 ```bash
 sudo apt install build-essential cmake ninja-build qt6-base-dev libgl-dev libgtest-dev libtbb-dev \
-  libocct-data-exchange-dev libocct-visualization-dev libocct-ocaf-dev
+  libocct-data-exchange-dev libocct-visualization-dev libocct-ocaf-dev libfontconfig-dev
 ```
 
 ```bash

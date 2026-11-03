@@ -4,11 +4,20 @@
 #include "core/StepImporter.h"
 
 #include <BRepBndLib.hxx>
+#include <BRepBuilderAPI_MakeFace.hxx>
+#include <BRepPrimAPI_MakeBox.hxx>
+#include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
 #include <Bnd_Box.hxx>
+#include <GeomConvert.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BezierSurface.hxx>
 #include <Quantity_Color.hxx>
+#include <STEPControl_Writer.hxx>
+#include <TColgp_Array2OfPnt.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
+#include <TopoDS_Compound.hxx>
 #include <XCAFDoc_Area.hxx>
 #include <XCAFDoc_Centroid.hxx>
 #include <XCAFDoc_ColorTool.hxx>
@@ -20,6 +29,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iterator>
+#include <regex>
 
 using namespace sc;
 using core::AssemblyIndex;
@@ -80,6 +90,45 @@ bool relabelLengthUnitAsInch(const std::string& path) {
   text.insert(dataEnd, "#990001 = LENGTH_MEASURE_WITH_UNIT(LENGTH_MEASURE(25.4),#990003);\n"
                        "#990002 = DIMENSIONAL_EXPONENTS(1.,0.,0.,0.,0.,0.,0.);\n"
                        "#990003 = ( LENGTH_UNIT() NAMED_UNIT(*) SI_UNIT(.MILLI.,.METRE.) );\n");
+  std::ofstream(path, std::ios::trunc) << text;
+  return true;
+}
+
+// Writes a box and a separate B-spline face, then points the B-spline surface's
+// first control point at a DIRECTION entity, as some exporters do (seen from
+// ST-DEVELOPER v20). OCCT reads such a point as null and its reader crashes on it.
+bool writeStepWithBrokenSplineSurface(const std::string& path) {
+  TColgp_Array2OfPnt poles(1, 2, 1, 2);
+  poles(1, 1) = gp_Pnt(0, 0, 50);
+  poles(1, 2) = gp_Pnt(0, 40, 50);
+  poles(2, 1) = gp_Pnt(40, 0, 55);
+  poles(2, 2) = gp_Pnt(40, 40, 50);
+  const OccHandle<Geom_BSplineSurface> spline =
+      GeomConvert::SurfaceToBSplineSurface(new Geom_BezierSurface(poles));
+  TopoDS_Compound compound;
+  BRep_Builder builder;
+  builder.MakeCompound(compound);
+  builder.Add(compound, BRepPrimAPI_MakeBox(10, 10, 10).Shape());
+  builder.Add(compound, BRepBuilderAPI_MakeFace(spline, 1e-6).Face());
+  STEPControl_Writer writer;
+  if (writer.Transfer(compound, STEPControl_AsIs) != IFSelect_RetDone ||
+      writer.Write(path.c_str()) != IFSelect_RetDone) {
+    return false;
+  }
+
+  std::ifstream in(path);
+  std::string text((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+  std::smatch direction;
+  if (!std::regex_search(text, direction, std::regex(R"((#\d+)\s*=\s*DIRECTION\()"))) {
+    return false;
+  }
+  const size_t surface = text.find("B_SPLINE_SURFACE_WITH_KNOTS(");
+  const size_t point = surface == std::string::npos ? surface : text.find('#', surface);
+  if (point == std::string::npos) {
+    return false;
+  }
+  const size_t pointEnd = text.find_first_not_of("#0123456789", point);
+  text.replace(point, pointEnd - point, direction[1].str());
   std::ofstream(path, std::ios::trunc) << text;
   return true;
 }
@@ -349,6 +398,28 @@ TEST(StepImport, FailsCleanlyOnMissingOrInvalidFiles) {
   const auto garbage = core::importStep(garbagePath);
   EXPECT_FALSE(garbage.ok);
   EXPECT_FALSE(garbage.error.empty());
+}
+
+TEST(StepImport, SkipsFacesWhoseSplineSurfaceHasInvalidControlPoints) {
+  const std::string path = test::tempPath("broken-spline.step");
+  ASSERT_TRUE(writeStepWithBrokenSplineSurface(path));
+  const auto result = core::importStep(path);
+  ASSERT_TRUE(result.ok) << result.error;
+
+  // The box survives; the broken face is reported, not translated.
+  const AssemblyIndex index(result.document);
+  int faces = 0;
+  for (const NodeId part : index.partInstances()) {
+    for (TopExp_Explorer face(index.prototypeShape(part), TopAbs_FACE); face.More(); face.Next()) {
+      ++faces;
+    }
+  }
+  EXPECT_EQ(faces, 6);
+  const bool reported = std::any_of(result.messages.begin(), result.messages.end(), [](const auto& m) {
+    return m.severity == core::ImportMessage::Severity::Warning &&
+           m.text.find("invalid control points") != std::string::npos;
+  });
+  EXPECT_TRUE(reported);
 }
 
 TEST(StepImport, PremeshesPartsForTheViewer) {
