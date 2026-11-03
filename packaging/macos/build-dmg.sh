@@ -52,6 +52,15 @@ fi
 # Without -dmg: we build the disk image ourselves. Without -codesign: signing is done below.
 "${MACDEPLOYQT:-macdeployqt}" "$app" "${libpath_args[@]}" -verbose=1
 
+# Drop Qt plugins we never use (macdeployqt has no exclusion option) and the frameworks only
+# they pulled in: the app reads JPEG/PNG at most and draws its own icons.
+plugins="$app/Contents/PlugIns"
+find "$plugins/imageformats" -type f ! -name 'libqjpeg*' -delete 2>/dev/null || true
+rm -rf "$plugins/iconengines" "$plugins/virtualkeyboard" "$plugins/platforminputcontexts"
+for fw in QtSvg QtPdf QtVirtualKeyboard QtQuick QtQml QtQmlModels QtNetwork; do
+  rm -rf "$app/Contents/Frameworks/$fw.framework"
+done
+
 # OCCT is not a Qt dependency: make sure its dylibs really ended up in the bundle.
 if ! ls "$app"/Contents/Frameworks/libTKernel*.dylib >/dev/null 2>&1; then
   echo "macdeployqt did not bundle OCCT; copying from $libdir" >&2

@@ -71,8 +71,30 @@ if (-not $VcpkgBinDir) {
   if (-not $candidate) { throw "vcpkg_installed not found under $BuildDir; pass -VcpkgBinDir" }
   $VcpkgBinDir = Join-Path $candidate.FullName "bin"
 }
-Write-Host "Copying DLLs from $VcpkgBinDir"
-Copy-Item -Path (Join-Path $VcpkgBinDir "*.dll") -Destination $stage -Force
+# Copy only the vcpkg DLLs the app actually loads (transitively): vcpkg builds every OCCT
+# toolkit, and most of them (IGES, VRML, glTF, offsets, fillets...) are never used here.
+Write-Host "Copying the DLLs the app needs from $VcpkgBinDir"
+$dumpbin = Get-Command dumpbin -ErrorAction SilentlyContinue
+if (-not $dumpbin) { throw "dumpbin not found (run from an MSVC developer shell)" }
+$queue = [System.Collections.Generic.Queue[string]]::new()
+$queue.Enqueue((Join-Path $stage "StepComplete.exe"))
+$copied = @{}
+while ($queue.Count -gt 0) {
+  $binary = $queue.Dequeue()
+  $deps = & $dumpbin.Source /nologo /dependents $binary | ForEach-Object { $_.Trim() } |
+    Where-Object { $_ -match '\.dll$' }
+  foreach ($dep in $deps) {
+    $key = $dep.ToLowerInvariant()
+    if ($copied.ContainsKey($key)) { continue }
+    $source = Join-Path $VcpkgBinDir $dep
+    if (Test-Path $source) {
+      Copy-Item -Path $source -Destination $stage -Force
+      $copied[$key] = $true
+      $queue.Enqueue((Join-Path $stage $dep))
+    }
+  }
+}
+Write-Host "Copied $($copied.Count) DLLs: $($copied.Keys -join ', ')"
 
 # --- Visual C++ runtime, app-local ----------------------------------------------
 $redist = $env:VCToolsRedistDir

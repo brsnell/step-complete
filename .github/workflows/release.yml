@@ -173,7 +173,9 @@ jobs:
           $out = & (Join-Path $dir "StepComplete.exe") --version | Out-String
           Write-Host $out
           if ($LASTEXITCODE -ne 0 -or $out -notmatch 'STEP Complete') { throw "installed app did not start" }
-          Get-ChildItem $dir | Measure-Object -Property Length -Sum | ForEach-Object { "Installed top-level files: {0:N1} MB" -f ($_.Sum / 1MB) }
+          Get-ChildItem $dir -Recurse -File | Measure-Object -Property Length -Sum | ForEach-Object { "Installed size: {0:N1} MB" -f ($_.Sum / 1MB) }
+          Get-ChildItem $dir -Recurse -File | Sort-Object Length -Descending | Select-Object -First 15 |
+            ForEach-Object { "{0,8:N1} MB  {1}" -f ($_.Length / 1MB), $_.FullName.Substring($dir.Length + 1) }
 
       - name: Import signing certificate
         if: runner.os == 'macOS' && env.MACOS_CERT_P12_BASE64 != '' && env.MACOS_SIGN_IDENTITY != ''
@@ -218,7 +220,16 @@ jobs:
           else
             echo "Different architecture than the runner: not launching"
           fi
+          # Every @rpath/@executable_path/@loader_path reference must resolve inside the bundle.
+          fw="$app/Contents/Frameworks"
+          while IFS= read -r f; do
+            for ref in $(otool -L "$f" 2>/dev/null | tail -n +2 | awk '{print $1}' | grep '^@'); do
+              name=${ref#@rpath/}; name=${name#@executable_path/../Frameworks/}; name=${name#@loader_path/../Frameworks/}; name=${name#@loader_path/}
+              [ -e "$fw/$name" ] || [ -e "$(dirname "$f")/$name" ] || { echo "::error::$f -> $ref not in bundle"; bad=1; }
+            done
+          done < <(find "$app/Contents" -type f \( -name '*.dylib' -o -perm -u+x \) )
           du -sh "$app"
+          du -sk "$app"/Contents/Frameworks/* "$app"/Contents/PlugIns/* 2>/dev/null | sort -rn | head -15
           hdiutil detach "$mnt"
           exit $bad
 
