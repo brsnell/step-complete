@@ -17,6 +17,19 @@ What STEP Complete shows from AP242 PMI, measured on the NIST MBE PMI test model
 | Saved views | ⚠️ partial | Name, orientation, visible PMI, clipping planes. The camera **position** and window size are not usable (see gaps), so the view is fitted to the model in the saved orientation |
 | Not-interpreted annotations | ✅ | Listed under "Not Interpreted" and drawn from their graphics, never hidden |
 
+## Visual check (OCCT 8.0.1)
+
+CI renders every model (isometric view and each saved view) with OCCT 8 and prints the images
+to the Linux job log (`sc_pmi_snapshots`). Findings from that check:
+
+- CTC-01, CTC-02, CTC-03, CTC-05: the authored graphical PMI shows completely and in place;
+  saved views filter it correctly.
+- Saved-view text can read mirrored when the view is not looked at from the file's camera
+  position (see gap 1).
+- FTC-06: annotations whose graphics OCCT reads as unlinked items (gap 7) also get boxed
+  semantic labels, which pile up at their targets. Semantic labels are being made automatic
+  (off when most items have file graphics).
+
 ## Per-model extraction
 
 Counts after merging datum copies and duplicate presentations. "Targeted" is the number of items
