@@ -7,6 +7,8 @@ saved views).
 Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/OCCT) and
 [Qt 6](https://www.qt.io). MIT licensed.
 
+**Documentation:** [User guide](docs/user-guide.md)
+
 > **Status: early development (milestones M1–M4 done; M5 packaging next).** Opens STEP assemblies with names, colors
 > and structure; assembly tree, properties, hide/isolate/transparency; measurement on the exact
 > geometry (distance, point to point, angle, radius, entity info, mass properties with
