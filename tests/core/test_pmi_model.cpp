@@ -100,6 +100,8 @@ TEST(PmiModel, ReadsDimensionsTolerancesAndDatums) {
   const core::PmiItem* height = byLabel(model, f.height);
   ASSERT_NE(height, nullptr);
   EXPECT_EQ(height->name, "Height") << "the presentation name from the file is the display name";
+  EXPECT_EQ(model.itemFor(f.heightCopy), height->id)
+      << "a duplicate presentation folds into its semantic item";
   EXPECT_FALSE(height->presentation.IsNull());
   ASSERT_TRUE(height->textPosition && height->plane && height->point1 && height->point2);
   EXPECT_TRUE(height->textPosition->IsEqual(gp_Pnt(110, 0, 10), 1e-9));

@@ -14,12 +14,14 @@ namespace sc::test {
 //  - parallelism 0.1 to A on the top face,
 //  - a 20 ±0.1 height dimension between top and bottom faces, with plane,
 //    text point, attachment points and a graphical presentation ("Height"),
+//  - a duplicate of the height's presentation stored as a separate
+//    "dimension presentation" (folds into the height),
 //  - a graphical-only annotation (not semantically interpreted) on a side face,
 //  - a saved view "Front" showing the flatness and the height, with a clipping plane.
 struct PmiFixture {
   core::DocumentPtr document;
   TDF_Label part, top, bottom, side;
-  TDF_Label datumA, datumARef, flatness, parallelism, height, label, view;
+  TDF_Label datumA, datumARef, flatness, parallelism, height, heightCopy, label, view;
 };
 
 PmiFixture buildPmiFixture();

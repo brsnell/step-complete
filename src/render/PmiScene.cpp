@@ -401,27 +401,18 @@ void PmiScene::applyView(const core::PmiSavedView& view, const OccHandle<V3d_Vie
     setOnlyVisible(view.pmi);
   }
 
-  // Camera. The projection point is the eye for perspective views and the view
-  // center for parallel ones; the view window gives the visible extent.
+  // Camera: orientation from the file, then fit. OCCT's reader keeps only the
+  // view volume's projection point, which is relative to the camera's own frame
+  // (the camera position itself is dropped), and does not convert the view
+  // window to the document unit, so neither can place the camera reliably.
+  // See docs/pmi-coverage.md.
   const OccHandle<Graphic3d_Camera>& camera = v3dView->Camera();
-  const Bnd_Box sceneBox = v3dView->View()->MinMaxValues();
-  const double distance = sceneBox.IsVoid() ? 1000.0 : std::max(std::sqrt(sceneBox.SquareExtent()), 1.0);
-
   camera->SetProjectionType(view.perspective ? Graphic3d_Camera::Projection_Perspective
                                              : Graphic3d_Camera::Projection_Orthographic);
-  const gp_Vec direction(view.viewDirection);
-  if (view.perspective) {
-    camera->SetEyeAndCenter(view.projectionPoint, view.projectionPoint.Translated(direction * distance));
-  } else {
-    camera->SetEyeAndCenter(view.projectionPoint.Translated(-direction * distance), view.projectionPoint);
-  }
+  camera->SetDirection(view.viewDirection);
   camera->SetUp(view.upDirection);
   camera->OrthogonalizeUp();
-  if (!view.perspective && view.windowHeight > 0.0) {
-    camera->SetScale(view.windowHeight);
-  } else {
-    v3dView->FitAll(0.05, false);
-  }
+  v3dView->FitAll(0.05, false);
   v3dView->ZFitAll();
 
   // Clipping planes.

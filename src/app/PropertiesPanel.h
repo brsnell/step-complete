@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/AssemblyIndex.h"
+#include "core/PmiModel.h"
 #include "core/StepImporter.h"
 
 #include <QWidget>
@@ -24,6 +25,8 @@ public:
                 double loadSeconds);
   void clear();
   void showSelection(const std::vector<core::NodeId>& nodes);
+  // Shows PMI items instead of the node selection (full semantic content).
+  void showPmi(std::shared_ptr<const core::PmiModel> pmi, const std::vector<core::PmiId>& ids);
 
 private:
   QTreeWidgetItem* addGroup(const QString& title);
@@ -35,6 +38,8 @@ private:
   core::ImportStats m_stats;
   double m_loadSeconds = 0.0;
   std::vector<core::NodeId> m_selection;
+  std::shared_ptr<const core::PmiModel> m_pmi;
+  std::vector<core::PmiId> m_pmiSelection;
 };
 
 } // namespace sc::app

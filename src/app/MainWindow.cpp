@@ -3,11 +3,13 @@
 #include "app/AssemblyTreeModel.h"
 #include "app/ImportJob.h"
 #include "app/MeasurementsPanel.h"
+#include "app/PmiPanel.h"
 #include "app/PropertiesPanel.h"
 #include "core/OcctInfo.h"
 #include "core/Version.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
+#include "render/PmiScene.h"
 #include "render/SceneManager.h"
 #include "render/SceneStyle.h"
 
@@ -81,6 +83,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   m_viewport = new render::OcctViewport(this);
   setCentralWidget(m_viewport);
   m_scene = std::make_unique<render::SceneManager>(m_viewport->context());
+  m_pmiScene = std::make_unique<render::PmiScene>(m_viewport->context());
   m_measureTool = new render::MeasureTool(m_viewport, m_scene.get(), this);
   connect(m_measureTool, &render::MeasureTool::measured, this, &MainWindow::onMeasured);
   connect(m_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
@@ -114,6 +117,7 @@ MainWindow::~MainWindow() {
   delete m_import;      // cancels and waits for a running import
   delete m_measureTool; // removes its witness while the viewer exists
   // Presentations must be removed while the viewer still exists.
+  m_pmiScene.reset();
   m_scene.reset();
 }
 
@@ -156,12 +160,27 @@ void MainWindow::createDocks() {
   addDockWidget(Qt::BottomDockWidgetArea, m_messagesDock);
   m_messagesDock->hide();
 
+  m_pmiPanel = new PmiPanel(this);
+  m_pmiDock = new QDockWidget(tr("PMI"), this);
+  m_pmiDock->setObjectName(QStringLiteral("PmiDock"));
+  m_pmiDock->setWidget(m_pmiPanel);
+  addDockWidget(Qt::RightDockWidgetArea, m_pmiDock);
+  m_pmiDock->hide();
+  connect(m_pmiPanel, &PmiPanel::pmiSelected, this, &MainWindow::onPmiSelected);
+  connect(m_pmiPanel, &PmiPanel::viewActivated, this, &MainWindow::activateSavedView);
+  connect(m_pmiPanel, &PmiPanel::visibilityRequested, this,
+          [this](const std::vector<core::PmiId>& ids, bool visible) {
+            m_pmiScene->setVisible(ids, visible);
+            m_viewport->invalidateScene();
+          });
+
   m_measurements = new MeasurementsPanel(this);
   m_measurementsDock = new QDockWidget(tr("Measurements"), this);
   m_measurementsDock->setObjectName(QStringLiteral("MeasurementsDock"));
   m_measurementsDock->setWidget(m_measurements);
   addDockWidget(Qt::RightDockWidgetArea, m_measurementsDock);
-  resizeDocks({m_measurementsDock}, {320}, Qt::Horizontal);
+  tabifyDockWidget(m_pmiDock, m_measurementsDock);
+  resizeDocks({m_pmiDock}, {340}, Qt::Horizontal);
   m_measurementsDock->hide();
   connect(m_measurements, &MeasurementsPanel::currentChanged, this, [this](int index) {
     const auto& results = m_measurements->measurements();
@@ -258,6 +277,9 @@ void MainWindow::createActions() {
   m_transparentAction =
       viewMenu->addAction(tr("&Transparent"), this, &MainWindow::toggleTransparencySelected);
   m_transparentAction->setShortcut(Qt::Key_T);
+
+  m_showAllPmiAction = viewMenu->addAction(tr("Show All &PMI"), this, &MainWindow::showAllPmi);
+  m_showAllPmiAction->setStatusTip(tr("Show every annotation and remove saved-view clipping"));
 
   viewMenu->addSeparator();
   QAction* antialiasing = viewMenu->addAction(tr("&Antialiasing (4x MSAA)"));
@@ -505,6 +527,7 @@ void MainWindow::updateActions() {
   m_transparentAction->setEnabled(hasSelection);
   m_fitSelectionAction->setEnabled(hasSelection);
   m_showAllAction->setEnabled(hasModel);
+  m_showAllPmiAction->setEnabled(m_pmi && !m_pmi->isEmpty());
   if (m_stopMeasureAction != nullptr) {
     m_stopMeasureAction->setEnabled(m_measureTool->isActive());
     m_massPropertiesAction->setEnabled(hasModel);
@@ -610,7 +633,15 @@ void MainWindow::onImportFinished() {
     std::shared_ptr<const core::AssemblyIndex> index = job->index();
     m_transparentParts.clear();
     m_measureTool->reset();
+    m_pmiScene->clearViewClipping(m_viewport->view());
     m_scene->setModel(index);
+    m_pmi = job->pmi();
+    m_pmiScene->setModel(m_pmi, index, m_viewport->devicePixelRatioF());
+    m_pmiPanel->setModel(m_pmi);
+    if (m_pmi && !m_pmi->isEmpty()) {
+      m_pmiDock->show();
+      m_pmiDock->raise();
+    }
     render::SceneManager* scene = m_scene.get();
     m_treeModel->setModel(index, [scene](core::NodeId id) { return scene->isVisible(id); });
     m_treeView->expandToDepth(0);
@@ -659,6 +690,10 @@ void MainWindow::onImportFinished() {
 
 void MainWindow::closeModel() {
   setMeasureMode(-1);
+  m_pmiScene->clearViewClipping(m_viewport->view());
+  m_pmiScene->clear();
+  m_pmiPanel->clear();
+  m_pmi.reset();
   m_scene->setModel(nullptr);
   m_treeModel->setModel(nullptr, {});
   m_properties->clear();
@@ -742,6 +777,10 @@ void MainWindow::onTreeSelectionChanged() {
     return; // in measure mode the 3D selection holds picks, not parts
   }
   m_syncingSelection = true;
+  if (!m_pmiScene->highlighted().empty()) {
+    m_pmiScene->highlight({});
+    m_pmiPanel->selectPmi({});
+  }
   m_scene->select(nodes);
   m_viewport->invalidateScene();
   m_syncingSelection = false;
@@ -770,7 +809,22 @@ void MainWindow::onViewportSelectionChanged() {
     m_treeView->selectionModel()->setCurrentIndex(first, QItemSelectionModel::NoUpdate);
   }
   m_syncingSelection = false;
-  m_properties->showSelection(selectedNodes());
+
+  // A picked annotation: select it in the PMI panel and show what it applies to.
+  const std::vector<core::PmiId> pmi = m_pmiScene->selectedPmi();
+  if (!pmi.empty()) {
+    m_pmiPanel->selectPmi(pmi);
+    m_pmiScene->highlight(pmi);
+    m_properties->showPmi(m_pmi, pmi);
+    m_viewport->invalidateScene();
+  } else {
+    if (!m_pmiScene->highlighted().empty()) {
+      m_pmiScene->highlight({});
+      m_pmiPanel->selectPmi({});
+      m_viewport->invalidateScene();
+    }
+    m_properties->showSelection(selectedNodes());
+  }
   updateActions();
 }
 
@@ -854,6 +908,58 @@ void MainWindow::showContextMenu(QWidget* source, const QPoint& pos) {
 // ---------------------------------------------------------------------------------
 // Help
 // ---------------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------------
+// PMI
+// ---------------------------------------------------------------------------------
+
+void MainWindow::onPmiSelected(const std::vector<core::PmiId>& ids) {
+  if (m_measureTool->isActive()) {
+    setMeasureMode(-1); // PMI selection replaces measurement picks
+  }
+  m_syncingSelection = true;
+  m_treeView->clearSelection();
+  m_syncingSelection = false;
+  m_pmiScene->highlight(ids);
+  if (ids.empty()) {
+    m_properties->showSelection({});
+  } else {
+    m_properties->showPmi(m_pmi, ids);
+  }
+  m_viewport->invalidateScene();
+  updateActions();
+}
+
+void MainWindow::activateSavedView(int viewId) {
+  if (!m_pmi || viewId < 0 || viewId >= static_cast<int>(m_pmi->views().size())) {
+    return;
+  }
+  const core::PmiSavedView& view = m_pmi->views()[static_cast<size_t>(viewId)];
+  m_pmiScene->applyView(view, m_viewport->view());
+  m_pmiPanel->setVisible(m_pmiPanel->visibleIds(), false);
+  m_pmiPanel->setVisible(view.pmi, true);
+  m_showAllPmiAction->setEnabled(true);
+  m_viewport->invalidateScene();
+  QString message = tr("Saved view \"%1\": %n annotation(s)", nullptr, static_cast<int>(view.pmi.size()))
+                        .arg(QString::fromStdString(view.name));
+  if (!view.clippingPlanes.empty()) {
+    message += tr(", %n clipping plane(s)", nullptr, static_cast<int>(view.clippingPlanes.size()));
+  }
+  statusBar()->showMessage(message + tr(". View → Show All PMI restores the full view."), 8000);
+}
+
+void MainWindow::showAllPmi() {
+  m_pmiScene->clearViewClipping(m_viewport->view());
+  if (m_pmi) {
+    std::vector<core::PmiId> all;
+    for (const core::PmiItem& item : m_pmi->items()) {
+      all.push_back(item.id);
+    }
+    m_pmiScene->setVisible(all, true);
+    m_pmiPanel->setVisible(all, true);
+  }
+  m_viewport->invalidateScene();
+}
 
 void MainWindow::showGraphicsInfo() {
   QDialog dialog(this);

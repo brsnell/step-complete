@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/AssemblyIndex.h"
+#include "core/PmiModel.h"
 #include "core/StepImporter.h"
 
 #include <QElapsedTimer>
@@ -13,7 +14,7 @@ class QThread;
 
 namespace sc::app {
 
-// Imports a STEP file on a worker thread and builds its assembly index.
+// Imports a STEP file on a worker thread and builds its assembly index and PMI model.
 // Signals are delivered on the thread that owns the job (the UI thread).
 class ImportJob : public QObject {
   Q_OBJECT
@@ -28,6 +29,7 @@ public:
   const QString& path() const { return m_path; }
   const core::ImportResult& result() const { return m_result; }
   const std::shared_ptr<const core::AssemblyIndex>& index() const { return m_index; }
+  const std::shared_ptr<const core::PmiModel>& pmi() const { return m_pmi; }
   double elapsedSeconds() const { return m_elapsedSeconds; }
 
 Q_SIGNALS:
@@ -41,6 +43,7 @@ private:
   QElapsedTimer m_timer;
   core::ImportResult m_result;
   std::shared_ptr<const core::AssemblyIndex> m_index;
+  std::shared_ptr<const core::PmiModel> m_pmi;
   double m_elapsedSeconds = 0.0;
 };
 

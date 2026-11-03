@@ -119,6 +119,7 @@ private:
   void readDimensions();
   void readTolerances();
   void readDatums();
+  void mergeDuplicatePresentations();
   void readViews();
 
   DocumentPtr m_document;

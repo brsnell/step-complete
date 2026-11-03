@@ -7,6 +7,8 @@
 #include <QTreeWidget>
 #include <QVBoxLayout>
 
+#include <algorithm>
+
 namespace sc::app {
 
 namespace {
@@ -50,17 +52,30 @@ void PropertiesPanel::setModel(std::shared_ptr<const core::AssemblyIndex> index,
   m_stats = stats;
   m_loadSeconds = loadSeconds;
   m_selection.clear();
+  m_pmi.reset();
+  m_pmiSelection.clear();
   rebuild();
 }
 
 void PropertiesPanel::clear() {
   m_index.reset();
   m_selection.clear();
+  m_pmi.reset();
+  m_pmiSelection.clear();
   rebuild();
 }
 
 void PropertiesPanel::showSelection(const std::vector<core::NodeId>& nodes) {
   m_selection = nodes;
+  m_pmiSelection.clear();
+  rebuild();
+}
+
+void PropertiesPanel::showPmi(std::shared_ptr<const core::PmiModel> pmi,
+                              const std::vector<core::PmiId>& ids) {
+  m_pmi = std::move(pmi);
+  m_pmiSelection = ids;
+  m_selection.clear();
   rebuild();
 }
 
@@ -83,6 +98,43 @@ void PropertiesPanel::rebuild() {
   m_tree->clear();
   if (!m_index) {
     return;
+  }
+
+  // --- PMI ------------------------------------------------------------------------
+  if (m_pmi && m_pmiSelection.size() == 1) {
+    const core::PmiItem& item = m_pmi->item(m_pmiSelection.front());
+    QTreeWidgetItem* group = addGroup(QString::fromUtf8(core::toString(item.kind)));
+    const auto hasProperty = [&item](const char* key) {
+      return std::any_of(item.properties.begin(), item.properties.end(),
+                         [key](const core::pmi::Property& p) { return p.first == key; });
+    };
+    addRow(group, tr("Name"), QString::fromStdString(item.name));
+    if (!hasProperty("Type")) {
+      addRow(group, tr("Type"), QString::fromStdString(item.typeName));
+    }
+    if (!item.text.empty() && !hasProperty("Text")) {
+      addRow(group, tr("Text"), QString::fromStdString(item.text));
+    }
+    if (!item.semantic) {
+      addRow(group, tr("Semantics"), tr("Not interpreted (graphical presentation only)"));
+    }
+    for (const auto& [key, value] : item.properties) {
+      addRow(group, QString::fromStdString(key), QString::fromStdString(value));
+    }
+    if (!item.datums.empty()) {
+      QStringList datums;
+      for (const core::PmiId datum : item.datums) {
+        datums << QString::fromStdString(m_pmi->item(datum).text);
+      }
+      addRow(group, tr("Datum references"), datums.join(QStringLiteral(" | ")));
+    }
+    addRow(group, tr("Applies to"),
+           tr("%n entities", nullptr, static_cast<int>(item.targets.size() + item.secondTargets.size())));
+    addRow(group, tr("Presentation"),
+           item.presentation.IsNull() ? tr("Semantic only") : tr("Graphical (from file)"));
+  } else if (m_pmi && m_pmiSelection.size() > 1) {
+    QTreeWidgetItem* group = addGroup(tr("PMI"));
+    addRow(group, tr("Selected annotations"), QString::number(m_pmiSelection.size()));
   }
 
   // --- Selection ------------------------------------------------------------------

@@ -118,6 +118,15 @@ PmiFixture buildPmiFixture() {
   XCAFDoc_Dimension::Set(f.height)->SetObject(dim);
   gdt->SetDimension(f.top, f.bottom, f.height);
 
+  // The same presentation stored a second time as a "dimension presentation",
+  // as OCCT's reader does for some files: must fold into the semantic item.
+  f.heightCopy = gdt->AddDimension();
+  OccHandle<XCAFDimTolObjects_DimensionObject> copy = new XCAFDimTolObjects_DimensionObject();
+  copy->SetType(XCAFDimTolObjects_DimensionType_DimensionPresentation);
+  copy->SetPresentation(lines, hs("Height"));
+  XCAFDoc_Dimension::Set(f.heightCopy)->SetObject(copy);
+  gdt->SetDimension(f.top, f.heightCopy);
+
   // A note OCCT keeps only graphically.
   f.label = gdt->AddDimension();
   OccHandle<XCAFDimTolObjects_DimensionObject> note = new XCAFDimTolObjects_DimensionObject();

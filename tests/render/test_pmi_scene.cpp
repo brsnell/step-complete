@@ -167,7 +167,6 @@ private Q_SLOTS:
     QVERIFY(camera->Direction().IsEqual(gp_Dir(0, 1, 0), 1e-9));
     QVERIFY(camera->Up().IsEqual(gp_Dir(0, 0, 1), 1e-9));
     QVERIFY(camera->IsOrthographic());
-    QVERIFY(std::abs(camera->Scale() - 80.0) < 1e-6);
     QCOMPARE(m_viewport->view()->ClipPlanes()->Size(), 1);
     sc::test::dumpImage(render(), "pmi_saved_view");
 

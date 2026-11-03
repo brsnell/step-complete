@@ -2,6 +2,7 @@
 
 #include "core/AssemblyIndex.h"
 #include "core/Measurement.h"
+#include "core/PmiModel.h"
 
 #include <QMainWindow>
 #include <QPointer>
@@ -21,6 +22,7 @@ class QTreeView;
 
 namespace sc::render {
 class MeasureTool;
+class PmiScene;
 class OcctViewport;
 class SceneManager;
 } // namespace sc::render
@@ -30,6 +32,7 @@ namespace sc::app {
 class AssemblyTreeModel;
 class ImportJob;
 class MeasurementsPanel;
+class PmiPanel;
 class PropertiesPanel;
 
 class MainWindow : public QMainWindow {
@@ -83,6 +86,11 @@ private:
   void onPickProgress(int picked, int required);
   void applyMeasureOptions();
 
+  // --- PMI --------------------------------------------------------------------
+  void onPmiSelected(const std::vector<core::PmiId>& ids);
+  void activateSavedView(int viewId);
+  void showAllPmi();
+
   void showGraphicsInfo();
   void showAbout();
 
@@ -93,6 +101,11 @@ private:
   PropertiesPanel* m_properties = nullptr;
   QListWidget* m_messages = nullptr;
   render::MeasureTool* m_measureTool = nullptr;
+  std::unique_ptr<render::PmiScene> m_pmiScene;
+  std::shared_ptr<const core::PmiModel> m_pmi;
+  PmiPanel* m_pmiPanel = nullptr;
+  QDockWidget* m_pmiDock = nullptr;
+  QAction* m_showAllPmiAction = nullptr;
   MeasurementsPanel* m_measurements = nullptr;
   QDockWidget* m_measurementsDock = nullptr;
   QActionGroup* m_measureGroup = nullptr;

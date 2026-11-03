@@ -29,15 +29,18 @@ void ImportJob::start() {
 
     auto result = std::make_shared<core::ImportResult>(core::importStep(utf8Path, {}, onProgress, &m_cancel));
     std::shared_ptr<const core::AssemblyIndex> index;
+    std::shared_ptr<const core::PmiModel> pmi;
     if (result->ok) {
       index = std::make_shared<core::AssemblyIndex>(result->document);
+      pmi = std::make_shared<core::PmiModel>(result->document);
     }
 
     QMetaObject::invokeMethod(
         this,
-        [this, result, index] {
+        [this, result, index, pmi] {
           m_result = std::move(*result);
           m_index = index;
+          m_pmi = pmi;
           m_elapsedSeconds = m_timer.elapsed() / 1000.0;
           Q_EMIT finished();
         },

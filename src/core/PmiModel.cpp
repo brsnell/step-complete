@@ -113,6 +113,7 @@ PmiModel::PmiModel(const DocumentPtr& document, int decimals) : m_document(docum
   readDatums();
   readDimensions();
   readTolerances();
+  mergeDuplicatePresentations();
   readViews();
 }
 
@@ -202,7 +203,14 @@ void PmiModel::readDimensions() {
     item.id = static_cast<PmiId>(m_items.size());
     item.label = label;
     item.kind = PmiKind::Dimension;
-    item.semantic = object->GetType() != XCAFDimTolObjects_DimensionType_CommonLabel;
+    // Graphical annotations OCCT could not interpret come through as "common
+    // labels" or as dimensions of type "none" without any value.
+    const bool noValue = object->GetValue() == 0.0 && !object->IsDimWithRange() &&
+                         !object->IsDimWithPlusMinusTolerance() && !object->IsDimWithClassOfTolerance();
+    const XCAFDimTolObjects_DimensionType type = object->GetType();
+    item.semantic = type != XCAFDimTolObjects_DimensionType_CommonLabel &&
+                    type != XCAFDimTolObjects_DimensionType_DimensionPresentation &&
+                    !(type == XCAFDimTolObjects_DimensionType_Location_None && noValue);
     item.typeName = item.semantic ? pmi::dimensionTypeName(object->GetType()) : "Annotation";
     item.text = item.semantic ? pmi::dimensionText(object, m_decimals) : std::string();
     item.properties = pmi::dimensionProperties(object, m_decimals);
@@ -279,6 +287,51 @@ void PmiModel::readTolerances() {
   }
 }
 
+// OCCT may store an annotation's graphical presentation a second time as a
+// separate "dimension presentation" with the same name as the semantic item.
+// Fold such duplicates into the semantic item so each annotation appears once.
+void PmiModel::mergeDuplicatePresentations() {
+  std::map<std::string, PmiId> semanticByName;
+  for (const PmiItem& item : m_items) {
+    if (item.semantic && !item.presentation.IsNull() && !item.presentationName.empty()) {
+      semanticByName.emplace(item.presentationName, item.id);
+    }
+  }
+  // Pass 1: decide which items fold into which (no moves yet).
+  std::vector<PmiId> foldInto(m_items.size(), kNoPmi);
+  bool any = false;
+  for (const PmiItem& item : m_items) {
+    if (!item.semantic && !item.presentationName.empty()) {
+      const auto it = semanticByName.find(item.presentationName);
+      if (it != semanticByName.end()) {
+        foldInto[static_cast<size_t>(item.id)] = it->second;
+        m_items[static_cast<size_t>(it->second)].aliases.push_back(item.label);
+        any = true;
+      }
+    }
+  }
+  if (!any) {
+    return;
+  }
+  // Pass 2: compact and renumber.
+  std::vector<PmiId> remap(m_items.size(), kNoPmi);
+  std::vector<PmiItem> kept;
+  kept.reserve(m_items.size());
+  for (size_t i = 0; i < m_items.size(); ++i) {
+    if (foldInto[i] == kNoPmi) {
+      remap[i] = static_cast<PmiId>(kept.size());
+      kept.push_back(std::move(m_items[i]));
+    }
+  }
+  for (PmiItem& item : kept) {
+    item.id = remap[static_cast<size_t>(item.id)];
+    for (PmiId& datum : item.datums) {
+      datum = remap[static_cast<size_t>(datum)];
+    }
+  }
+  m_items = std::move(kept);
+}
+
 void PmiModel::readViews() {
   const TDF_Label main = m_document->ocaf()->Main();
   if (!XCAFDoc_DocumentTool::CheckViewTool(main)) {
@@ -328,7 +381,8 @@ void PmiModel::readViews() {
     if (tool->GetRefGDTLabel(label, refs)) {
       for (const TDF_Label& gdt : refs) {
         const PmiId id = itemFor(gdt);
-        if (id != kNoPmi) {
+        // Merged labels (datum copies, duplicate presentations) resolve to the same item.
+        if (id != kNoPmi && std::find(view.pmi.begin(), view.pmi.end(), id) == view.pmi.end()) {
           view.pmi.push_back(id);
         }
       }
