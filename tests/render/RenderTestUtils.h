@@ -52,5 +52,6 @@ int runViewportSmokeTests(int argc, char** argv);
 int runSceneManagerTests(int argc, char** argv);
 int runMeasureToolTests(int argc, char** argv);
 int runPmiSceneTests(int argc, char** argv);
+int runSectionToolTests(int argc, char** argv);
 
 } // namespace sc::test

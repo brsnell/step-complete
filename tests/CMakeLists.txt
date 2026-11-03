@@ -35,6 +35,7 @@ add_executable(sc_render_tests
   render/test_scene_manager.cpp
   render/test_measure_tool.cpp
   render/test_pmi_scene.cpp
+  render/test_section_tool.cpp
 )
 target_link_libraries(sc_render_tests PRIVATE sc::render sc_test_support Qt6::Test)
 sc_target_defaults(sc_render_tests)

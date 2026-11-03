@@ -294,7 +294,17 @@ core::NodeId SceneManager::partOf(const OccHandle<AIS_InteractiveObject>& object
   return it == m_objectToPart.end() ? core::kNoNode : it->second;
 }
 
+void SceneManager::setClipPlanes(const OccHandle<Graphic3d_SequenceOfHClipPlane>& planes) {
+  m_clipPlanes = planes;
+  for (const PartEntry& part : m_parts) {
+    if (!part.object.IsNull()) {
+      part.object->SetClipPlanes(m_clipPlanes);
+    }
+  }
+}
+
 void SceneManager::displayPart(const OccHandle<AIS_InteractiveObject>& object) {
+  object->SetClipPlanes(m_clipPlanes);
   // Display with the first active selection mode (which also loads the object
   // into the selector; per-object Activate() does nothing for objects that are
   // not loaded), then activate the remaining modes the current tool wants.

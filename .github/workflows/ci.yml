@@ -161,6 +161,17 @@ jobs:
           retention-days: 14
           if-no-files-found: ignore
 
+      # Artifact storage is not reachable from every environment that reviews these
+      # images, so they are also printed to the log (small JPEGs, base64, one line each).
+      - name: Print PMI snapshots
+        if: ${{ always() && matrix.render-tests }}
+        shell: bash
+        run: |
+          for f in snapshots/nist_*.png; do
+            [ -f "$f" ] || continue
+            echo "SNAPSHOT $(basename "$f" .png) $(convert "$f" -resize 960x -quality 80 jpg:- | base64 -w0)"
+          done
+
       - name: Upload test frames on failure
         if: ${{ failure() && matrix.render-tests }}
         uses: actions/upload-artifact@v4

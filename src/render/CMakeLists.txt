@@ -16,6 +16,8 @@ add_library(sc_render STATIC
   PmiLabel.cpp
   PmiFont.h
   PmiFont.cpp
+  SectionTool.h
+  SectionTool.cpp
 )
 add_library(sc::render ALIAS sc_render)
 

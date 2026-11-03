@@ -437,6 +437,15 @@ NCollection_Vec2<int> OcctViewport::toViewPixels(const QPointF& logicalPos) cons
 
 void OcctViewport::mousePressEvent(QMouseEvent* event) {
   QOpenGLWidget::mousePressEvent(event);
+  if (m_glReady && m_dragHandler != nullptr && event->buttons() == Qt::LeftButton &&
+      event->modifiers() == Qt::NoModifier && m_context->HasDetected()) {
+    const NCollection_Vec2<int> pixel = toViewPixels(event->position());
+    if (m_dragHandler->beginDrag(m_context->DetectedInteractive(), pixel)) {
+      m_dragging = true;
+      m_dragStart = pixel;
+      return;
+    }
+  }
   if (m_glReady && UpdateMouseButtons(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
                                       toVKeyFlags(event->modifiers()), false)) {
     update();
@@ -445,6 +454,14 @@ void OcctViewport::mousePressEvent(QMouseEvent* event) {
 
 void OcctViewport::mouseReleaseEvent(QMouseEvent* event) {
   QOpenGLWidget::mouseReleaseEvent(event);
+  if (m_dragging) {
+    m_dragging = false;
+    if (m_dragHandler != nullptr) {
+      m_dragHandler->endDrag();
+    }
+    invalidateScene();
+    return;
+  }
   if (m_glReady && UpdateMouseButtons(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
                                       toVKeyFlags(event->modifiers()), false)) {
     update();
@@ -453,6 +470,13 @@ void OcctViewport::mouseReleaseEvent(QMouseEvent* event) {
 
 void OcctViewport::mouseMoveEvent(QMouseEvent* event) {
   QOpenGLWidget::mouseMoveEvent(event);
+  if (m_dragging) {
+    if (m_dragHandler != nullptr) {
+      m_dragHandler->drag(m_dragStart, toViewPixels(event->position()));
+    }
+    invalidateScene();
+    return;
+  }
   if (m_glReady && UpdateMousePosition(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
                                        toVKeyFlags(event->modifiers()), false)) {
     update();

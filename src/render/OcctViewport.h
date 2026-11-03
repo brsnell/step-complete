@@ -46,6 +46,18 @@ private:
 // Input goes through AIS_ViewController, so OCCT's navigation, selection,
 // highlighting and view animation all work as in OCCT's own viewers.
 // Redraws happen only on demand (input, animation, scene changes).
+// Receives left-button drags that start on an object it claims (e.g. a section
+// plane handle) instead of the view navigating. Same behavior on every OCCT version.
+class DragHandler {
+public:
+  virtual ~DragHandler() = default;
+  // Called on a left press over 'detected'; return true to take the drag.
+  virtual bool beginDrag(const OccHandle<AIS_InteractiveObject>& detected,
+                         const NCollection_Vec2<int>& pixel) = 0;
+  virtual void drag(const NCollection_Vec2<int>& from, const NCollection_Vec2<int>& to) = 0;
+  virtual void endDrag() = 0;
+};
+
 class OcctViewport : public QOpenGLWidget, public AIS_ViewController {
   Q_OBJECT
 
@@ -99,6 +111,9 @@ public:
   void setOverlayMarker(const std::optional<OverlayMarker>& marker);
   const std::optional<OverlayMarker>& overlayMarker() const { return m_overlay; }
 
+  // At most one handler; null removes it. Not owned.
+  void setDragHandler(DragHandler* handler) { m_dragHandler = handler; }
+
   QSize minimumSizeHint() const override { return {200, 150}; }
 
 Q_SIGNALS:
@@ -142,6 +157,9 @@ private:
   QString m_glSummary;
   bool m_glReady = false;
   bool m_glFailed = false;
+  DragHandler* m_dragHandler = nullptr;
+  bool m_dragging = false;
+  NCollection_Vec2<int> m_dragStart;
   std::optional<OverlayMarker> m_overlay;
   OverlayWidget* m_overlayWidget = nullptr;
 };

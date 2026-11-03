@@ -7,6 +7,7 @@
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_InteractiveObject.hxx>
 #include <Bnd_Box.hxx>
+#include <Graphic3d_SequenceOfHClipPlane.hxx>
 #include <SelectMgr_EntityOwner.hxx>
 #include <TopoDS_Shape.hxx>
 
@@ -84,6 +85,11 @@ public:
   // objects, the view cube, measurement witnesses).
   std::optional<PickedEntity> pickedEntity(const OccHandle<SelectMgr_EntityOwner>& owner) const;
 
+  // --- Section planes ------------------------------------------------------------
+  // Clip planes applied to every part (not to PMI, measurement witnesses or the
+  // view cube, which stay whole). Null or empty removes clipping.
+  void setClipPlanes(const OccHandle<Graphic3d_SequenceOfHClipPlane>& planes);
+
   // World bounding box of the visible parts below the nodes (void if none).
   Bnd_Box boundingBox(const std::vector<core::NodeId>& nodes) const;
 
@@ -116,6 +122,7 @@ private:
   std::map<std::string, OccHandle<XCAFPrs_AISObject>> m_prototypes;
   DisplayStyle m_style = DisplayStyle::ShadedWithEdges;
   std::vector<int> m_selectionModes;
+  OccHandle<Graphic3d_SequenceOfHClipPlane> m_clipPlanes;
 };
 
 } // namespace sc::render
