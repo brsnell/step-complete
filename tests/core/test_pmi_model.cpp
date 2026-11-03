@@ -33,6 +33,7 @@
 #include <XCAFDoc_ViewTool.hxx>
 #include <XCAFView_Object.hxx>
 
+#include <XCAFDimTolObjects_DimensionObject.hxx>
 #include <gtest/gtest.h>
 
 #include <cstdio>
@@ -116,6 +117,42 @@ TEST(PmiModel, ReadsDimensionsTolerancesAndDatums) {
   ASSERT_NE(note, nullptr);
   EXPECT_FALSE(note->semantic) << "graphical-only annotations are present but not interpreted";
   EXPECT_EQ(note->typeName, "Annotation");
+}
+
+// OCCT 8 can read an annotation's graphics as a separate item whose name does not
+// match. When exactly one semantic item without graphics applies to the same
+// geometry, the graphics fold into it; when it is ambiguous, nothing is folded.
+TEST(PmiModel, FoldsUnnamedGraphicsIntoTheSemanticItemOnTheSameGeometry) {
+  const test::PmiFixture f = test::buildPmiFixture();
+  auto gdt = XCAFDoc_DocumentTool::DimTolTool(f.document->ocaf()->Main());
+  TopoDS_Compound lines;
+  BRep_Builder builder;
+  builder.MakeCompound(lines);
+  builder.Add(lines, BRepBuilderAPI_MakeEdge(gp_Pnt(0, 0, 25), gp_Pnt(10, 0, 25)).Edge());
+  const auto addGraphics = [&](const TDF_Label& target, const char* name) {
+    const TDF_Label label = gdt->AddDimension();
+    OccHandle<XCAFDimTolObjects_DimensionObject> object = new XCAFDimTolObjects_DimensionObject();
+    object->SetType(XCAFDimTolObjects_DimensionType_DimensionPresentation);
+    object->SetPresentation(lines, new TCollection_HAsciiString(name));
+    XCAFDoc_Dimension::Set(label)->SetObject(object);
+    gdt->SetDimension(target, label);
+    return label;
+  };
+  // Datum A is the only semantic item on the bottom face alone: unambiguous.
+  const TDF_Label datumGraphics = addGraphics(f.bottom, "Datum Feature Symbol 7");
+  // Flatness and parallelism both apply to the top face only: ambiguous.
+  const TDF_Label topGraphics = addGraphics(f.top, "Feature Control Frame 9");
+
+  const PmiModel model(f.document);
+  const core::PmiItem* datum = byLabel(model, f.datumA);
+  ASSERT_NE(datum, nullptr);
+  EXPECT_EQ(model.itemFor(datumGraphics), datum->id);
+  EXPECT_FALSE(datum->presentation.IsNull());
+
+  const core::PmiItem* orphan = byLabel(model, topGraphics);
+  ASSERT_NE(orphan, nullptr);
+  EXPECT_FALSE(orphan->semantic) << "ambiguous graphics stay visible as not interpreted";
+  EXPECT_TRUE(byLabel(model, f.flatness)->presentation.IsNull());
 }
 
 TEST(PmiModel, FindsPmiForAShapeOrItsSubShapes) {

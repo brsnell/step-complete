@@ -290,6 +290,12 @@ void PmiModel::readTolerances() {
 // OCCT may store an annotation's graphical presentation a second time as a
 // separate "dimension presentation" with the same name as the semantic item.
 // Fold such duplicates into the semantic item so each annotation appears once.
+// OCCT may store an annotation's graphical presentation as a separate
+// presentation-only item. Fold such items into their semantic item:
+//  - by name, when a semantic item carries the same presentation name, or
+//  - by geometry, when exactly one semantic item WITHOUT graphics applies to
+//    exactly the same faces/edges (OCCT 8 does this for tessellated PMI).
+// Ambiguous cases are left alone: the graphics stay visible as "not interpreted".
 void PmiModel::mergeDuplicatePresentations() {
   std::map<std::string, PmiId> semanticByName;
   for (const PmiItem& item : m_items) {
@@ -297,18 +303,59 @@ void PmiModel::mergeDuplicatePresentations() {
       semanticByName.emplace(item.presentationName, item.id);
     }
   }
+  const auto sameTargets = [](const PmiItem& a, const PmiItem& b) {
+    if (a.targetLabels.empty() || a.targetLabels.size() != b.targetLabels.size()) {
+      return false;
+    }
+    return std::all_of(a.targetLabels.begin(), a.targetLabels.end(), [&b](const TDF_Label& label) {
+      return std::find(b.targetLabels.begin(), b.targetLabels.end(), label) != b.targetLabels.end();
+    });
+  };
+
   // Pass 1: decide which items fold into which (no moves yet).
   std::vector<PmiId> foldInto(m_items.size(), kNoPmi);
+  std::vector<bool> claimed(m_items.size(), false); // semantic items that received graphics by geometry
   bool any = false;
   for (const PmiItem& item : m_items) {
-    if (!item.semantic && !item.presentationName.empty()) {
+    if (item.semantic || item.presentation.IsNull()) {
+      continue;
+    }
+    PmiId owner = kNoPmi;
+    if (!item.presentationName.empty()) {
       const auto it = semanticByName.find(item.presentationName);
-      if (it != semanticByName.end()) {
-        foldInto[static_cast<size_t>(item.id)] = it->second;
-        m_items[static_cast<size_t>(it->second)].aliases.push_back(item.label);
-        any = true;
+      owner = it == semanticByName.end() ? kNoPmi : it->second;
+    }
+    if (owner == kNoPmi) {
+      int matches = 0;
+      for (const PmiItem& candidate : m_items) {
+        if (candidate.semantic && candidate.presentation.IsNull() &&
+            !claimed[static_cast<size_t>(candidate.id)] && sameTargets(item, candidate)) {
+          owner = candidate.id;
+          ++matches;
+        }
+      }
+      if (matches != 1) {
+        continue;
+      }
+      PmiItem& target = m_items[static_cast<size_t>(owner)];
+      claimed[static_cast<size_t>(owner)] = true;
+      target.presentation = item.presentation;
+      if (target.presentationName.empty()) {
+        target.presentationName = item.presentationName;
+      }
+      if (!target.plane) {
+        target.plane = item.plane;
+      }
+      if (!target.textPosition) {
+        target.textPosition = item.textPosition;
       }
     }
+    if (owner == kNoPmi) {
+      continue;
+    }
+    foldInto[static_cast<size_t>(item.id)] = owner;
+    m_items[static_cast<size_t>(owner)].aliases.push_back(item.label);
+    any = true;
   }
   if (!any) {
     return;
