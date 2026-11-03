@@ -262,7 +262,7 @@ Each milestone ends with something runnable on all three platforms in CI.
   (3.3 MB STEP) load in 2.2 s; peak RSS 464 MB; empty app 236 MB. Both RSS figures include
   Mesa's in-process software renderer, so re-measure on a real GPU against §2a.
 
-### M2: Measurement (≈3–4 weeks): in progress
+### M2: Measurement (≈3–4 weeks): ✅ done (manual check on real GPUs pending)
 - ✅ `core/Measure` with full unit tests (analytic shapes with known answers), including every
   mode on a rotated and translated instance.
 - ✅ `core/Measurement`: picks → formatted result + witness geometry, point snapping
@@ -280,11 +280,17 @@ Each milestone ends with something runnable on all three platforms in CI.
 - ⏳ Results that follow section views (M4); manual check on a real GPU and on Windows/macOS.
 - **Exit:** test suite covers every mode across transformed instances.
 
-### M3: PMI (≈4–6 weeks)
-- `PmiExtractor`/`PmiModel` with tests against NIST models (expected counts and values).
-- Graphical PMI rendering; saved views; PMI tree; cross-highlighting.
-- Semantic-only rendering: dimension geometry, feature control frames, datum flags.
-- PMI coverage matrix document.
+### M3: PMI (≈4–6 weeks): in progress
+- ✅ `PmiModel` (+ `PmiText` for GD&T text) with tests on a synthetic XCAF fixture and 8 NIST
+  CTC/FTC AP242 models (public domain, fetched from a pinned GitHub mirror). CI logs what each
+  OCCT version extracts.
+- ✅ Graphical PMI rendering on every instance; saved views (orientation, visible PMI,
+  clipping); PMI panel (groups, search, filter, visibility); cross-highlighting of target
+  geometry; full semantics in Properties.
+- ⏳ Semantic-only rendering: boxed feature control frames, datum flags, stacked labels, bundled
+  GD&T font (STIX Two Math, OFL). Dimension extension/arrow geometry later.
+- ✅ PMI coverage matrix: [docs/pmi-coverage.md](pmi-coverage.md), including OCCT reader gaps
+  (saved-view camera position, lower-tolerance sign) to patch upstream.
 - **Exit:** NIST CTC/FTC models show all annotations, saved views work, and gaps are documented.
 
 ### M4: Visualization tools (≈2 weeks)
