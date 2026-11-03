@@ -13,7 +13,7 @@ What STEP Complete shows from AP242 PMI, measured on the NIST MBE PMI test model
 | Datums and datum targets | ✅ | One datum per letter (OCCT's per-reference copies are merged); target type, number, size |
 | Links to geometry | ✅ | Selecting PMI highlights the faces/edges it applies to, on every instance of the part |
 | Graphical presentation from the file | ✅ OCCT 8 / ⚠️ 7.6 | Polylines and tessellated annotations, drawn as authored. OCCT 7.6 does not read tessellated presentations (most NIST files) |
-| Semantic-only rendering | ✅ | Screen-aligned boxed feature control frames, datum flags and dimension values at the annotation's text position (or the target's center), with a leader; labels sharing an anchor stack. Bundled STIX Two Math font covers every GD&T symbol. Labels at *nearby* anchors can still overlap; dimension extension lines and arrows are not drawn yet |
+| Semantic-only rendering | ✅ | Screen-aligned boxed feature control frames, datum flags and dimension values at the annotation's text position (or the target's center), with a leader; labels sharing an anchor stack. Bundled STIX Two Math font covers every GD&T symbol. Linear dimensions get extension lines, a dimension line through the text position and constant-pixel-size arrowheads in the annotation plane (between the targets when the file has no placement); diameter/radius get an arrowed leader or a diameter/radius line across the circular feature; angular get arrowed leaders to the attachment points. `PmiScene::declutter(view)` moves overlapping labels apart for the current camera (greedy, screen space, call after fit; not per frame) with connectors to the anchors. Labels are on by default only when fewer than half of the items have file graphics (`setSemanticLabelsVisible`); items neither interpreted nor graphical draw nothing. Limits: angular dimensions have no arc; declutter is for the camera at the time of the call |
 | Saved views | ✅ parallel / ⚠️ central | Name, visible PMI, clipping planes and the camera: location, orientation and view window come from the STEP `CAMERA_MODEL_D3` (read by `StepImporter`, see gap 1), so the view shows the part as the exporter framed it. Parallel projection is verified on the NIST files; central projection (field of view from the window and plane distance) is implemented but untested, as no NIST file has one. Front/back plane distances are kept but not applied; the depth range is fitted to the model. Views without a STEP camera fall back to the saved orientation fitted to the model |
 | Not-interpreted annotations | ✅ | Listed under "Not Interpreted" and drawn from their graphics, never hidden |
 
@@ -24,11 +24,12 @@ to the Linux job log (`sc_pmi_snapshots`). Findings from that check:
 
 - CTC-01, CTC-02, CTC-03, CTC-05: the authored graphical PMI shows completely and in place;
   saved views filter it correctly.
-- Saved-view text can read mirrored when the view is not looked at from the file's camera
-  position (see gap 1).
-- FTC-06: annotations whose graphics OCCT reads as unlinked items (gap 7) also get boxed
-  semantic labels, which pile up at their targets. Semantic labels are being made automatic
-  (off when most items have file graphics).
+- Saved views now use the file's camera (gap 1 fixed), so text authored in the annotation planes
+  faces the viewer as intended. Some views are framed off-center as exported (e.g. FTC-06 MBD_A);
+  we keep the authored framing.
+- FTC-06: annotations whose graphics OCCT reads as unlinked items (gap 7) used to get boxed
+  semantic labels as well, piling up at their targets. Semantic labels are now off by default when
+  most items have file graphics.
 
 ## Per-model extraction
 

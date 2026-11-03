@@ -17,8 +17,10 @@ namespace sc::render {
 //  - geometric tolerances as a feature control frame, a row of boxed cells,
 //  - datums as a datum flag, a boxed letter on a short stem,
 //  - dimensions, datum targets and anything else as the value text in a box.
-// Labels that share an anchor are stacked downwards by `stackIndex` rows so they do
-// not overlap. The box starts at the anchor and is vertically centered on it.
+// Labels that share an anchor are stacked downwards by `stackIndex` rows so they do not
+// overlap. The box starts at the anchor and is vertically centered on its row. A further
+// pixel offset (setOffset, set by PmiScene::declutter) moves the box away from the anchor;
+// a displaced box is joined to the anchor by a connector line.
 //
 // Local coordinates are device pixels: x to the right, y up, origin at the anchor.
 // Selectable as a whole (mode 0); pmiId() says which PMI item it shows.
@@ -39,6 +41,11 @@ public:
   double boxWidth() const { return m_boxWidth; }
   double boxHeight() const { return m_rowHeight; }
   double centerY() const { return m_centerY; }
+
+  // Moves the box by (dx, dy) device pixels (y up) from its stack row. The caller redisplays.
+  void setOffset(double dx, double dy);
+  double offsetX() const { return m_offsetX; }
+  double offsetY() const { return m_offsetY; }
 
   // Horizontal extent of each cell, in device pixels from the anchor.
   std::vector<std::pair<double, double>> cellExtents() const;
@@ -71,6 +78,8 @@ private:
   double m_boxLeft = 0.0;
   double m_boxWidth = 0.0;
   double m_centerY = 0.0;
+  double m_offsetX = 0.0;
+  double m_offsetY = 0.0;
   std::vector<Cell> m_cells;
 };
 

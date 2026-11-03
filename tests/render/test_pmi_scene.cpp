@@ -13,12 +13,19 @@
 #include "render/PmiScene.h"
 #include "render/SceneManager.h"
 
+#include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRep_Builder.hxx>
 #include <Font_FTFont.hxx>
 #include <Font_FontAspect.hxx>
 #include <Font_FontMgr.hxx>
 #include <Font_SystemFont.hxx>
 #include <TCollection_AsciiString.hxx>
+#include <TCollection_HAsciiString.hxx>
 #include <TDataStd_Name.hxx>
+#include <TopoDS_Compound.hxx>
+#include <XCAFDimTolObjects_DimensionObject.hxx>
+#include <XCAFDoc_DimTolTool.hxx>
+#include <XCAFDoc_Dimension.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include <gp_Trsf.hxx>
@@ -387,6 +394,197 @@ private Q_SLOTS:
     QVERIFY(flag->boxLeft() > 0.0);                      // datum stem
     QCOMPARE(flag->boxWidth(), flag->boxHeight());       // a square letter box
     QVERIFY(value->boxWidth() > value->boxHeight() * 2); // the value is wider than a square
+  }
+
+private:
+  // Adds a semantic-only dimension (no file presentation) to the fixture document.
+  TDF_Label addSemanticDimension(XCAFDimTolObjects_DimensionType type, const gp_Pnt& textAt,
+                                 const std::optional<std::pair<gp_Pnt, gp_Pnt>>& points, double value) {
+    auto gdt = XCAFDoc_DocumentTool::DimTolTool(m_fixture.document->ocaf()->Main());
+    const TDF_Label dimension = gdt->AddDimension();
+    sc::OccHandle<XCAFDimTolObjects_DimensionObject> object = new XCAFDimTolObjects_DimensionObject();
+    object->SetType(type);
+    object->SetValue(value);
+    object->SetPlane(gp_Ax2(gp_Pnt(0, 0, 20), gp_Dir(0, 0, 1), gp_Dir(1, 0, 0)));
+    object->SetPointTextAttach(textAt);
+    if (points) {
+      object->SetPoint(points->first);
+      object->SetPoint2(points->second);
+    }
+    XCAFDoc_Dimension::Set(dimension)->SetObject(object);
+    gdt->SetDimension(m_fixture.top, m_fixture.bottom, dimension);
+    return dimension;
+  }
+
+  // Number of PMI-blue pixels in a rectangle.
+  static int blueIn(const QImage& image, const QRect& rect) {
+    int count = 0;
+    for (int y = std::max(0, rect.top()); y <= std::min(image.height() - 1, rect.bottom()); ++y) {
+      for (int x = std::max(0, rect.left()); x <= std::min(image.width() - 1, rect.right()); ++x) {
+        count += isPmiBlue(image.pixelColor(x, y)) ? 1 : 0;
+      }
+    }
+    return count;
+  }
+
+private Q_SLOTS:
+  void semanticLinearDimensionDrawsExtensionLinesAndArrows() {
+    // Measures 100 mm along X on the top edge; the dimension line is 20 mm in front (y = -20).
+    addSemanticDimension(XCAFDimTolObjects_DimensionType_Location_LinearDistance, gp_Pnt(50, -20, 20),
+                         std::make_pair(gp_Pnt(0, 0, 20), gp_Pnt(100, 0, 20)), 100.0);
+    load();
+    QCOMPARE(m_pmiScene->arrowCount(), 2);
+    const QImage image = render();
+    sc::test::dumpImage(image, "pmi_semantic_linear_dimension");
+
+    // Extension line at x = 0, halfway between the attachment point and the dimension line.
+    const QPoint extension = pixelOf(0, -10, 20);
+    QVERIFY2(blueIn(image, QRect(extension.x() - 1, extension.y() - 1, 3, 3)) >= 2, "no extension line");
+    // Dimension line between the arrowheads, left of the label.
+    const QPoint line = pixelOf(20, -20, 20);
+    QVERIFY2(blueIn(image, QRect(line.x() - 1, line.y() - 1, 3, 3)) >= 2, "no dimension line");
+    // Nothing between the extension lines off the dimension line.
+    const QPoint empty = pixelOf(20, -12, 20);
+    QCOMPARE(blueIn(image, QRect(empty.x() - 2, empty.y() - 2, 5, 5)), 0);
+
+    // Arrowhead at the left end: a filled triangle pointing to -X, much denser than the bare
+    // line the same-size window sees further along.
+    const QPoint tip = pixelOf(0, -20, 20);
+    const int arrow = blueIn(image, QRect(tip.x(), tip.y() - 4, 11, 9));
+    const int bare = blueIn(image, QRect(line.x() - 5, line.y() - 4, 11, 9));
+    QVERIFY2(arrow >= 25, qPrintable(QString("arrowhead has %1 pixels").arg(arrow)));
+    QVERIFY2(arrow >= bare + 15, qPrintable(QString("arrow %1 vs line %2").arg(arrow).arg(bare)));
+    // Its flanks are 3 px off the line near the base, and nothing lies beyond the tip.
+    QVERIFY(blueIn(image, QRect(tip.x() + 9, tip.y() - 2, 2, 1)) >= 1);
+    QCOMPARE(blueIn(image, QRect(tip.x() - 6, tip.y() - 3, 4, 7)), 0);
+    // The right end has an arrowhead too.
+    const QPoint tip2 = pixelOf(100, -20, 20);
+    QVERIFY(blueIn(image, QRect(tip2.x() - 11, tip2.y() - 4, 11, 9)) >= 25);
+  }
+
+  void dimensionGeometryIsConstantInPixelsAndNotDrawnForFileGraphics() {
+    // The fixture's only linear dimension has a presentation from the file.
+    load();
+    QCOMPARE(m_pmiScene->arrowCount(), 0);
+    const QImage plain = render();
+    m_pmiScene.reset(new sc::render::PmiScene(m_viewport->context()));
+    addSemanticDimension(XCAFDimTolObjects_DimensionType_Location_LinearDistance, gp_Pnt(50, -20, 20),
+                         std::make_pair(gp_Pnt(0, 0, 20), gp_Pnt(100, 0, 20)), 100.0);
+    load();
+    QCOMPARE(m_pmiScene->arrowCount(), 2);
+    // The file-graphics item (the height dimension) adds nothing to the arrow count and
+    // keeps drawing its presentation only.
+    QVERIFY(m_pmiScene->presentationCount() > 0);
+
+    // Zooming in does not grow the arrowheads.
+    const QPoint tip = pixelOf(0, -20, 20);
+    const int before = blueIn(render(), QRect(tip.x(), tip.y() - 4, 11, 9));
+    m_viewport->view()->SetScale(m_viewport->view()->Scale() / 1.3);
+    const QPoint zoomedTip = pixelOf(0, -20, 20);
+    const QImage zoomed = render();
+    const int after = blueIn(zoomed, QRect(zoomedTip.x(), zoomedTip.y() - 4, 11, 9));
+    QVERIFY2(std::abs(after - before) <= 8, qPrintable(QString("%1 vs %2").arg(before).arg(after)));
+    QVERIFY(before >= 25);
+  }
+
+  void semanticLabelSwitchHasAnAutomaticDefault() {
+    load();
+    QVERIFY(m_pmiScene->semanticLabelsVisible()); // 1 of 5 items has file graphics
+    const PmiId flat = id(m_fixture.flatness);
+    const auto& label = m_pmiScene->labelsOf(flat).front();
+    QVERIFY(m_viewport->context()->IsDisplayed(label));
+    m_pmiScene->setSemanticLabelsVisible(false);
+    QVERIFY(!m_viewport->context()->IsDisplayed(label));
+    // Highlighting still shows the targets while the labels are off.
+    QVERIFY(m_pmiScene->labelsOf(id(m_fixture.height)).empty()); // file graphics: never a label
+    m_pmiScene->highlight({flat});
+    QVERIFY(countPixels(render(), isTargetOrange) > 50);
+    m_pmiScene->setSemanticLabelsVisible(true);
+    QVERIFY(m_viewport->context()->IsDisplayed(label));
+    // Hiding the item while the labels are on and then switching keeps it hidden.
+    m_pmiScene->setVisible({flat}, false);
+    m_pmiScene->setSemanticLabelsVisible(false);
+    m_pmiScene->setSemanticLabelsVisible(true);
+    QVERIFY(!m_viewport->context()->IsDisplayed(label));
+  }
+
+  void semanticLabelsDefaultOffWhenMostItemsHaveGraphics() {
+    // Four more items with a graphical presentation: 5 of 9 have file graphics.
+    auto gdt = XCAFDoc_DocumentTool::DimTolTool(m_fixture.document->ocaf()->Main());
+    for (int i = 0; i < 4; ++i) {
+      const TDF_Label dimension = gdt->AddDimension();
+      sc::OccHandle<XCAFDimTolObjects_DimensionObject> object = new XCAFDimTolObjects_DimensionObject();
+      object->SetType(XCAFDimTolObjects_DimensionType_Location_LinearDistance);
+      object->SetValue(10.0 + i);
+      TopoDS_Compound lines;
+      BRep_Builder builder;
+      builder.MakeCompound(lines);
+      builder.Add(lines,
+                  BRepBuilderAPI_MakeEdge(gp_Pnt(5.0 * i, -5, 20), gp_Pnt(5.0 * i + 4, -5, 20)).Edge());
+      object->SetPresentation(lines, new TCollection_HAsciiString("Extra"));
+      XCAFDoc_Dimension::Set(dimension)->SetObject(object);
+      gdt->SetDimension(m_fixture.top, m_fixture.bottom, dimension);
+    }
+    load();
+    QVERIFY(!m_pmiScene->semanticLabelsVisible());
+    const auto& label = m_pmiScene->labelsOf(id(m_fixture.flatness)).front();
+    QVERIFY(!m_viewport->context()->IsDisplayed(label));
+    m_pmiScene->setSemanticLabelsVisible(true);
+    QVERIFY(m_viewport->context()->IsDisplayed(label));
+  }
+
+  void itemsWithoutSemanticsOrGraphicsDrawNothing() {
+    load();
+    QVERIFY(!m_fixture.label.IsNull());
+    const PmiId note = id(m_fixture.label);
+    QVERIFY(note != sc::core::kNoPmi);
+    QVERIFY(m_pmiScene->labelsOf(note).empty());
+  }
+
+  void diameterGetsArrowedLeaderAndLinearWithoutPointsFallsBack() {
+    // No attachment points: the target faces' centers stand in (top and bottom here, 20 apart).
+    addSemanticDimension(XCAFDimTolObjects_DimensionType_Location_LinearDistance, gp_Pnt(50, -20, 20),
+                         std::nullopt, 20.0);
+    addSemanticDimension(XCAFDimTolObjects_DimensionType_Size_Diameter, gp_Pnt(50, 80, 20), std::nullopt,
+                         8.0);
+    load();
+    // The linear one derives its points from the targets: its dimension line is along Z, which
+    // is perpendicular to the plane normal's direction here, so it still gets two arrowheads;
+    // the diameter one has a leader to the target with one arrow.
+    QCOMPARE(m_pmiScene->arrowCount(), 3);
+  }
+
+  void nearbyAnchorsAreStackedWithoutOverlap() {
+    // Two labels 1-2 mm apart (not identical) next to the flatness/parallelism labels; the
+    // datum A label lies on the same screen spot as they do in this top view (20 mm below).
+    const TDF_Label a = addSemanticDimension(XCAFDimTolObjects_DimensionType_Size_Diameter,
+                                             gp_Pnt(51, 30, 20), std::nullopt, 8.0);
+    const TDF_Label b = addSemanticDimension(XCAFDimTolObjects_DimensionType_Size_Diameter,
+                                             gp_Pnt(52, 31, 20), std::nullopt, 9.0);
+    load();
+    m_pmiScene->declutter(m_viewport->view());
+    const QImage image = render();
+    sc::test::dumpImage(image, "pmi_nearby_labels");
+    QVERIFY(id(a) != sc::core::kNoPmi && id(b) != sc::core::kNoPmi);
+    std::vector<std::pair<PmiId, QRect>> boxes;
+    for (const sc::core::PmiItem& item : m_pmi->items()) {
+      for (const auto& label : m_pmiScene->labelsOf(item.id)) {
+        const QPoint anchor = pixelOf(label->anchor().X(), label->anchor().Y(), label->anchor().Z());
+        boxes.emplace_back(item.id, QRect(anchor.x() + int(label->boxLeft()),
+                                          anchor.y() - int(label->centerY() + label->boxHeight() / 2.0),
+                                          int(label->boxWidth()), int(label->boxHeight())));
+      }
+    }
+    QVERIFY(boxes.size() >= 5);
+    for (size_t i = 0; i < boxes.size(); ++i) {
+      for (size_t j = i + 1; j < boxes.size(); ++j) {
+        QVERIFY2(!boxes[i].second.intersects(boxes[j].second), "labels overlap");
+      }
+    }
+    // Each box still picks its own PMI.
+    for (const auto& [pmi, box] : boxes) {
+      QCOMPARE(pmiAt(box.center()), pmi);
+    }
   }
 
   void appliesSavedViews() {

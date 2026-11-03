@@ -131,6 +131,18 @@ void PmiLabel::layout(const core::PmiItem& item) {
   m_boxWidth = x - m_boxLeft;
 }
 
+void PmiLabel::setOffset(double dx, double dy) {
+  const double shiftX = dx - m_offsetX;
+  for (Cell& cell : m_cells) {
+    cell.x0 += shiftX;
+    cell.x1 += shiftX;
+  }
+  m_boxLeft += shiftX;
+  m_centerY += dy - m_offsetY;
+  m_offsetX = dx;
+  m_offsetY = dy;
+}
+
 std::vector<std::pair<double, double>> PmiLabel::cellExtents() const {
   std::vector<std::pair<double, double>> extents;
   for (const Cell& cell : m_cells) {
@@ -170,7 +182,7 @@ void PmiLabel::Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHa
   OccHandle<Graphic3d_Group> lineGroup = prs->NewGroup();
   lineGroup->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(kInk, Aspect_TOL_SOLID, 1.0 * m_dpr));
   OccHandle<Graphic3d_ArrayOfSegments> lines =
-      new Graphic3d_ArrayOfSegments(static_cast<int>(8 + 2 * m_cells.size() + 2));
+      new Graphic3d_ArrayOfSegments(static_cast<int>(8 + 2 * m_cells.size() + 4));
   auto segment = [&lines](double x0, double y0, double x1, double y1) {
     lines->AddVertex(gp_Pnt(x0, y0, 0.0));
     lines->AddVertex(gp_Pnt(x1, y1, 0.0));
@@ -182,8 +194,15 @@ void PmiLabel::Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHa
   for (size_t i = 1; i < m_cells.size(); ++i) {
     segment(m_cells[i].x0, bottom, m_cells[i].x0, top);
   }
-  if (m_stem > 0.0) {
+  if (m_stem > 0.0 && m_offsetX == 0.0 && m_offsetY == 0.0) {
     segment(0.0, m_centerY, left, m_centerY);
+  }
+  // A label displaced from its anchor (stacked or moved by declutter) gets a connector from
+  // the anchor to the nearest point of its box.
+  const double nearestX = std::clamp(0.0, left, right);
+  const double nearestY = std::clamp(0.0, bottom, top);
+  if (nearestX != 0.0 || nearestY != 0.0) {
+    segment(0.0, 0.0, nearestX, nearestY);
   }
   lineGroup->AddPrimitiveArray(lines);
 
