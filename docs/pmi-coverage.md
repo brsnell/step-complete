@@ -32,7 +32,14 @@ linked to geometry. "Presentations" is the number of items with graphics from th
 | FTC-06 | 7.6.3 | 24 | 27 | 8 | 4 | 0 | 3 | 0 | 55/63 |
 | FTC-07 | 7.6.3 | 27 | 25 | 5 | 0 | 10 | 0 | 57 | 47/57 |
 | FTC-10 | 7.6.3 | 36 | 35 | 11 | 0 | 13 | 0 | 82 | 69/82 |
-<!-- OCCT8 -->
+| CTC-01 | 8.0.1 | 16 | 6 | 3 | 0 | 8 | 1 | 21 | 23/25 |
+| CTC-02 | 8.0.1 | 9 | 22 | 6 | 9 | 2 | 3 | 46 | 39/46 |
+| CTC-03 | 8.0.1 | 12 | 12 | 5 | 0 | 3 | 1 | 28 | 24/29 |
+| CTC-04 | 8.0.1 | 13 | 6 | 8 | 0 | 4 | 0 | 27 | 23/27 |
+| CTC-05 | 8.0.1 | 8 | 10 | 2 | 2 | 2 | 2 | 22 | 18/22 |
+| FTC-06 | 8.0.1 | 47 | 27 | 8 | 4 | 23 | 3 | 23 | 77/86 |
+| FTC-07 | 8.0.1 | 27 | 25 | 5 | 0 | 10 | 0 | 57 | 47/57 |
+| FTC-10 | 8.0.1 | 36 | 35 | 11 | 0 | 13 | 0 | 82 | 69/82 |
 
 ## Known gaps (OCCT's STEP reader)
 
@@ -52,6 +59,10 @@ fixes upstream (OCCT is open source; patches would go through a vcpkg overlay po
 5. **Duplicated presentations.** OCCT sometimes stores an annotation's graphics a second time as a
    separate "dimension presentation". We fold these into the semantic item by name.
 6. **Some datum features have no geometry link** (e.g. CTC-01 datums B and C on 7.6).
+7. **Unlinked graphics on OCCT 8.** For some files (CTC-01, FTC-06) OCCT 8 reads tessellated
+   graphics as separate items whose names do not match a semantic item, so they are listed under
+   "Not Interpreted" (and drawn) next to the semantic item, which then has no graphics of its own.
+   Matching them by target geometry is a planned improvement.
 
 Values: OCCT converts lengths to millimeters and angles to degrees. Displayed text follows
 ASME Y14.5 / ISO 1101 conventions with Unicode GD&T symbols.
