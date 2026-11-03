@@ -293,9 +293,14 @@ Each milestone ends with something runnable on all three platforms in CI.
   (saved-view camera position, lower-tolerance sign) to patch upstream.
 - **Exit:** NIST CTC/FTC models show all annotations, saved views work, and gaps are documented.
 
-### M4: Visualization tools (≈2 weeks)
-- Section planes (up to 3, capping, hatching, drag handles), exploded view (optional),
-  screenshot export, background/lighting preferences.
+### M4: Visualization tools (≈2 weeks): in progress
+- ✅ Section planes engine (`SectionTool`): up to 3 planes clipping the parts only (PMI,
+  witnesses and the view cube stay whole), capping in the part's color, hatching, drag handles
+  that work the same on OCCT 7.6 and 8. ⏳ Section panel and menu.
+- ⏳ Screenshot export (any size, white/transparent background), background/lighting
+  preferences.
+- ⏸ Exploded view (optional): deferred. Displacing parts would detach their PMI and break
+  measurement picks unless every subsystem learned about the offsets; not worth the weight now.
 
 ### M5: Ship v1.0 (≈2–3 weeks)
 - Performance pass against §6 targets; open-file cache.
