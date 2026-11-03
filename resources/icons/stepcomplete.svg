@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+  <title>STEP Complete</title>
+  <rect x="16" y="16" width="224" height="224" rx="44" ry="44" fill="#1f4e79"/>
+  <g stroke="#ffffff" stroke-width="6" stroke-linejoin="round" stroke-linecap="round">
+    <polygon points="128,52 186,82 128,112 70,82" fill="#9fdcd6"/>
+    <polygon points="70,82 128,112 128,172 70,142" fill="#3fa7a0"/>
+    <polygon points="128,112 186,82 186,142 128,172" fill="#1f7f7a"/>
+  </g>
+  <g fill="#f39c12" stroke="#f39c12" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="72" y1="202" x2="184" y2="202" stroke-width="6"/>
+    <polygon points="62,202 84,192 84,212" stroke-width="2"/>
+    <polygon points="194,202 172,192 172,212" stroke-width="2"/>
+  </g>
+</svg>
