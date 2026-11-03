@@ -477,10 +477,7 @@ void PmiPanelTest::emptyModel() {
   QVERIFY(summary->text().isEmpty());
 }
 
-int main(int argc, char** argv) {
-  // No display or OpenGL is needed; always run offscreen.
-  qputenv("QT_QPA_PLATFORM", "offscreen");
-  QApplication app(argc, argv);
+int runPmiPanelTests(int argc, char** argv) {
   PmiPanelTest test;
   return QTest::qExec(&test, argc, argv);
 }

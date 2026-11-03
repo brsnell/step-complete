@@ -18,6 +18,10 @@ add_library(sc_app STATIC
   ExportImageDialog.cpp
   PreferencesDialog.h
   PreferencesDialog.cpp
+  SectionModel.h
+  SectionModel.cpp
+  SectionPanel.h
+  SectionPanel.cpp
 )
 add_library(sc::app ALIAS sc_app)
 

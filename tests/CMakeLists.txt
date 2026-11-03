@@ -55,7 +55,9 @@ set_tests_properties(render.pmi_snapshots PROPERTIES LABELS "render" TIMEOUT 300
 
 # --- App widget tests (offscreen Qt platform: no display or OpenGL needed) -----
 add_executable(sc_app_tests
+  app/app_test_main.cpp
   app/test_pmi_panel.cpp
+  app/test_section_panel.cpp
 )
 target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
 sc_target_defaults(sc_app_tests)
