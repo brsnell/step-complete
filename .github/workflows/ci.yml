@@ -114,6 +114,7 @@ jobs:
           cmake --preset vcpkg \
             -DVCPKG_TARGET_TRIPLET=${{ matrix.triplet }} \
             -DSC_WARNINGS_AS_ERRORS=${{ matrix.werror }} \
+            -DSC_BUILD_TOOLS=ON \
             "${extra[@]}"
 
       - name: Save vcpkg binary cache
@@ -142,6 +143,22 @@ jobs:
         run: |
           ctest --preset vcpkg -R NistPmi -V | grep '\[PMI\]' | sed 's/^[0-9]*: //' | tee pmi-report.txt
           { echo "### PMI extracted (${{ matrix.name }})"; echo '```'; cat pmi-report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      # Import timings on a synthetic 500-part assembly (docs/performance.md).
+      - name: Import benchmark
+        if: ${{ matrix.render-tests }}
+        shell: bash
+        run: |
+          build/vcpkg/tools/sc_make_bench_model bench.stp 500 2 2>/dev/null >/dev/null
+          size=$(du -m bench.stp | cut -f1)
+          {
+            echo "### Import benchmark (${{ matrix.name }}, $(nproc) cores, ${size} MB, 500 parts, 1000 instances)"
+            echo '```'
+            build/vcpkg/tools/sc_bench_import bench.stp bench-cache 2>/dev/null | grep -v '^\s*$' | tail -5
+            build/vcpkg/tools/sc_bench_import bench.stp bench-cache 2>/dev/null | grep -E 'cache|memory'
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          rm -rf bench.stp bench-cache
 
       - name: Test (render, Xvfb + Mesa llvmpipe)
         if: ${{ matrix.render-tests }}
