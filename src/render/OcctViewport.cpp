@@ -15,9 +15,15 @@
 #include <Aspect_NeutralWindow.hxx>
 #include <Graphic3d_AspectFillArea3d.hxx>
 #include <Graphic3d_TransformPers.hxx>
+#include <Graphic3d_ZLayerId.hxx>
+#include <Image_PixMap.hxx>
 #include <Message.hxx>
 #include <NCollection_Vec2.hxx>
 #include <Prs3d_DatumAspect.hxx>
+#include <Standard_Version.hxx>
+#include <V3d_AmbientLight.hxx>
+#include <V3d_DirectionalLight.hxx>
+#include <V3d_ImageDumpOptions.hxx>
 
 #include <QMouseEvent>
 #include <QPainter>
@@ -146,8 +152,13 @@ OcctViewport::OcctViewport(QWidget* parent) : QOpenGLWidget(parent) {
   driver->ChangeOptions().contextCompatible = !kCoreProfile;
 
   m_viewer = new V3d_Viewer(driver);
-  m_viewer->SetDefaultLights();
+  // Same setup as V3d_Viewer::SetDefaultLights(), but kept so the intensity can be changed.
+  m_headlight = new V3d_DirectionalLight(V3d_XnegYnegZneg, Quantity_NOC_WHITE, true);
+  m_ambientLight = new V3d_AmbientLight(Quantity_NOC_WHITE);
+  m_viewer->AddLight(m_headlight);
+  m_viewer->AddLight(m_ambientLight);
   m_viewer->SetLightOn();
+  applyLighting();
 
   m_context = new AIS_InteractiveContext(m_viewer);
   // Selection: saturated blue; hover: light cyan. Both read well on gray and colored parts.
@@ -160,9 +171,7 @@ OcctViewport::OcctViewport(QWidget* parent) : QOpenGLWidget(parent) {
 
   m_view = m_viewer->CreateView();
   m_view->SetImmediateUpdate(false);
-  m_view->SetBgGradientColors(Quantity_Color(0.90, 0.92, 0.95, Quantity_TOC_sRGB),
-                              Quantity_Color(0.62, 0.66, 0.72, Quantity_TOC_sRGB),
-                              Aspect_GradientFillMethod_Vertical, false);
+  applyBackground(m_background);
 
   // Lightweight defaults for 10-year-old integrated GPUs: no MSAA, no stats overlay.
   Graphic3d_RenderingParams& params = m_view->ChangeRenderingParams();
@@ -533,6 +542,173 @@ int OcctViewport::msaaSamples() const {
 void OcctViewport::setShowFrameRate(bool enabled) {
   m_view->ChangeRenderingParams().ToShowStats = enabled;
   update();
+}
+
+void OcctViewport::applyBackground(const BackgroundStyle& style) {
+  auto toOcct = [](const QColor& c) {
+    return Quantity_Color(c.redF(), c.greenF(), c.blueF(), Quantity_TOC_sRGB);
+  };
+  switch (style.kind) {
+  case BackgroundStyle::Kind::Gradient:
+    m_view->SetBgGradientColors(toOcct(style.top), toOcct(style.bottom), Aspect_GradientFillMethod_Vertical,
+                                false);
+    break;
+  case BackgroundStyle::Kind::Solid:
+  case BackgroundStyle::Kind::White: {
+    const Quantity_Color color = style.kind == BackgroundStyle::Kind::White
+                                     ? Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_sRGB)
+                                     : toOcct(style.solid);
+    m_view->SetBackgroundColor(color);
+    m_view->SetBgGradientColors(color, color, Aspect_GradientFillMethod_Vertical, false);
+    break;
+  }
+  }
+  m_view->Invalidate();
+}
+
+void OcctViewport::setBackground(const BackgroundStyle& style) {
+  m_background = style;
+  applyBackground(m_background);
+  update();
+}
+
+void OcctViewport::applyLighting() {
+  // Headlight / ambient intensity. Cheap on purpose: no shadows, no extra lights.
+  double headlight = 1.0;
+  double ambient = 1.0;
+  switch (m_lighting) {
+  case LightingPreset::Default:
+    break;
+  case LightingPreset::Brighter:
+    headlight = 1.0;
+    ambient = 2.5;
+    break;
+  case LightingPreset::Softer:
+    headlight = 0.3;
+    ambient = 1.0;
+    break;
+  }
+  // The headlight is dimmed through its color: OCCT does not apply SetIntensity to it (checked
+  // with Mesa llvmpipe), while the ambient light honors intensities above 1.
+  m_headlight->SetColor(Quantity_Color(headlight, headlight, headlight, Quantity_TOC_RGB));
+  m_ambientLight->SetIntensity(static_cast<float>(ambient));
+  m_viewer->UpdateLights();
+  if (!m_view.IsNull()) {
+    m_view->Invalidate();
+  }
+}
+
+void OcctViewport::setLighting(LightingPreset preset) {
+  m_lighting = preset;
+  applyLighting();
+  update();
+}
+
+QSize OcctViewport::framebufferSize() const {
+  const qreal dpr = devicePixelRatioF();
+  return QSize(std::max(1, static_cast<int>(std::lround(width() * dpr))),
+               std::max(1, static_cast<int>(std::lround(height() * dpr))));
+}
+
+// Dumps the view into an RGBA image of the given size using OCCT's offscreen render
+// buffer. Qt's context must be current. ToPixMap renders into its own FBO (tiled when
+// larger than the GPU allows) and restores the camera, so the on-screen state is intact.
+QImage OcctViewport::dumpView(int width, int height) {
+  Image_PixMap pixmap;
+  V3d_ImageDumpOptions options;
+  options.Width = width;
+  options.Height = height;
+  options.BufferType = Graphic3d_BT_RGBA;
+  options.ToAdjustAspect = true; // match the camera aspect to the image, restored afterwards
+#if OCC_VERSION_HEX >= 0x070700
+  options.TargetZLayerId = Graphic3d_ZLayerId_Topmost; // include the view cube (OSD layers)
+#endif
+  if (!m_view->ToPixMap(pixmap, options) || pixmap.IsEmpty() ||
+      pixmap.Width() != static_cast<size_t>(width) || pixmap.Height() != static_cast<size_t>(height)) {
+    return {};
+  }
+
+  const bool bgra = pixmap.Format() == Image_Format_BGRA;
+  if (!bgra && pixmap.Format() != Image_Format_RGBA) {
+    return {};
+  }
+  QImage image(width, height, QImage::Format_ARGB32);
+  for (int y = 0; y < height; ++y) {
+    const Standard_Byte* src =
+        pixmap.Data() + static_cast<size_t>(pixmap.IsTopDown() ? y : height - 1 - y) * pixmap.SizeRowBytes();
+    QRgb* dst = reinterpret_cast<QRgb*>(image.scanLine(y));
+    for (int x = 0; x < width; ++x, src += 4) {
+      dst[x] = bgra ? qRgba(src[2], src[1], src[0], src[3]) : qRgba(src[0], src[1], src[2], src[3]);
+    }
+  }
+  return image;
+}
+
+QImage OcctViewport::renderImage(int width, int height, ExportBackground background) {
+  if (!m_glReady || m_view.IsNull() || m_view->Window().IsNull()) {
+    return {};
+  }
+  width = std::clamp(width, 1, kMaxExportSize);
+  height = std::clamp(height, 1, kMaxExportSize);
+
+  // Exactly what is on screen: take Qt's own framebuffer.
+  if (background == ExportBackground::AsShown && QSize(width, height) == framebufferSize()) {
+    QImage grabbed = grabFramebuffer();
+    if (!grabbed.isNull()) {
+      return grabbed.convertToFormat(QImage::Format_RGB32);
+    }
+  }
+
+  makeCurrent();
+  const BackgroundStyle shown = m_background;
+  QImage result;
+  if (background == ExportBackground::AsShown) {
+    result = dumpView(width, height);
+  } else {
+    BackgroundStyle plain;
+    plain.kind = BackgroundStyle::Kind::Solid;
+    plain.solid = Qt::white;
+    applyBackground(plain);
+    result = dumpView(width, height);
+    if (background == ExportBackground::Transparent && !result.isNull()) {
+      // OCCT has no alpha background. Render over white and over black, then solve
+      // for alpha: over a background b, pixel = c * a + b * (1 - a), so
+      // white - black = 255 * (1 - a). Handles anti-aliased edges and translucent parts.
+      plain.solid = Qt::black;
+      applyBackground(plain);
+      const QImage onBlack = dumpView(width, height);
+      if (onBlack.size() != result.size()) {
+        result = QImage();
+      } else {
+        for (int y = 0; y < height; ++y) {
+          QRgb* white = reinterpret_cast<QRgb*>(result.scanLine(y));
+          const QRgb* black = reinterpret_cast<const QRgb*>(onBlack.constScanLine(y));
+          for (int x = 0; x < width; ++x) {
+            const int diff = (qRed(white[x]) - qRed(black[x]) + qGreen(white[x]) - qGreen(black[x]) +
+                              qBlue(white[x]) - qBlue(black[x])) /
+                             3;
+            const int alpha = std::clamp(255 - diff, 0, 255);
+            if (alpha == 0) {
+              white[x] = qRgba(0, 0, 0, 0);
+            } else {
+              // Straight (non-premultiplied) color: black pixel = color * alpha.
+              const auto un = [alpha](int v) { return std::min(255, v * 255 / alpha); };
+              white[x] = qRgba(un(qRed(black[x])), un(qGreen(black[x])), un(qBlue(black[x])), alpha);
+            }
+          }
+        }
+      }
+    }
+    applyBackground(shown);
+  }
+  doneCurrent();
+  m_view->Invalidate();
+  update();
+
+  if (result.isNull()) {
+    return {};
+  }
+  return background == ExportBackground::Transparent ? result : result.convertToFormat(QImage::Format_RGB32);
 }
 
 void OcctViewport::collectGlInfo(int glMajor, int glMinor) {

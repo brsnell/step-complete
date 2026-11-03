@@ -33,6 +33,7 @@ class AssemblyTreeModel;
 class ImportJob;
 class MeasurementsPanel;
 class PmiPanel;
+struct ViewPreferences;
 class PropertiesPanel;
 
 class MainWindow : public QMainWindow {
@@ -92,6 +93,11 @@ private:
   void showAllPmi();
 
   void showGraphicsInfo();
+
+  // --- Export and view preferences ---------------------------------------------
+  void exportImage();
+  void showPreferences();
+  void applyViewPreferences(const ViewPreferences& preferences);
   void showAbout();
 
   render::OcctViewport* m_viewport = nullptr;
@@ -106,6 +112,8 @@ private:
   PmiPanel* m_pmiPanel = nullptr;
   QDockWidget* m_pmiDock = nullptr;
   QAction* m_showAllPmiAction = nullptr;
+  QAction* m_antialiasingAction = nullptr;
+  QAction* m_exportImageAction = nullptr;
   MeasurementsPanel* m_measurements = nullptr;
   QDockWidget* m_measurementsDock = nullptr;
   QActionGroup* m_measureGroup = nullptr;

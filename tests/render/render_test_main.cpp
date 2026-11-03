@@ -25,5 +25,6 @@ int main(int argc, char** argv) {
   failures += sc::test::runMeasureToolTests(argc, argv);
   failures += sc::test::runPmiSceneTests(argc, argv);
   failures += sc::test::runSectionToolTests(argc, argv);
+  failures += sc::test::runViewSettingsTests(argc, argv);
   return failures == 0 ? 0 : 1;
 }

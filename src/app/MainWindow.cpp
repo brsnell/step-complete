@@ -1,9 +1,11 @@
 #include "app/MainWindow.h"
 
 #include "app/AssemblyTreeModel.h"
+#include "app/ExportImageDialog.h"
 #include "app/ImportJob.h"
 #include "app/MeasurementsPanel.h"
 #include "app/PmiPanel.h"
+#include "app/PreferencesDialog.h"
 #include "app/PropertiesPanel.h"
 #include "core/OcctInfo.h"
 #include "core/Version.h"
@@ -19,6 +21,7 @@
 #include <QClipboard>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDir>
 #include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -203,6 +206,12 @@ void MainWindow::createActions() {
   m_closeAction = fileMenu->addAction(tr("&Close"), this, &MainWindow::closeModel);
   m_closeAction->setShortcut(QKeySequence::Close);
   fileMenu->addSeparator();
+  m_exportImageAction = fileMenu->addAction(tr("&Export Image..."), this, &MainWindow::exportImage);
+  m_exportImageAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  m_exportImageAction->setStatusTip(tr("Save the current 3D view as a PNG or JPEG image"));
+  QAction* preferences = fileMenu->addAction(tr("&Preferences..."), this, &MainWindow::showPreferences);
+  preferences->setMenuRole(QAction::PreferencesRole); // application menu on macOS
+  fileMenu->addSeparator();
   QAction* quit = fileMenu->addAction(tr("&Quit"), qApp, &QApplication::quit);
   quit->setShortcut(QKeySequence::Quit);
 
@@ -282,9 +291,16 @@ void MainWindow::createActions() {
   m_showAllPmiAction->setStatusTip(tr("Show every annotation and remove saved-view clipping"));
 
   viewMenu->addSeparator();
-  QAction* antialiasing = viewMenu->addAction(tr("&Antialiasing (4x MSAA)"));
-  antialiasing->setCheckable(true);
-  connect(antialiasing, &QAction::toggled, this, [this](bool on) { m_viewport->setMsaaSamples(on ? 4 : 0); });
+  m_antialiasingAction = viewMenu->addAction(tr("&Antialiasing (4x MSAA)"));
+  m_antialiasingAction->setCheckable(true);
+  // Same setting as in the Preferences dialog; persisted in QSettings.
+  m_antialiasingAction->setChecked(ViewPreferences::load().antialiasing);
+  connect(m_antialiasingAction, &QAction::toggled, this, [this](bool on) {
+    ViewPreferences preferences = ViewPreferences::load();
+    preferences.antialiasing = on;
+    preferences.save();
+    applyViewPreferences(preferences);
+  });
   QAction* frameRate = viewMenu->addAction(tr("Show Frame &Rate"));
   frameRate->setCheckable(true);
   connect(frameRate, &QAction::toggled, m_viewport, &render::OcctViewport::setShowFrameRate);
@@ -549,6 +565,7 @@ void MainWindow::onGlInitialized(bool ok, const QString& message) {
   }
   m_glStatus->setText(message);
   m_glReady = true;
+  applyViewPreferences(ViewPreferences::load());
   if (!m_pendingFile.isEmpty()) {
     const QString path = std::exchange(m_pendingFile, QString());
     openFile(path);
@@ -959,6 +976,78 @@ void MainWindow::showAllPmi() {
     m_pmiPanel->setVisible(all, true);
   }
   m_viewport->invalidateScene();
+}
+
+// ---------------------------------------------------------------------------------
+// Image export and view preferences
+// ---------------------------------------------------------------------------------
+
+void MainWindow::exportImage() {
+  if (!m_glReady) {
+    return;
+  }
+  QSettings settings;
+  const QString dirKey = QStringLiteral("export/directory");
+  // The window title is "<file> — <app>" while a model is open.
+  const QString suggested =
+      m_closeAction->isEnabled()
+          ? QFileInfo(windowTitle().section(QChar(0x2014), 0, 0).trimmed()).completeBaseName()
+          : QStringLiteral("view");
+  QString selectedFilter;
+  QString path =
+      QFileDialog::getSaveFileName(this, tr("Export Image"),
+                                   settings.value(dirKey, QDir::homePath()).toString() + QLatin1Char('/') +
+                                       suggested + QStringLiteral(".png"),
+                                   tr("PNG image (*.png);;JPEG image (*.jpg *.jpeg)"), &selectedFilter);
+  if (path.isEmpty()) {
+    return;
+  }
+  settings.setValue(dirKey, QFileInfo(path).absolutePath());
+  const QString suffix = QFileInfo(path).suffix().toLower();
+  const bool jpeg = suffix == QLatin1String("jpg") || suffix == QLatin1String("jpeg") ||
+                    (suffix != QLatin1String("png") && selectedFilter.startsWith(QLatin1String("JPEG")));
+  if (suffix.isEmpty() || (suffix != QLatin1String("png") && !jpeg)) {
+    path += jpeg ? QStringLiteral(".jpg") : QStringLiteral(".png");
+  }
+
+  ExportImageDialog dialog(m_viewport->framebufferSize(), render::OcctViewport::kMaxExportSize, !jpeg, this);
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+  QApplication::setOverrideCursor(Qt::WaitCursor);
+  const QSize size = dialog.imageSize();
+  const QImage image = m_viewport->renderImage(size.width(), size.height(), dialog.background());
+  QApplication::restoreOverrideCursor();
+
+  const bool saved = !image.isNull() && (jpeg ? image.save(path, "JPEG", 92) : image.save(path, "PNG"));
+  if (saved) {
+    statusBar()->showMessage(tr("Saved %1 x %2 image to %3").arg(image.width()).arg(image.height()).arg(path),
+                             8000);
+  } else {
+    QMessageBox::warning(this, tr("Export Image"),
+                         image.isNull() ? tr("The 3D view could not be rendered at this size.")
+                                        : tr("Could not write %1.").arg(path));
+  }
+}
+
+void MainWindow::showPreferences() {
+  PreferencesDialog dialog(ViewPreferences::load(), this);
+  connect(&dialog, &PreferencesDialog::preferencesChanged, this,
+          [this](const ViewPreferences& preferences) { applyViewPreferences(preferences); });
+  if (dialog.exec() == QDialog::Accepted) {
+    dialog.preferences().save();
+  }
+  applyViewPreferences(ViewPreferences::load()); // after Cancel: back to the saved values
+}
+
+void MainWindow::applyViewPreferences(const ViewPreferences& preferences) {
+  m_viewport->setBackground(preferences.background);
+  m_viewport->setLighting(preferences.lighting);
+  m_viewport->setMsaaSamples(preferences.antialiasing ? 4 : 0);
+  if (m_antialiasingAction != nullptr && m_antialiasingAction->isChecked() != preferences.antialiasing) {
+    const QSignalBlocker blocker(m_antialiasingAction);
+    m_antialiasingAction->setChecked(preferences.antialiasing);
+  }
 }
 
 void MainWindow::showGraphicsInfo() {

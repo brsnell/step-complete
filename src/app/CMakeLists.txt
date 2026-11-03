@@ -14,6 +14,10 @@ add_library(sc_app STATIC
   PmiTreeModel.cpp
   PmiPanel.h
   PmiPanel.cpp
+  ExportImageDialog.h
+  ExportImageDialog.cpp
+  PreferencesDialog.h
+  PreferencesDialog.cpp
 )
 add_library(sc::app ALIAS sc_app)
 

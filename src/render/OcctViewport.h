@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/OccHandle.h"
+#include "render/ViewSettings.h"
 
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_ViewController.hxx>
@@ -12,10 +13,13 @@
 #include <QOpenGLWidget>
 #include <gp_Pnt.hxx>
 
+#include <QImage>
 #include <QString>
 #include <optional>
 
 class AIS_ViewCube;
+class V3d_DirectionalLight;
+class V3d_AmbientLight;
 
 namespace sc::render {
 
@@ -95,6 +99,23 @@ public:
   int msaaSamples() const;
   void setShowFrameRate(bool enabled);
 
+  // Background and lighting preferences; both take effect immediately.
+  void setBackground(const BackgroundStyle& style);
+  const BackgroundStyle& background() const { return m_background; }
+  void setLighting(LightingPreset preset);
+  LightingPreset lighting() const { return m_lighting; }
+
+  // Renders the current scene and camera to an image of width x height pixels
+  // (clamped to 1..kMaxExportSize), without disturbing the on-screen view. The size
+  // may differ from the widget's; the camera's field of view is kept (a different
+  // aspect ratio shows more or less of the scene). Transparent returns ARGB32 with
+  // real alpha; the others return opaque RGB32. Returns a null image when the
+  // viewport is not ready. Must be called from the GUI thread.
+  static constexpr int kMaxExportSize = 8192;
+  QImage renderImage(int width, int height, ExportBackground background);
+  // Size in device pixels of the on-screen framebuffer (what a 1:1 export uses).
+  QSize framebufferSize() const;
+
   // While measuring, left clicks toggle entities in the selection (accumulating
   // picks) instead of replacing it. Shift+click always toggles.
   void setAccumulatingSelection(bool accumulate);
@@ -146,12 +167,19 @@ private:
   NCollection_Vec2<int> toViewPixels(const QPointF& logicalPos) const;
   void configureNavigation();
   void collectGlInfo(int glMajor, int glMinor);
+  void applyBackground(const BackgroundStyle& style);
+  void applyLighting();
+  QImage dumpView(int width, int height);
   void failGl(const QString& message);
 
   OccHandle<V3d_Viewer> m_viewer;
   OccHandle<V3d_View> m_view;
   OccHandle<AIS_InteractiveContext> m_context;
   OccHandle<AIS_ViewCube> m_viewCube;
+  OccHandle<V3d_DirectionalLight> m_headlight;
+  OccHandle<V3d_AmbientLight> m_ambientLight;
+  BackgroundStyle m_background;
+  LightingPreset m_lighting = LightingPreset::Default;
 
   QString m_glInfo;
   QString m_glSummary;

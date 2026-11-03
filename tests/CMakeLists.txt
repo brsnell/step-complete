@@ -36,6 +36,7 @@ add_executable(sc_render_tests
   render/test_measure_tool.cpp
   render/test_pmi_scene.cpp
   render/test_section_tool.cpp
+  render/test_view_settings.cpp
 )
 target_link_libraries(sc_render_tests PRIVATE sc::render sc_test_support Qt6::Test)
 sc_target_defaults(sc_render_tests)
@@ -60,3 +61,11 @@ target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
 sc_target_defaults(sc_app_tests)
 add_test(NAME app.pmi_panel COMMAND sc_app_tests)
 set_tests_properties(app.pmi_panel PROPERTIES TIMEOUT 120)
+
+add_executable(sc_preferences_tests
+  app/test_preferences_dialog.cpp
+)
+target_link_libraries(sc_preferences_tests PRIVATE sc::app Qt6::Test)
+sc_target_defaults(sc_preferences_tests)
+add_test(NAME app.preferences COMMAND sc_preferences_tests)
+set_tests_properties(app.preferences PROPERTIES TIMEOUT 120)
