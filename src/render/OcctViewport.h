@@ -15,6 +15,7 @@
 
 #include <QImage>
 #include <QString>
+#include <QTimer>
 #include <optional>
 
 class AIS_ViewCube;
@@ -164,6 +165,9 @@ protected:
 private:
   void updateOverlayPosition();
   void resizeEvent(QResizeEvent* event) override;
+  // While the camera moves, parts smaller than a few pixels are skipped so orbiting
+  // big assemblies stays fluid on old GPUs; full detail returns when it stops.
+  void setNavigating(bool navigating);
   NCollection_Vec2<int> toViewPixels(const QPointF& logicalPos) const;
   void configureNavigation();
   void collectGlInfo(int glMajor, int glMinor);
@@ -187,6 +191,9 @@ private:
   bool m_glFailed = false;
   DragHandler* m_dragHandler = nullptr;
   bool m_dragging = false;
+  // Small-object culling while the camera moves (see setNavigating).
+  bool m_navigating = false;
+  QTimer m_navigationEnd;
   NCollection_Vec2<int> m_dragStart;
   std::optional<OverlayMarker> m_overlay;
   OverlayWidget* m_overlayWidget = nullptr;

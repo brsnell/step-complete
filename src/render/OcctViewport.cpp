@@ -16,9 +16,11 @@
 #include <Graphic3d_AspectFillArea3d.hxx>
 #include <Graphic3d_TransformPers.hxx>
 #include <Graphic3d_ZLayerId.hxx>
+#include <Graphic3d_ZLayerSettings.hxx>
 #include <Image_PixMap.hxx>
 #include <Message.hxx>
 #include <NCollection_Vec2.hxx>
+#include <Precision.hxx>
 #include <Prs3d_DatumAspect.hxx>
 #include <Standard_Version.hxx>
 #include <V3d_AmbientLight.hxx>
@@ -150,6 +152,10 @@ OcctViewport::OcctViewport(QWidget* parent) : QOpenGLWidget(parent) {
   driver->ChangeOptions().buffersOpaqueAlpha = true;
   driver->ChangeOptions().useSystemBuffer = false;
   driver->ChangeOptions().contextCompatible = !kCoreProfile;
+
+  m_navigationEnd.setSingleShot(true);
+  m_navigationEnd.setInterval(250);
+  connect(&m_navigationEnd, &QTimer::timeout, this, [this] { setNavigating(false); });
 
   m_viewer = new V3d_Viewer(driver);
   // Same setup as V3d_Viewer::SetDefaultLights(), but kept so the intensity can be changed.
@@ -455,6 +461,7 @@ void OcctViewport::mousePressEvent(QMouseEvent* event) {
       return;
     }
   }
+  setNavigating(true);
   if (m_glReady && UpdateMouseButtons(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
                                       toVKeyFlags(event->modifiers()), false)) {
     update();
@@ -474,6 +481,9 @@ void OcctViewport::mouseReleaseEvent(QMouseEvent* event) {
   if (m_glReady && UpdateMouseButtons(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
                                       toVKeyFlags(event->modifiers()), false)) {
     update();
+  }
+  if (event->buttons() == Qt::NoButton) {
+    setNavigating(false);
   }
 }
 
@@ -500,7 +510,25 @@ void OcctViewport::wheelEvent(QWheelEvent* event) {
   // angleDelta is in eighths of a degree; one notch = 15 degrees.
   const double delta = event->angleDelta().y() / 8.0;
   if (delta != 0.0 && UpdateZoom(Aspect_ScrollDelta(toViewPixels(event->position()), delta))) {
+    setNavigating(true);
+    m_navigationEnd.start(); // wheel events have no "release": end after a pause
     update();
+  }
+}
+
+void OcctViewport::setNavigating(bool navigating) {
+  if (navigating == m_navigating || m_viewer.IsNull()) {
+    return;
+  }
+  m_navigating = navigating;
+  // Bounding-box diagonal in pixels below which an object is skipped (needs
+  // frustum culling, which is on by default).
+  constexpr double kCullingPixels = 4.0;
+  Graphic3d_ZLayerSettings settings = m_viewer->ZLayerSettings(Graphic3d_ZLayerId_Default);
+  settings.SetCullingSize(navigating ? kCullingPixels * devicePixelRatioF() : Precision::Infinite());
+  m_viewer->SetZLayerSettings(Graphic3d_ZLayerId_Default, settings);
+  if (!navigating) {
+    invalidateScene(); // redraw with everything
   }
 }
 

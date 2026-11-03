@@ -9,6 +9,7 @@
 #include "app/PreferencesDialog.h"
 #include "app/PropertiesPanel.h"
 #include "app/SectionPanel.h"
+#include "core/Memory.h"
 #include "core/OcctInfo.h"
 #include "core/Version.h"
 #include "render/MeasureTool.h"
@@ -646,7 +647,10 @@ void MainWindow::openFileDialog() {
 
 void MainWindow::openFile(const QString& path) {
   if (m_import) {
-    statusBar()->showMessage(tr("Another file is still loading."), 4000);
+    // A newer request (Open, Recent, a Finder/Explorer double-click) wins: cancel the
+    // current import and open this file once the cancelled one has wound down.
+    m_pendingFile = path;
+    m_import->cancel();
     return;
   }
   if (!QFileInfo::exists(path)) {
@@ -760,6 +764,11 @@ void MainWindow::onImportFinished() {
   job->deleteLater();
   m_import = nullptr;
   updateActions();
+  core::releaseFreedMemory(); // the previous model, if one was replaced
+
+  if (!m_pendingFile.isEmpty() && m_glReady) {
+    openFile(std::exchange(m_pendingFile, QString()));
+  }
 }
 
 void MainWindow::closeModel() {
@@ -779,6 +788,7 @@ void MainWindow::closeModel() {
   setWindowTitle(QString::fromUtf8(core::kAppName));
   m_viewport->invalidateScene();
   updateActions();
+  core::releaseFreedMemory();
 }
 
 void MainWindow::addRecentFile(const QString& path) {

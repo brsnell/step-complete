@@ -7,6 +7,8 @@ add_library(sc_core STATIC
   Units.cpp
   OcctInfo.h
   OcctInfo.cpp
+  Memory.h
+  Memory.cpp
   Document.h
   Document.cpp
   StepCamera.h

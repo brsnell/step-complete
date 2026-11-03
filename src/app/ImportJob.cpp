@@ -1,5 +1,7 @@
 #include "app/ImportJob.h"
 
+#include "core/Memory.h"
+
 #include <QSettings>
 #include <QStandardPaths>
 #include <QThread>
@@ -56,6 +58,7 @@ void ImportJob::start() {
       index = std::make_shared<core::AssemblyIndex>(result->document);
       pmi = std::make_shared<core::PmiModel>(result->document);
     }
+    core::releaseFreedMemory(); // the STEP reader's model is gone by now
 
     QMetaObject::invokeMethod(
         this,

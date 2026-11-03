@@ -10,6 +10,10 @@
 #include <memory>
 #include <string>
 
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
+
 namespace {
 
 // Resident and peak resident set size in MB (Linux only; -1 elsewhere).
@@ -34,11 +38,15 @@ double secondsSince(std::chrono::steady_clock::time_point start) {
 
 int main(int argc, char** argv) {
   if (argc < 2) {
-    std::fprintf(stderr, "usage: %s file.stp\n", argv[0]);
+    std::fprintf(stderr, "usage: %s file.stp [cache-dir]\n", argv[0]);
     return 2;
   }
   const auto start = std::chrono::steady_clock::now();
-  sc::core::ImportResult result = sc::core::importStep(argv[1]);
+  sc::core::ImportOptions options;
+  if (argc > 2) {
+    options.cacheDir = argv[2];
+  }
+  sc::core::ImportResult result = sc::core::importStep(argv[1], options);
   if (!result.ok) {
     std::fprintf(stderr, "import failed: %s\n", result.error.c_str());
     return 1;
@@ -57,5 +65,15 @@ int main(int argc, char** argv) {
   std::printf("roots %d  unique parts %d  nodes %zu  pmi %zu\n", result.stats.rootCount,
               result.stats.uniqueParts, index->nodes().size(), pmi->items().size());
   std::printf("memory: rss %.0f MB  peak %.0f MB\n", rss, peak);
+  if (result.stats.fromCache) {
+    std::printf("loaded from cache in %.2fs\n", result.stats.cacheLoadSeconds);
+  } else if (!options.cacheDir.empty()) {
+    std::printf("stored in cache in %.2fs\n", result.stats.cacheStoreSeconds);
+  }
+#if defined(__GLIBC__)
+  malloc_trim(0);
+  memoryMb(rss, peak);
+  std::printf("memory after malloc_trim: rss %.0f MB\n", rss);
+#endif
   return 0;
 }
