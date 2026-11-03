@@ -97,6 +97,7 @@ private Q_SLOTS:
     QVERIFY2(sc::test::meanBrightness(iso, iso.rect()) > 0.0, "nothing rendered");
 
     for (const sc::core::PmiSavedView& view : pmi->views()) {
+      qInfo("  applying saved view '%s'", view.name.c_str());
       pmiScene.applyView(view, viewport.view());
       snap(QStringLiteral("view_") + QString::fromStdString(view.name));
       pmiScene.clearViewClipping(viewport.view());

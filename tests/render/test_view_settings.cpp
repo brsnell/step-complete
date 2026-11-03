@@ -18,7 +18,7 @@ using sc::test::meanBrightness;
 
 namespace {
 
-bool near(QRgb a, QRgb b, int tolerance) {
+bool colorsClose(QRgb a, QRgb b, int tolerance) {
   return qAbs(qRed(a) - qRed(b)) <= tolerance && qAbs(qGreen(a) - qGreen(b)) <= tolerance &&
          qAbs(qBlue(a) - qBlue(b)) <= tolerance;
 }
@@ -30,7 +30,7 @@ double differingFraction(const QImage& a, const QImage& b) {
   for (int y = 0; y < a.height(); ++y) {
     for (int x = 0; x < a.width(); ++x) {
       ++total;
-      differing += near(a.pixel(x, y), b.pixel(x, y), 12) ? 0 : 1;
+      differing += colorsClose(a.pixel(x, y), b.pixel(x, y), 12) ? 0 : 1;
     }
   }
   return total > 0 ? double(differing) / double(total) : 1.0;
@@ -39,8 +39,10 @@ double differingFraction(const QImage& a, const QImage& b) {
 bool cornersAre(const QImage& image, QRgb expected, int tolerance) {
   const int w = image.width() - 1;
   const int h = image.height() - 1;
-  return near(image.pixel(0, 0), expected, tolerance) && near(image.pixel(w, 0), expected, tolerance) &&
-         near(image.pixel(0, h), expected, tolerance) && near(image.pixel(w, h), expected, tolerance);
+  return colorsClose(image.pixel(0, 0), expected, tolerance) &&
+         colorsClose(image.pixel(w, 0), expected, tolerance) &&
+         colorsClose(image.pixel(0, h), expected, tolerance) &&
+         colorsClose(image.pixel(w, h), expected, tolerance);
 }
 
 BackgroundStyle whiteStyle() {
@@ -98,11 +100,11 @@ private Q_SLOTS:
     int modelPixels = 0;
     for (int y = 400; y < 500; ++y) {
       for (int x = 550; x < 650; ++x) {
-        modelPixels += near(image.pixel(x, y), image.pixel(x, 2), 20) ? 0 : 1;
+        modelPixels += colorsClose(image.pixel(x, y), image.pixel(x, 2), 20) ? 0 : 1;
       }
     }
     QVERIFY2(modelPixels > 3000, "model is not visible in the large export");
-    QVERIFY(!near(image.pixel(2, 2), image.pixel(2, 897), 10)); // gradient preserved
+    QVERIFY(!colorsClose(image.pixel(2, 2), image.pixel(2, 897), 10)); // gradient preserved
 
     // A very different aspect ratio.
     const QImage wide = viewport.renderImage(900, 200, ExportBackground::AsShown);
@@ -116,7 +118,7 @@ private Q_SLOTS:
     const QImage white = viewport.renderImage(640, 480, ExportBackground::White);
     dumpImage(white, "export_white");
     QVERIFY(cornersAre(white, qRgb(255, 255, 255), 1));
-    QVERIFY(!near(white.pixel(320, 240), qRgb(255, 255, 255), 30));
+    QVERIFY(!colorsClose(white.pixel(320, 240), qRgb(255, 255, 255), 30));
 
     const QImage transparent = viewport.renderImage(640, 480, ExportBackground::Transparent);
     dumpImage(transparent, "export_transparent");
@@ -125,7 +127,7 @@ private Q_SLOTS:
     QCOMPARE(qAlpha(transparent.pixel(638, 478)), 0);
     QVERIFY(qAlpha(transparent.pixel(320, 240)) > 250);
     // Opaque model pixels equal the white-background render.
-    QVERIFY(near(transparent.pixel(320, 240) | 0xff000000, white.pixel(320, 240), 3));
+    QVERIFY(colorsClose(transparent.pixel(320, 240) | 0xff000000, white.pixel(320, 240), 3));
   }
 
   void exportLeavesScreenUnchanged() {

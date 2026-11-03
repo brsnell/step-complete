@@ -628,7 +628,10 @@ private Q_SLOTS:
     const QByteArray dir = qgetenv("SC_TEST_DATA_DIR");
     const QString path = QString::fromUtf8(dir) + QLatin1Char('/') + file;
     if (dir.isEmpty() || !QFile::exists(path)) {
-      QSKIP("NIST model not available (run tests/data/fetch.sh and set SC_TEST_DATA_DIR)");
+      // (Not QSKIP: its one-argument form trips -Wpedantic with Qt 6.8 on clang.)
+      QTest::qSkip("NIST model not available (run tests/data/fetch.sh and set SC_TEST_DATA_DIR)", __FILE__,
+                   __LINE__);
+      return;
     }
     const sc::core::ImportResult imported = sc::core::importStep(path.toStdString());
     QVERIFY2(imported.ok, imported.error.c_str());

@@ -149,7 +149,17 @@ jobs:
           SC_RENDER_DUMP_DIR: ${{ github.workspace }}/snapshots
         run: |
           mkdir -p "$SC_RENDER_DUMP_DIR"
-          xvfb-run -a -s "-screen 0 1600x1200x24" ctest --preset vcpkg -L render
+          xvfb-run -a -s "-screen 0 1600x1200x24" ctest --preset vcpkg -L render -E pmi_snapshots
+
+      # Run separately with full output: it documents what each NIST model shows.
+      - name: PMI snapshots (Xvfb + Mesa llvmpipe)
+        if: ${{ matrix.render-tests }}
+        env:
+          SC_RENDER_DUMP_DIR: ${{ github.workspace }}/snapshots
+        run: |
+          mkdir -p "$SC_RENDER_DUMP_DIR"
+          xvfb-run -a -s "-screen 0 1600x1200x24" ctest --preset vcpkg -R pmi_snapshots -V
+          ls -la "$SC_RENDER_DUMP_DIR" | grep nist_ || true
 
       # How the NIST PMI models look with this build's OCCT (for docs/pmi-coverage.md).
       - name: Upload PMI snapshots
