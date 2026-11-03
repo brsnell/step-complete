@@ -13,6 +13,8 @@ add_library(sc_core STATIC
   StepImporter.cpp
   AssemblyIndex.h
   AssemblyIndex.cpp
+  Measure.h
+  Measure.cpp
 )
 add_library(sc::core ALIAS sc_core)
 
