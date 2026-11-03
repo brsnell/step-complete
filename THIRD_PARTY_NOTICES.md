@@ -10,10 +10,11 @@ as the LGPL requires.
 | Qt 6 (Core, Gui, Widgets, OpenGLWidgets) | LGPL 3.0 | https://download.qt.io/official_releases/qt/ |
 | FreeType (used by OCCT for text) | FreeType License (FTL) | https://freetype.org |
 | Fontconfig (Linux, used by OCCT) | MIT-style | https://www.freedesktop.org/wiki/Software/fontconfig/ |
+| zlib (reads compressed `.stpz` files) | zlib license | https://zlib.net |
 | STIX Two Math (font, embedded in the executable) | SIL Open Font License 1.1 | https://github.com/stipub/stixfonts |
 
-Full license texts are installed with the application (packaging, milestone M5) and are
-also available from each project's source distribution.
+Full license texts are in `resources/licenses/`, embedded in the executable, and shown in
+Help > About > Licenses. They are also available from each project's source distribution.
 
 ## Bundled font
 STIX Two Math (`resources/fonts/STIXTwoMath-Regular.ttf`, copyright 2001-2021 The STIX Fonts

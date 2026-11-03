@@ -58,6 +58,7 @@ add_executable(sc_app_tests
   app/app_test_main.cpp
   app/test_pmi_panel.cpp
   app/test_section_panel.cpp
+  app/test_about_dialog.cpp
 )
 target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
 sc_target_defaults(sc_app_tests)

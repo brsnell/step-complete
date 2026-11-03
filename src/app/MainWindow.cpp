@@ -1,5 +1,6 @@
 #include "app/MainWindow.h"
 
+#include "app/AboutDialog.h"
 #include "app/AssemblyTreeModel.h"
 #include "app/ExportImageDialog.h"
 #include "app/ImportJob.h"
@@ -1173,18 +1174,11 @@ void MainWindow::showGraphicsInfo() {
 }
 
 void MainWindow::showAbout() {
-  const QString text = tr("<h3>%1 %2</h3>"
-                          "<p>%3</p>"
-                          "<p>Licensed under the MIT License.</p>"
-                          "<p>Built with:<br>"
-                          "Open CASCADE Technology %4 (LGPL 2.1 with exception)<br>"
-                          "Qt %5 (LGPL 3)</p>"
-                          "<p>Qt and Open CASCADE are dynamically linked and can be replaced. "
-                          "See THIRD_PARTY_NOTICES.md for full license texts and sources.</p>")
-                           .arg(QString::fromUtf8(core::kAppName), QString::fromUtf8(core::kAppVersion),
-                                QString::fromUtf8(core::kAppDescription),
-                                QString::fromStdString(core::occtVersion()), QString::fromLatin1(qVersion()));
-  QMessageBox::about(this, tr("About %1").arg(QString::fromUtf8(core::kAppName)), text);
+  AboutDialog dialog(this);
+  if (m_viewport != nullptr) {
+    dialog.setGraphicsInfo(m_viewport->glInfo());
+  }
+  dialog.exec();
 }
 
 } // namespace sc::app
