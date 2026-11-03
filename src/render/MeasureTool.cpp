@@ -20,6 +20,7 @@ constexpr double kSnapPixels = 10.0;
 MeasureTool::MeasureTool(OcctViewport* viewport, SceneManager* scene, QObject* parent)
     : QObject(parent), m_viewport(viewport), m_scene(scene) {
   connect(viewport, &OcctViewport::selectionChanged, this, &MeasureTool::onSelectionChanged);
+  connect(viewport, &OcctViewport::hoverUpdated, this, &MeasureTool::onHoverUpdated);
 }
 
 MeasureTool::~MeasureTool() {
@@ -52,6 +53,7 @@ void MeasureTool::setMode(std::optional<core::MeasureMode> mode) {
   if (!mode) {
     clearWitness();
   }
+  m_viewport->setOverlayMarker(std::nullopt);
   m_viewport->invalidateScene();
   Q_EMIT pickProgress(0, mode ? core::picksRequired(*mode) : 0);
 }
@@ -136,6 +138,23 @@ void MeasureTool::onSelectionChanged() {
   if (static_cast<int>(m_picks.size()) >= required) {
     finish();
   }
+}
+
+void MeasureTool::onHoverUpdated() {
+  if (m_mode != core::MeasureMode::PointToPoint) {
+    return;
+  }
+  const OccHandle<AIS_InteractiveContext>& context = m_viewport->context();
+  const auto entity = context->HasDetected() ? m_scene->pickedEntity(context->DetectedOwner()) : std::nullopt;
+  if (!entity) {
+    m_viewport->setOverlayMarker(std::nullopt);
+    return;
+  }
+  // No exact face projection here: this runs on every mouse move.
+  const core::SnapResult snapped = core::snap(entity->worldShape, context->MainSelector()->PickedPoint(1),
+                                              m_viewport->pixelsToModel(kSnapPixels), false);
+  m_viewport->setOverlayMarker(
+      OcctViewport::OverlayMarker{snapped.point, QString::fromUtf8(core::toString(snapped.kind))});
 }
 
 void MeasureTool::finish() {

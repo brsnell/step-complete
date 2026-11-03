@@ -343,38 +343,62 @@ int picksRequired(MeasureMode mode) {
   return 1;
 }
 
-gp_Pnt snapPoint(const TopoDS_Shape& shape, const gp_Pnt& picked, double snapDistance) {
+const char* toString(SnapKind kind) {
+  switch (kind) {
+  case SnapKind::Vertex:
+    return "Vertex";
+  case SnapKind::Endpoint:
+    return "Endpoint";
+  case SnapKind::Midpoint:
+    return "Midpoint";
+  case SnapKind::Center:
+    return "Center";
+  case SnapKind::OnEdge:
+    return "On edge";
+  case SnapKind::OnFace:
+    return "On face";
+  case SnapKind::Free:
+    break;
+  }
+  return "Point";
+}
+
+SnapResult snap(const TopoDS_Shape& shape, const gp_Pnt& picked, double snapDistance, bool projectOnFace) {
   if (shape.IsNull()) {
-    return picked;
+    return {picked, SnapKind::Free};
   }
   switch (shape.ShapeType()) {
   case TopAbs_VERTEX:
-    return BRep_Tool::Pnt(TopoDS::Vertex(shape));
+    return {BRep_Tool::Pnt(TopoDS::Vertex(shape)), SnapKind::Vertex};
   case TopAbs_EDGE: {
     const EntityInfo info = measure::entityInfo(shape);
     const measure::EdgeInfo& e = *info.edge;
     if (e.curve == CurveKind::Circle && e.axis) {
-      return e.axis->Location();
+      return {e.axis->Location(), SnapKind::Center};
     }
-    std::vector<gp_Pnt> candidates{e.midpoint};
+    std::vector<SnapResult> candidates{{e.midpoint, SnapKind::Midpoint}};
     if (!e.closed) {
-      candidates.push_back(e.start);
-      candidates.push_back(e.end);
+      candidates.push_back({e.start, SnapKind::Endpoint});
+      candidates.push_back({e.end, SnapKind::Endpoint});
     }
-    const auto nearest =
-        std::min_element(candidates.begin(), candidates.end(), [&picked](const gp_Pnt& a, const gp_Pnt& b) {
-          return a.Distance(picked) < b.Distance(picked);
-        });
-    if (nearest->Distance(picked) <= snapDistance) {
+    const auto nearest = std::min_element(candidates.begin(), candidates.end(),
+                                          [&picked](const SnapResult& a, const SnapResult& b) {
+                                            return a.point.Distance(picked) < b.point.Distance(picked);
+                                          });
+    if (nearest->point.Distance(picked) <= snapDistance) {
       return *nearest;
     }
-    return projectOnto(shape, picked);
+    return {projectOnto(shape, picked), SnapKind::OnEdge};
   }
   case TopAbs_FACE:
-    return projectOnto(shape, picked);
+    return {projectOnFace ? projectOnto(shape, picked) : picked, SnapKind::OnFace};
   default:
-    return picked;
+    return {picked, SnapKind::Free};
   }
+}
+
+gp_Pnt snapPoint(const TopoDS_Shape& shape, const gp_Pnt& picked, double snapDistance) {
+  return snap(shape, picked, snapDistance).point;
 }
 
 std::string describeEntity(const TopoDS_Shape& shape) {

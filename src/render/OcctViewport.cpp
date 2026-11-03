@@ -20,6 +20,7 @@
 #include <Prs3d_DatumAspect.hxx>
 
 #include <QMouseEvent>
+#include <QPainter>
 #include <QSurfaceFormat>
 #include <QWheelEvent>
 
@@ -179,6 +180,9 @@ OcctViewport::OcctViewport(QWidget* parent) : QOpenGLWidget(parent) {
   setFocusPolicy(Qt::StrongFocus);
   setBackgroundRole(QPalette::NoRole);
   setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
+
+  m_overlayWidget = new OverlayWidget(this);
+  m_overlayWidget->setGeometry(rect());
 }
 
 OcctViewport::~OcctViewport() {
@@ -323,6 +327,94 @@ void OcctViewport::paintGL() {
 
   m_view->InvalidateImmediate();
   FlushViewEvents(m_context, m_view, true);
+  updateOverlayPosition(); // the camera may have moved
+}
+
+OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
+  setAttribute(Qt::WA_TransparentForMouseEvents);
+  setAttribute(Qt::WA_NoSystemBackground);
+  setAttribute(Qt::WA_TranslucentBackground);
+}
+
+void OverlayWidget::setMarker(const std::optional<QPointF>& position, const QString& caption) {
+  if (position == m_position && caption == m_caption) {
+    return;
+  }
+  m_position = position;
+  m_caption = caption;
+  update();
+}
+
+void OverlayWidget::paintEvent(QPaintEvent*) {
+  if (!m_position) {
+    return;
+  }
+  const QPointF center = *m_position;
+  QPainter painter(this);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QColor accent(242, 115, 13);
+  for (const auto& [color, width] : {std::pair<QColor, qreal>(Qt::white, 4.0), {accent, 2.0}}) {
+    painter.setPen(QPen(color, width));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(center, 6.0, 6.0);
+    painter.drawLine(center - QPointF(11, 0), center - QPointF(4, 0));
+    painter.drawLine(center + QPointF(4, 0), center + QPointF(11, 0));
+    painter.drawLine(center - QPointF(0, 11), center - QPointF(0, 4));
+    painter.drawLine(center + QPointF(0, 4), center + QPointF(0, 11));
+  }
+  if (!m_caption.isEmpty()) {
+    const QFontMetricsF metrics(painter.font());
+    QRectF box = metrics.boundingRect(m_caption).adjusted(-4, -2, 4, 2);
+    box.moveTopLeft(center + QPointF(12, 8));
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(255, 255, 255, 225));
+    painter.drawRoundedRect(box, 3, 3);
+    painter.setPen(QColor(30, 30, 35));
+    painter.drawText(box, Qt::AlignCenter, m_caption);
+  }
+}
+
+void OcctViewport::updateOverlayPosition() {
+  if (m_overlayWidget == nullptr) {
+    return;
+  }
+  if (!m_overlay || m_view.IsNull() || m_view->Window().IsNull()) {
+    m_overlayWidget->setMarker(std::nullopt, {});
+    return;
+  }
+  int xp = 0;
+  int yp = 0;
+  m_view->Convert(m_overlay->point.X(), m_overlay->point.Y(), m_overlay->point.Z(), xp, yp);
+  const qreal dpr = devicePixelRatioF();
+  m_overlayWidget->setMarker(QPointF(xp / dpr, yp / dpr), m_overlay->caption);
+}
+
+void OcctViewport::setOverlayMarker(const std::optional<OverlayMarker>& marker) {
+  const bool changed =
+      marker.has_value() != m_overlay.has_value() ||
+      (marker && (!marker->point.IsEqual(m_overlay->point, 0.0) || marker->caption != m_overlay->caption));
+  m_overlay = marker;
+  if (changed) {
+    updateOverlayPosition();
+  }
+}
+
+void OcctViewport::resizeEvent(QResizeEvent* event) {
+  QOpenGLWidget::resizeEvent(event);
+  if (m_overlayWidget != nullptr) {
+    m_overlayWidget->setGeometry(rect());
+  }
+}
+
+void OcctViewport::leaveEvent(QEvent* event) {
+  QOpenGLWidget::leaveEvent(event);
+  setOverlayMarker(std::nullopt);
+}
+
+void OcctViewport::handleMoveTo(const OccHandle<AIS_InteractiveContext>& context,
+                                const OccHandle<V3d_View>& view) {
+  AIS_ViewController::handleMoveTo(context, view);
+  Q_EMIT hoverUpdated();
 }
 
 void OcctViewport::handleViewRedraw(const OccHandle<AIS_InteractiveContext>& context,

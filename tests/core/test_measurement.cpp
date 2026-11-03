@@ -103,6 +103,14 @@ TEST(Measurement, PointToPointSnapsToVerticesMidpointsAndCenters) {
   EXPECT_TRUE(snapPoint(circle, gp_Pnt(5, 2, 3), 0.5).IsEqual(gp_Pnt(1, 2, 3), 1e-9))
       << "circles snap to center";
 
+  EXPECT_EQ(snap(edge, gp_Pnt(5.2, 0.3, 0), 0.5).kind, SnapKind::Midpoint);
+  EXPECT_EQ(snap(edge, gp_Pnt(9.9, 0.1, 0), 0.5).kind, SnapKind::Endpoint);
+  EXPECT_EQ(snap(edge, gp_Pnt(3, 1, 0), 0.5).kind, SnapKind::OnEdge);
+  EXPECT_EQ(snap(circle, gp_Pnt(5, 2, 3), 0.5).kind, SnapKind::Center);
+  EXPECT_EQ(snap(boxFace({5, 10, 30}), gp_Pnt(4, 8, 30.05), 0.5, false).kind, SnapKind::OnFace);
+  EXPECT_NEAR(snap(boxFace({5, 10, 30}), gp_Pnt(4, 8, 30.05), 0.5, false).point.Z(), 30.05, 1e-12)
+      << "no projection when hovering";
+
   // A click slightly off a face (mesh vs exact surface) lands on the exact face.
   EXPECT_NEAR(snapPoint(boxFace({5, 10, 30}), gp_Pnt(4, 8, 30.05), 0.5).Z(), 30.0, 1e-9);
 

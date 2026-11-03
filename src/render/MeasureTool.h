@@ -53,6 +53,9 @@ public:
 public Q_SLOTS:
   // Connected to OcctViewport::selectionChanged; public for tests.
   void onSelectionChanged();
+  // Connected to OcctViewport::hoverUpdated: in Point to Point mode, shows
+  // where a click would snap. Public for tests.
+  void onHoverUpdated();
 
 Q_SIGNALS:
   void measured(const sc::core::Measurement& measurement);

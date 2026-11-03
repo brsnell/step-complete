@@ -60,10 +60,21 @@ struct Measurement {
   Witness witness;
 };
 
+enum class SnapKind { Vertex, Endpoint, Midpoint, Center, OnEdge, OnFace, Free };
+const char* toString(SnapKind kind);
+
+struct SnapResult {
+  gp_Pnt point;
+  SnapKind kind = SnapKind::Free;
+};
+
 // Snaps a click on an entity to a meaningful point: a vertex itself, the
 // center of a circular edge, the nearest of an edge's ends and midpoint when
 // within snapDistance (else the closest point on the edge), or the clicked
-// point on a face.
+// point on a face. projectOnFace=false skips the exact projection onto faces
+// (cheap enough to call on every mouse move).
+SnapResult snap(const TopoDS_Shape& shape, const gp_Pnt& picked, double snapDistance,
+                bool projectOnFace = true);
 gp_Pnt snapPoint(const TopoDS_Shape& shape, const gp_Pnt& picked, double snapDistance);
 
 // Short description of a picked entity, e.g. "Edge (Circle)".

@@ -148,6 +148,57 @@ private Q_SLOTS:
     QVERIFY2(sc::test::changedPixelFraction(before, render()) < 0.0005, "witness was not removed");
   }
 
+  void pointToPointShowsWhereAClickSnaps() {
+    m_tool->setMode(MeasureMode::PointToPoint);
+    const auto hover = [this](const gp_Pnt& p) {
+      int xp = 0;
+      int yp = 0;
+      m_viewport->view()->Convert(p.X(), p.Y(), p.Z(), xp, yp);
+      m_viewport->context()->MoveTo(xp, yp, m_viewport->view(), false);
+      m_tool->onHoverUpdated();
+    };
+
+    // On the rim of the first pin's top circle (away from its seam vertex at
+    // (13,10,30)): snaps to the circle's center.
+    hover(gp_Pnt(10, 13, 30));
+    QVERIFY(m_viewport->overlayMarker().has_value());
+    QCOMPARE(m_viewport->overlayMarker()->caption, QStringLiteral("Center"));
+    QVERIFY(m_viewport->overlayMarker()->point.IsEqual(gp_Pnt(10, 10, 30), 1e-6));
+
+    // On the plate's top face, away from edges: the point under the cursor.
+    hover(gp_Pnt(60, 40, 10));
+    QCOMPARE(m_viewport->overlayMarker()->caption, QStringLiteral("On face"));
+    QVERIFY(m_viewport->overlayMarker()->point.Distance(gp_Pnt(60, 40, 10)) < 1.0);
+
+    // The marker is drawn over the 3D view (composited: grab the widget, not the GL framebuffer).
+    render();
+    const QImage image = m_viewport->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    sc::test::dumpImage(image, "measure_snap_marker");
+    int orange = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const QColor c = image.pixelColor(x, y);
+        if (c.red() > 200 && c.green() > 80 && c.green() < 160 && c.blue() < 60) {
+          ++orange;
+        }
+      }
+    }
+    QVERIFY2(orange > 20, "snap marker is not drawn");
+    // With the cursor off the model (no hover highlight), the scene renders in
+    // its own colors: the overlay does not disturb OCCT's OpenGL state.
+    m_viewport->context()->MoveTo(2, 2, m_viewport->view(), false);
+    render();
+    const QColor plate = m_viewport->grab().toImage().pixelColor(20, image.height() / 2);
+    QVERIFY2(plate.red() > 120 && plate.green() < 80,
+             "model must still render in its colors under the overlay");
+
+    // Other modes don't show it, and leaving Point to Point clears it.
+    m_tool->setMode(MeasureMode::Distance);
+    QVERIFY(!m_viewport->overlayMarker().has_value());
+    hover(gp_Pnt(10, 13, 30));
+    QVERIFY(!m_viewport->overlayMarker().has_value());
+  }
+
   void turningOffRestoresWholePartSelection() {
     m_tool->setMode(MeasureMode::EntityInfo);
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));

@@ -10,11 +10,30 @@
 #include <V3d_Viewer.hxx>
 
 #include <QOpenGLWidget>
+#include <gp_Pnt.hxx>
+
 #include <QString>
+#include <optional>
 
 class AIS_ViewCube;
 
 namespace sc::render {
+
+// Transparent child widget that paints 2D markers over the 3D view. Qt
+// composites it on top of the GL output, so it never touches OCCT's OpenGL
+// state (QPainter on the GL widget itself would).
+class OverlayWidget : public QWidget {
+public:
+  explicit OverlayWidget(QWidget* parent);
+  void setMarker(const std::optional<QPointF>& position, const QString& caption);
+
+protected:
+  void paintEvent(QPaintEvent* event) override;
+
+private:
+  std::optional<QPointF> m_position;
+  QString m_caption;
+};
 
 // 3D viewport: OCCT's V3d viewer rendering inside a QOpenGLWidget.
 //
@@ -70,11 +89,23 @@ public:
   // Model-space length (mm) covered by this many logical pixels at the view center.
   double pixelsToModel(double logicalPixels) const;
 
+  // A 2D marker drawn over the 3D view at a world point (e.g. where a click
+  // would snap), with an optional caption. Drawn with QPainter after OCCT, so
+  // moving it only repaints the overlay, never the scene.
+  struct OverlayMarker {
+    gp_Pnt point;
+    QString caption;
+  };
+  void setOverlayMarker(const std::optional<OverlayMarker>& marker);
+  const std::optional<OverlayMarker>& overlayMarker() const { return m_overlay; }
+
   QSize minimumSizeHint() const override { return {200, 150}; }
 
 Q_SIGNALS:
   void glInitialized(bool ok, const QString& message);
   void selectionChanged();
+  // Hover detection was updated (the entity under the cursor may have changed).
+  void hoverUpdated();
 
 protected:
   void initializeGL() override;
@@ -84,14 +115,19 @@ protected:
   void mouseReleaseEvent(QMouseEvent* event) override;
   void mouseMoveEvent(QMouseEvent* event) override;
   void wheelEvent(QWheelEvent* event) override;
+  void leaveEvent(QEvent* event) override;
 
   // AIS_ViewController
   void handleViewRedraw(const OccHandle<AIS_InteractiveContext>& context,
                         const OccHandle<V3d_View>& view) override;
+  void handleMoveTo(const OccHandle<AIS_InteractiveContext>& context,
+                    const OccHandle<V3d_View>& view) override;
   void OnSelectionChanged(const OccHandle<AIS_InteractiveContext>& context,
                           const OccHandle<V3d_View>& view) override;
 
 private:
+  void updateOverlayPosition();
+  void resizeEvent(QResizeEvent* event) override;
   NCollection_Vec2<int> toViewPixels(const QPointF& logicalPos) const;
   void configureNavigation();
   void collectGlInfo(int glMajor, int glMinor);
@@ -106,6 +142,8 @@ private:
   QString m_glSummary;
   bool m_glReady = false;
   bool m_glFailed = false;
+  std::optional<OverlayMarker> m_overlay;
+  OverlayWidget* m_overlayWidget = nullptr;
 };
 
 } // namespace sc::render
