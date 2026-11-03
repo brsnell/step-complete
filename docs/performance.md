@@ -63,14 +63,16 @@ is about met.
 
 ## Package size
 
-| Package | Download |
-|---|---|
-| Linux AppImage | 52 MB |
-| Windows installer / portable zip | 28 MB each (56 MB artifact holds both) |
-| macOS DMG (arm64 / x64) | 40 MB / 43 MB |
+| Package | Download | Installed |
+|---|---|---|
+| Linux AppImage | 52 MB | (runs from the single file) |
+| Windows installer / portable zip | 20.6 MB / 29.3 MB | 70.8 MB |
+| macOS DMG arm64 / x64 | 29 MB / 32 MB | 76 MB / 81 MB |
 
-All are well under the 100 MB install budget (§2a). Measured from the release workflow's
-artifacts (zip-compressed sizes).
+All are under the 100 MB install budget (§2a). The Windows package ships only the OCCT DLLs the
+app loads (found with `dumpbin /dependents`), and the macOS bundles drop unused Qt plugins and
+keep only their own architecture of Qt's universal binaries. Sizes are from the release
+workflow's smoke tests, which install each package, start it and print its size.
 
 ## Startup
 
