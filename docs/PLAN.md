@@ -307,12 +307,29 @@ Each milestone ends with something runnable on all three platforms in CI.
 - ⏸ Exploded view (optional): deferred. Displacing parts would detach their PMI and break
   measurement picks unless every subsystem learned about the offsets; not worth the weight now.
 
-### M5: Ship v1.0 (≈2–3 weeks)
-- Performance pass against §6 targets; open-file cache.
-- Packaging: Windows (windeployqt + MSIX or WiX, code signing), macOS (macdeployqt, DMG,
-  signing + notarization), Linux (AppImage first, Flathub later). File associations
-  `.step/.stp/.stpz`.
-- Crash reporting (optional), about/licenses dialog (required for LGPL), user docs.
+### M5: Ship v1.0 (≈2–3 weeks): 🚧 in progress
+- ✅ Performance pass against §6 targets ([performance.md](performance.md)): parallel meshing
+  (2.6× on 4 cores), freed memory returned to the OS after import (851 → 325 MB on a 91 MB
+  model), small-object culling while the camera moves, benchmark tools and a CI benchmark.
+- ✅ Open-file cache: BinXCAF document + triangulation + sidecar (cameras, units, messages), keyed
+  by a sampled file hash; 39 s → 1.3 s to re-open the 91 MB benchmark. Toggle and Clear Cache
+  in Preferences, 1 GB LRU cap.
+- ✅ Compressed STEP: `.stpz` / `.stp.gz` (gzip) and zipped STEP, detected by content (zlib).
+- ✅ Packaging scripts and a release workflow (tags `v*`, or run by hand): Linux AppImage,
+  Windows Inno Setup installer + portable zip (app-local VC++ runtime), macOS DMGs for arm64 and
+  x64 (ad-hoc signed by default). Signing and notarization run only when the secrets listed in
+  [packaging/README.md](../packaging/README.md) are configured.
+- ✅ File associations: Windows "Open with" + ProgIDs (default handler only if the user opts in),
+  macOS document types + imported UTIs and Finder open events, Linux desktop file + MIME types.
+- ✅ About dialog with system info (copyable for bug reports) and the full license texts
+  (LGPL notice, OCCT exception, Qt, FreeType, zlib, OFL); application icon.
+- ✅ User guide ([user-guide.md](user-guide.md)).
+- ⏳ Signing certificates (Apple Developer ID, Windows code signing) are the maintainer's to
+  provide; until then packages are unsigned/ad-hoc signed.
+- ⏳ Manual test of the packages on real Windows/macOS machines and GPUs, then tag v1.0.0.
+- ⏸ Deferred: bundled Mesa `opengl32.dll` for software rendering on Windows (OCCT links
+  `opengl32` directly, so it needs a delay-loaded OCCT GL toolkit; not testable here),
+  crash reporting, Flathub, a coarse-then-fine first mesh.
 
 **Total:** about 4–5 months for one experienced developer. M2 and M3 can run in parallel with two
 people.

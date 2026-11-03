@@ -7,13 +7,13 @@ saved views).
 Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/OCCT) and
 [Qt 6](https://www.qt.io). MIT licensed.
 
-**Documentation:** [User guide](docs/user-guide.md)
+**Documentation:** [User guide](docs/user-guide.md) · [Packaging](packaging/README.md) · [Performance](docs/performance.md)
 
-> **Status: early development (milestones M1–M4 done; M5 packaging next).** Opens STEP assemblies with names, colors
+> **Status: v1.0 release candidate (milestones M1–M4 done, M5 packaging in progress).** Opens STEP assemblies with names, colors
 > and structure; assembly tree, properties, hide/isolate/transparency; measurement on the exact
 > geometry (distance, point to point, angle, radius, entity info, mass properties with
 > validation-property check); PMI from AP242 files (dimensions, tolerances, datums, saved views,
-> cross-highlighting); section view with capping; image export; view preferences. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
+> cross-highlighting); section view with capping; image export; view preferences; compressed `.stpz` files and a cache that reopens files near-instantly. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
 > [docs/pmi-coverage.md](docs/pmi-coverage.md) for what PMI is supported.
 
 ![Measuring a distance](docs/images/m2-distance.png)
