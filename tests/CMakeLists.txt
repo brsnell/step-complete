@@ -41,6 +41,16 @@ sc_target_defaults(sc_render_tests)
 add_test(NAME render.viewport_smoke COMMAND sc_render_tests)
 set_tests_properties(render.viewport_smoke PROPERTIES LABELS "render" TIMEOUT 120)
 
+# Renders the NIST PMI models (iso + saved views) into SC_RENDER_DUMP_DIR; CI uploads them.
+add_executable(sc_pmi_snapshots
+  render/pmi_snapshots.cpp
+  render/RenderTestUtils.h
+)
+target_link_libraries(sc_pmi_snapshots PRIVATE sc::render sc_test_support Qt6::Test)
+sc_target_defaults(sc_pmi_snapshots)
+add_test(NAME render.pmi_snapshots COMMAND sc_pmi_snapshots)
+set_tests_properties(render.pmi_snapshots PROPERTIES LABELS "render" TIMEOUT 300)
+
 # --- App widget tests (offscreen Qt platform: no display or OpenGL needed) -----
 add_executable(sc_app_tests
   app/test_pmi_panel.cpp
