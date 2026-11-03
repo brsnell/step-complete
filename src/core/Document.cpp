@@ -17,6 +17,8 @@ Document::Document() {
   XCAFDoc_DocumentTool::SetLengthUnit(m_doc, 0.001);
 }
 
+Document::Document(OccHandle<TDocStd_Document> adopted) : m_doc(std::move(adopted)) {}
+
 Document::~Document() {
   if (!m_doc.IsNull() && m_doc->IsOpened()) {
     XCAFApp_Application::GetApplication()->Close(m_doc);

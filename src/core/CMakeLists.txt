@@ -14,6 +14,8 @@ add_library(sc_core STATIC
   CompressedStep.cpp
   StepImporter.h
   StepImporter.cpp
+  DocumentCache.h
+  DocumentCache.cpp
   AssemblyIndex.h
   AssemblyIndex.cpp
   Measure.h

@@ -1,6 +1,7 @@
 #include "core/StepImporter.h"
 
 #include "core/CompressedStep.h"
+#include "core/DocumentCache.h"
 #include "core/OccCompat.h"
 #include "core/OccHandle.h"
 
@@ -347,6 +348,22 @@ private:
   std::filesystem::path m_path;
 };
 
+// Cached documents differ in content with the PMI option, so it is part of the key.
+std::string cacheKeyFor(const std::string& utf8Path, const ImportOptions& options) {
+  if (options.cacheDir.empty() || !options.premesh) {
+    return {};
+  }
+  return cacheKey(utf8Path, options.readPmi ? "pmi=1" : "pmi=0");
+}
+
+bool storeLocked(const std::string& key, const ImportResult& result, const ImportOptions& options) {
+  if (key.empty() || !result.ok || result.stats.fromCache) {
+    return false;
+  }
+  return DocumentCache(options.cacheDir)
+      .store(key, *result.document, result.messages, result.stats.rootCount, result.stats.uniqueParts);
+}
+
 } // namespace
 
 ImportResult importStep(const std::string& utf8Path, const ImportOptions& options,
@@ -355,6 +372,27 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
   std::lock_guard<std::mutex> lock(g_importMutex);
 
   try {
+    // --- Open-file cache ---------------------------------------------------------
+    const std::string cacheId = cacheKeyFor(utf8Path, options);
+    if (!cacheId.empty()) {
+      const Clock::time_point loadStart = Clock::now();
+      if (auto cached = DocumentCache(options.cacheDir).load(cacheId)) {
+        cached->document->setSourcePath(utf8Path);
+        result.document = std::move(cached->document);
+        result.messages = std::move(cached->messages);
+        result.messages.push_back({ImportMessage::Severity::Info, "Loaded from cache", 1});
+        result.stats.rootCount = cached->rootCount;
+        result.stats.uniqueParts = cached->uniqueParts;
+        result.stats.fromCache = true;
+        result.stats.cacheLoadSeconds = secondsSince(loadStart);
+        result.ok = true;
+        if (progress) {
+          progress(1.0, "Loaded from cache");
+        }
+        return result;
+      }
+    }
+
     auto document = std::make_shared<Document>();
     document->setSourcePath(utf8Path);
 
@@ -511,12 +549,31 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
     bridge->report(1.0, true);
     result.document = std::move(document);
     result.ok = true;
+
+    if (!cacheId.empty() && !options.deferCacheStore) {
+      const Clock::time_point storeStart = Clock::now();
+      storeLocked(cacheId, result, options);
+      result.stats.cacheStoreSeconds = secondsSince(storeStart);
+    }
   } catch (const Standard_Failure& failure) {
     result.error = "Open CASCADE error: " + occ::errorMessage(failure);
   } catch (const std::exception& error) {
     result.error = std::string("Error: ") + error.what();
   }
   return result;
+}
+
+bool storeInCache(const std::string& utf8Path, const ImportResult& result, const ImportOptions& options) {
+  const std::string key = cacheKeyFor(utf8Path, options);
+  if (key.empty() || !result.ok || result.stats.fromCache) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(g_importMutex);
+  try {
+    return storeLocked(key, result, options);
+  } catch (const std::exception&) {
+    return false;
+  }
 }
 
 } // namespace sc::core

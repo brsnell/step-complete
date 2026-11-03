@@ -23,6 +23,8 @@ namespace sc::core {
 class Document {
 public:
   Document();
+  // Adopts an opened document that is registered with the XCAF application (e.g. loaded from disk).
+  explicit Document(OccHandle<TDocStd_Document> adopted);
   ~Document();
 
   Document(const Document&) = delete;

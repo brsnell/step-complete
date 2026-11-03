@@ -1,5 +1,7 @@
 #include "app/ImportJob.h"
 
+#include <QSettings>
+#include <QStandardPaths>
 #include <QThread>
 
 #include <cmath>
@@ -19,7 +21,16 @@ void ImportJob::start() {
   m_timer.start();
   const std::string utf8Path = m_path.toStdString();
 
-  m_thread = QThread::create([this, utf8Path] {
+  // Open-file cache; the "cache/enabled" setting (default on) is read on the UI thread.
+  core::ImportOptions options;
+  if (QSettings().value(QStringLiteral("cache/enabled"), true).toBool()) {
+    const QString cacheRoot = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+    if (!cacheRoot.isEmpty()) {
+      options.cacheDir = (cacheRoot + QStringLiteral("/documents")).toStdString();
+    }
+  }
+
+  m_thread = QThread::create([this, utf8Path, options] {
     const auto onProgress = [this](double fraction, std::string_view stage) {
       const int percent = static_cast<int>(std::lround(fraction * 100.0));
       const QString text = QString::fromUtf8(stage.data(), static_cast<qsizetype>(stage.size()));
@@ -27,7 +38,8 @@ void ImportJob::start() {
           this, [this, percent, text] { Q_EMIT progress(percent, text); }, Qt::QueuedConnection);
     };
 
-    auto result = std::make_shared<core::ImportResult>(core::importStep(utf8Path, {}, onProgress, &m_cancel));
+    auto result =
+        std::make_shared<core::ImportResult>(core::importStep(utf8Path, options, onProgress, &m_cancel));
     std::shared_ptr<const core::AssemblyIndex> index;
     std::shared_ptr<const core::PmiModel> pmi;
     if (result->ok) {

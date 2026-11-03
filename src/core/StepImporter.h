@@ -29,6 +29,12 @@ struct ImportOptions {
   // Triangulate every unique part on the importing thread, so displaying the
   // model on the UI thread is fast. Uses the same parameters as the viewer.
   bool premesh = true;
+  // Directory of the open-file cache (see DocumentCache.h); empty disables it. Only
+  // premeshed imports use the cache. A hit skips reading, transfer and meshing.
+  std::string cacheDir;
+  // Do not store a fresh import in the cache at the end of importStep; the caller will
+  // call storeInCache() itself, e.g. after it has handed the model to the UI.
+  bool deferCacheStore = false;
 };
 
 struct ImportMessage {
@@ -44,6 +50,9 @@ struct ImportStats {
   double meshSeconds = 0.0;
   int rootCount = 0;
   int uniqueParts = 0;
+  bool fromCache = false; // the document was loaded from the open-file cache
+  double cacheLoadSeconds = 0.0;
+  double cacheStoreSeconds = 0.0; // time importStep spent storing into the cache
 };
 
 struct ImportResult {
@@ -62,5 +71,11 @@ struct ImportResult {
 // OCCT's translator parameters are process-global.
 ImportResult importStep(const std::string& utf8Path, const ImportOptions& options = {},
                         const ProgressCallback& progress = {}, const CancelToken* cancel = nullptr);
+
+// Stores a successful import in the cache (no-op without options.cacheDir, for a failed
+// result or one that came from the cache). Returns true if an entry was written. Takes the
+// same lock as importStep, so it is safe to call from the import worker thread after the
+// result was published, but it reads the document: do not modify it meanwhile.
+bool storeInCache(const std::string& utf8Path, const ImportResult& result, const ImportOptions& options);
 
 } // namespace sc::core
