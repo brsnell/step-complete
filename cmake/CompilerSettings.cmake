@@ -36,8 +36,18 @@ function(sc_vcpkg_qt_conf target)
   if(NOT WIN32 OR NOT type STREQUAL "EXECUTABLE" OR NOT Qt6_DIR MATCHES "vcpkg_installed")
     return()
   endif()
-  # vcpkg: <triplet>/share/Qt6 -> prefix <triplet>, plugins <triplet>[/debug]/Qt6/plugins
-  get_filename_component(prefix "${Qt6_DIR}/../.." ABSOLUTE)
-  file(GENERATE OUTPUT "$<TARGET_FILE_DIR:${target}>/qt.conf"
-       CONTENT "[Paths]\nPrefix = ${prefix}$<$<CONFIG:Debug>:/debug>\nPlugins = Qt6/plugins\n")
+  # Generated once, then copied beside each executable after it links: executables
+  # share output directories, and CMake refuses one generated file from several targets.
+  set(conf "${CMAKE_BINARY_DIR}/vcpkg-qt-conf/$<CONFIG>/qt.conf")
+  get_property(generated GLOBAL PROPERTY SC_VCPKG_QT_CONF_GENERATED)
+  if(NOT generated)
+    # vcpkg: <triplet>/share/Qt6 -> prefix <triplet>, plugins <triplet>[/debug]/Qt6/plugins
+    get_filename_component(prefix "${Qt6_DIR}/../.." ABSOLUTE)
+    file(GENERATE OUTPUT "${conf}"
+         CONTENT "[Paths]\nPrefix = ${prefix}$<$<CONFIG:Debug>:/debug>\nPlugins = Qt6/plugins\n")
+    set_property(GLOBAL PROPERTY SC_VCPKG_QT_CONF_GENERATED TRUE)
+  endif()
+  add_custom_command(TARGET ${target} POST_BUILD
+                     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${conf}" "$<TARGET_FILE_DIR:${target}>/qt.conf"
+                     VERBATIM)
 endfunction()
