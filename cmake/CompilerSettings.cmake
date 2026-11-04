@@ -23,4 +23,21 @@ function(sc_target_defaults target)
   endif()
   # Avoid clashes between Qt's 'signals'/'slots'/'emit' keywords and third-party headers.
   target_compile_definitions(${target} PRIVATE QT_NO_KEYWORDS)
+  sc_vcpkg_qt_conf(${target})
+endfunction()
+
+# Qt from vcpkg on Windows (the 'qt' manifest feature): vcpkg copies Qt6Core.dll next
+# to each executable, and Qt then looks for its plugins relative to that copy, finds
+# no platform plugin and aborts (an error dialog that hangs headless test runs). A
+# qt.conf beside the executable points Qt back at vcpkg's tree. Build tree only: the
+# packaged app uses the official Qt and windeployqt.
+function(sc_vcpkg_qt_conf target)
+  get_target_property(type ${target} TYPE)
+  if(NOT WIN32 OR NOT type STREQUAL "EXECUTABLE" OR NOT Qt6_DIR MATCHES "vcpkg_installed")
+    return()
+  endif()
+  # vcpkg: <triplet>/share/Qt6 -> prefix <triplet>, plugins <triplet>[/debug]/Qt6/plugins
+  get_filename_component(prefix "${Qt6_DIR}/../.." ABSOLUTE)
+  file(GENERATE OUTPUT "$<TARGET_FILE_DIR:${target}>/qt.conf"
+       CONTENT "[Paths]\nPrefix = ${prefix}$<$<CONFIG:Debug>:/debug>\nPlugins = Qt6/plugins\n")
 endfunction()
