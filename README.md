@@ -78,6 +78,58 @@ cmake --build --preset vcpkg
 
 The first build compiles OCCT, which takes a while. vcpkg caches it afterwards.
 
+### Windows, build with only Visual Studio
+Visual Studio 2022 (17.6 or newer) with the **Desktop development with C++** workload already
+includes CMake, Ninja and vcpkg. The `vcpkg-qt` preset takes Qt from vcpkg as well, so nothing
+else needs installing.
+
+1. Open the repository folder in Visual Studio (**File → Open → Folder**).
+2. Pick the **Release (vcpkg OCCT and Qt)** configuration and let it configure.
+3. Build, then run `StepComplete.exe` or the tests from the Test Explorer.
+
+From a **Developer PowerShell for VS 2022** instead (it sets `VCPKG_ROOT` to the bundled vcpkg):
+
+```powershell
+cmake --preset vcpkg-qt
+```
+
+```powershell
+cmake --build --preset vcpkg-qt
+```
+
+```powershell
+ctest --preset vcpkg-qt -LE render
+```
+
+The first configure builds Qt and OCCT from source, about an hour. vcpkg caches both, so later
+configures take seconds. This preset is for development; releases use the official Qt 6.8 LTS
+binaries with the `vcpkg` preset.
+
+### Windows, test a build without installing anything
+CI builds the Windows installer for any branch on request, so a change can be tried on a Windows
+machine that has no compiler, CMake or Qt.
+
+1. On GitHub, open **Actions → Release → Run workflow** and pick the branch.
+2. When the run finishes (about 5 minutes; longer if `vcpkg.json` changed), download
+   **package-windows-x64** from the run's **Artifacts**. It holds an installer (`*-setup.exe`)
+   and a portable zip that runs without installing.
+
+With the [GitHub CLI](https://cli.github.com/):
+
+```bash
+gh workflow run release.yml --ref my-branch
+```
+
+```bash
+gh run watch
+```
+
+```bash
+gh run download --name package-windows-x64
+```
+
+A run that is not for a `v*` tag only uploads the packages. It does not publish a release.
+
 ## Running on old or unusual graphics
 - Needs OpenGL 2.1 or newer (3.3+ recommended; every 2016-era GPU qualifies).
 - **Linux:** `StepComplete --software-gl` uses Mesa's software renderer if the GPU driver is broken.

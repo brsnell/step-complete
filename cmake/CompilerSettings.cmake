@@ -23,4 +23,31 @@ function(sc_target_defaults target)
   endif()
   # Avoid clashes between Qt's 'signals'/'slots'/'emit' keywords and third-party headers.
   target_compile_definitions(${target} PRIVATE QT_NO_KEYWORDS)
+  sc_vcpkg_qt_conf(${target})
+endfunction()
+
+# Qt from vcpkg on Windows (the 'qt' manifest feature): vcpkg copies Qt6Core.dll next
+# to each executable, and Qt then looks for its plugins relative to that copy, finds
+# no platform plugin and aborts (an error dialog that hangs headless test runs). A
+# qt.conf beside the executable points Qt back at vcpkg's tree. Build tree only: the
+# packaged app uses the official Qt and windeployqt.
+function(sc_vcpkg_qt_conf target)
+  get_target_property(type ${target} TYPE)
+  if(NOT WIN32 OR NOT type STREQUAL "EXECUTABLE" OR NOT Qt6_DIR MATCHES "vcpkg_installed")
+    return()
+  endif()
+  # Generated once, then copied beside each executable after it links: executables
+  # share output directories, and CMake refuses one generated file from several targets.
+  set(conf "${CMAKE_BINARY_DIR}/vcpkg-qt-conf/$<CONFIG>/qt.conf")
+  get_property(generated GLOBAL PROPERTY SC_VCPKG_QT_CONF_GENERATED)
+  if(NOT generated)
+    # vcpkg: <triplet>/share/Qt6 -> prefix <triplet>, plugins <triplet>[/debug]/Qt6/plugins
+    get_filename_component(prefix "${Qt6_DIR}/../.." ABSOLUTE)
+    file(GENERATE OUTPUT "${conf}"
+         CONTENT "[Paths]\nPrefix = ${prefix}$<$<CONFIG:Debug>:/debug>\nPlugins = Qt6/plugins\n")
+    set_property(GLOBAL PROPERTY SC_VCPKG_QT_CONF_GENERATED TRUE)
+  endif()
+  add_custom_command(TARGET ${target} POST_BUILD
+                     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "${conf}" "$<TARGET_FILE_DIR:${target}>/qt.conf"
+                     VERBATIM)
 endfunction()
