@@ -7,8 +7,7 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 
 **License:** MIT · **Repo:** github.com/brsnell/step-complete
 
-**Status:** M0 (foundations) is implemented. The Qt/OCCT viewport works and is covered by render
-tests; CI runs once the repo is on GitHub.
+**Status:** M0–M4 are done; M5 (ship v1.0) is in progress. Open work is in [TODOS.md](../TODOS.md).
 
 ---
 
@@ -372,8 +371,6 @@ people.
 
 ## 11. Next steps
 1. ✅ CI green on Windows, macOS (arm64 and x64) and Linux, warnings-as-errors everywhere.
-2. ✅ M1.
-3. M2: `core/Measure` first (exact B-rep, world coordinates, analytic tests), then picking,
-   witness graphics and the Measurements panel.
-4. Get a 2016-era test machine (or VM with an Intel iGPU passthrough) for manual performance
-   checks against §2a and §6.
+2. ✅ M0–M4; M5 mostly done (see §7).
+3. The remaining work (release checks, signing, reference-machine performance, deferred items) is
+   tracked in [TODOS.md](../TODOS.md).
