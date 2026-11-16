@@ -21,9 +21,12 @@ GitHub releases page. `<version>` is the release number.
 | Platform | File |
 |---|---|
 | Windows (64-bit) | `StepComplete-<version>-windows-x64-setup.exe` (installer) or `StepComplete-<version>-windows-x64.zip` (portable) |
-| macOS, Apple Silicon | `StepComplete-<version>-macos-arm64.dmg` |
-| macOS, Intel | `StepComplete-<version>-macos-x64.dmg` |
 | Linux (x86_64) | `StepComplete-<version>-linux-x86_64.AppImage` |
+| macOS, Apple Silicon | `StepComplete-<version>-macos-arm64.dmg` (not in v1.0) |
+| macOS, Intel | `StepComplete-<version>-macos-x64.dmg` (not in v1.0) |
+
+v1.0 ships for Windows and Linux only. The macOS packages will be added in a later release,
+once they have been tested on a Mac; the macOS instructions below apply from then on.
 
 **Windows.** Run the setup program, or unzip the portable archive anywhere and start the
 STEP Complete executable. If SmartScreen warns about an unrecognized app, choose

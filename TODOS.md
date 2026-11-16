@@ -1,12 +1,12 @@
 # TODOS
 
-State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. The Windows packages passed a hands-on test on real hardware (2026-11-16). Left before tagging `v1.0.0`: the hands-on macOS check, and signing.
+State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. The Windows packages passed a hands-on test on real hardware (2026-11-16). v1.0.0 ships for Windows and Linux only; the release workflow builds the macOS DMGs but does not publish them until the hands-on macOS check below passes.
 
-## Release v1.0
+## Release
 
 ### Manual test of the packages on a real Mac
 
-**What:** Install both macOS DMGs (arm64, x64) on a real Mac. Open the NIST PMI models, measure, use a section view and saved views, and export an image. Then tag `v1.0.0`.
+**What:** Install both macOS DMGs (arm64, x64) on a real Mac. Open the NIST PMI models, measure, use a section view and saved views, and export an image. Then publish the DMGs in the next release: add the `package-macos-*` download back to the `release` job in `.github/workflows/release.yml`, and drop the "not in v1.0" notes from `docs/user-guide.md` and `README.md`.
 
 **Why:** CI renders with Mesa llvmpipe on Linux only. The viewport, PMI and measurement have never been run by hand on macOS.
 

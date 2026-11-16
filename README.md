@@ -24,7 +24,7 @@ Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/
 - **Accurate measurement** on exact B-rep geometry, never the display mesh.
 - **Full AP242 PMI**: semantic and graphical annotations, saved views, links to geometry.
 - **Light enough for 10-year-old hardware**: a 2016 laptop with integrated graphics and 4 GB RAM.
-- **Windows 10+, macOS 12+ (Intel and Apple Silicon), Linux.**
+- **Windows 10+, macOS 12+ (Intel and Apple Silicon), Linux.** v1.0 packages are for Windows and Linux; macOS packages follow once tested on a Mac.
 
 ## Building
 

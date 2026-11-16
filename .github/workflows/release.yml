@@ -249,10 +249,18 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: write
+    # The macOS DMGs are still built (manual runs upload them as workflow artifacts) but are not
+    # published until they pass a hands-on test on a real Mac. See TODOS.md.
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: package-*
+          pattern: package-linux-*
+          path: release
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-windows-*
           path: release
           merge-multiple: true
 
@@ -268,5 +276,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release/*
+          body: |
+            Packages for Windows (x64) and Linux (x86_64). macOS packages are not part of this
+            release yet; they will follow once they have been tested on a Mac.
           generate_release_notes: true
           fail_on_unmatched_files: true
