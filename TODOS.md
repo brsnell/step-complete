@@ -1,20 +1,20 @@
 # TODOS
 
-State as of 2026-11-03. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. Left before tagging `v1.0.0`: hands-on checks on real hardware and signing.
+State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. The Windows packages passed a hands-on test on real hardware (2026-11-16). Left before tagging `v1.0.0`: the hands-on macOS check, and signing.
 
 ## Release v1.0
 
-### Manual test of the packages on real Windows and macOS machines
+### Manual test of the packages on a real Mac
 
-**What:** Install the Windows installer, the portable zip and both macOS DMGs (arm64, x64) on real machines with real GPUs. Open the NIST PMI models, measure, use a section view and saved views, and export an image. Then tag `v1.0.0`.
+**What:** Install both macOS DMGs (arm64, x64) on a real Mac. Open the NIST PMI models, measure, use a section view and saved views, and export an image. Then tag `v1.0.0`.
 
-**Why:** CI renders with Mesa llvmpipe on Linux only. The viewport, PMI and measurement have never been run by hand on a real GPU, or on Windows/macOS at all.
+**Why:** CI renders with Mesa llvmpipe on Linux only. The viewport, PMI and measurement have never been run by hand on macOS.
 
-**Context:** This also closes the open hands-on items in M2 (measurement on a real GPU, Windows/macOS) and M3 (PMI check on a real GPU). The release workflow runs on `v*` tags or by hand. The CI installer/DMG smoke tests only prove the packages install and start.
+**Context:** Windows is done: the maintainer tested the Windows packages on a real machine with a real GPU on 2026-11-16, and they worked well. That closes the Windows and real-GPU parts of the open hands-on items in M2 (measurement) and M3 (PMI); only macOS remains. The release workflow runs on `v*` tags or by hand. The CI DMG smoke test only proves the DMGs install and start.
 
-**Effort:** M
+**Effort:** S
 **Priority:** P1
-**Depends on:** A Windows machine and a Mac to test on.
+**Depends on:** A Mac to test on (none available as of 2026-11-16).
 
 ### Signing certificates for Windows and macOS
 
