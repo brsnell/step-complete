@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 
 project(StepComplete
-  VERSION 0.1.0
+  VERSION 1.0.0
   DESCRIPTION "Cross-platform STEP viewer with measurement and PMI"
   HOMEPAGE_URL "https://github.com/brsnell/step-complete"
   LANGUAGES CXX)

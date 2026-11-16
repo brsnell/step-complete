@@ -245,21 +245,38 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: [check-version, build]
-    if: startsWith(github.ref, 'refs/tags/v')
+    # The macOS builds are not published (see below), so their outcome must not block the
+    # release. The "Check packages" step fails the job unless every published package is there.
+    if: ${{ always() && startsWith(github.ref, 'refs/tags/v') && needs.check-version.result == 'success' }}
     runs-on: ubuntu-22.04
     permissions:
       contents: write
+    # The macOS DMGs are still built (manual runs upload them as workflow artifacts) but are not
+    # published until they pass a hands-on test on a real Mac. See TODOS.md.
     steps:
       - uses: actions/download-artifact@v4
         with:
-          pattern: package-*
+          pattern: package-linux-*
           path: release
           merge-multiple: true
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-windows-*
+          path: release
+          merge-multiple: true
+
+      - name: Check packages
+        working-directory: release
+        run: |
+          for p in '*-x86_64.AppImage' '*-windows-x64-setup.exe' '*-windows-x64-portable.zip'; do
+            compgen -G "$p" > /dev/null || { echo "::error::missing package $p"; exit 1; }
+          done
 
       - name: Checksums
         working-directory: release
         run: |
-          
+
           ls -la
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
@@ -268,5 +285,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release/*
+          body: |
+            Packages for Windows (x64) and Linux (x86_64). macOS packages are not part of this
+            release yet; they will follow once they have been tested on a Mac.
           generate_release_notes: true
           fail_on_unmatched_files: true

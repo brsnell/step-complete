@@ -20,10 +20,13 @@ GitHub releases page. `<version>` is the release number.
 
 | Platform | File |
 |---|---|
-| Windows (64-bit) | `StepComplete-<version>-windows-x64-setup.exe` (installer) or `StepComplete-<version>-windows-x64.zip` (portable) |
-| macOS, Apple Silicon | `StepComplete-<version>-macos-arm64.dmg` |
-| macOS, Intel | `StepComplete-<version>-macos-x64.dmg` |
-| Linux (x86_64) | `StepComplete-<version>-linux-x86_64.AppImage` |
+| Windows (64-bit) | `StepComplete-<version>-windows-x64-setup.exe` (installer) or `StepComplete-<version>-windows-x64-portable.zip` (portable) |
+| Linux (x86_64) | `StepComplete-<version>-x86_64.AppImage` |
+| macOS, Apple Silicon | `StepComplete-<version>-macos-arm64.dmg` (not in v1.0) |
+| macOS, Intel | `StepComplete-<version>-macos-x64.dmg` (not in v1.0) |
+
+v1.0 ships for Windows and Linux only. The macOS packages will be added in a later release,
+once they have been tested on a Mac; the macOS instructions below apply from then on.
 
 **Windows.** Run the setup program, or unzip the portable archive anywhere and start the
 STEP Complete executable. If SmartScreen warns about an unrecognized app, choose
@@ -42,12 +45,12 @@ You only need to do this once.
 **Linux.** Make the AppImage executable and run it:
 
 ```bash
-chmod +x StepComplete-<version>-linux-x86_64.AppImage
-./StepComplete-<version>-linux-x86_64.AppImage
+chmod +x StepComplete-<version>-x86_64.AppImage
+./StepComplete-<version>-x86_64.AppImage
 ```
 
 AppImages need FUSE 2 (`libfuse2` on Ubuntu 22.04 and later). If FUSE is not available, run
-`./StepComplete-<version>-linux-x86_64.AppImage --appimage-extract-and-run`, or extract once with
+`./StepComplete-<version>-x86_64.AppImage --appimage-extract-and-run`, or extract once with
 `--appimage-extract` and start `squashfs-root/AppRun`.
 
 ## 2. System requirements
