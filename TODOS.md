@@ -10,7 +10,7 @@ State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see 
 
 **Why:** CI renders with Mesa llvmpipe on Linux only. The viewport, PMI and measurement have never been run by hand on macOS.
 
-**Context:** Windows is done: the maintainer tested the Windows packages on a real machine with a real GPU on 2026-11-16, and they worked well. That closes the Windows and real-GPU parts of the open hands-on items in M2 (measurement) and M3 (PMI); only macOS remains. The release workflow runs on `v*` tags or by hand. The CI DMG smoke test only proves the DMGs install and start.
+**Context:** GitHub retired the `macos-14` runner image on 2026-11-02, so from then until 2026-11-17 every macOS job in CI and Release was cancelled before it started ("The configuration 'macos-14-arm64-us-default' is not supported"). Both workflows now use `macos-15`; the deployment target stays macOS 12 (set in `cmake/triplets/*-osx-sc.cmake`). Windows is done: the maintainer tested the Windows packages on a real machine with a real GPU on 2026-11-16, and they worked well. That closes the Windows and real-GPU parts of the open hands-on items in M2 (measurement) and M3 (PMI); only macOS remains. The release workflow runs on `v*` tags or by hand. The CI DMG smoke test only proves the DMGs install and start.
 
 **Effort:** S
 **Priority:** P1

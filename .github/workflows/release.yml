@@ -50,14 +50,14 @@ jobs:
             triplet: x64-windows
             artifact: windows-x64
           - name: macOS arm64
-            os: macos-14
+            os: macos-15
             triplet: arm64-osx-sc
             osx-arch: arm64
             sc-arch: arm64
             artifact: macos-arm64
           # 2016-era Macs are Intel; cross-compiled on the arm64 runner (as in ci.yml).
           - name: macOS x64
-            os: macos-14
+            os: macos-15
             triplet: x64-osx-sc
             osx-arch: x86_64
             sc-arch: x64
