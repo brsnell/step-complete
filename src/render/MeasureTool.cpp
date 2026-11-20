@@ -24,7 +24,7 @@ MeasureTool::MeasureTool(OcctViewport* viewport, SceneManager* scene, QObject* p
 }
 
 MeasureTool::~MeasureTool() {
-  clearWitness();
+  clearWitnesses();
 }
 
 std::vector<int> MeasureTool::selectionModesFor(core::MeasureMode mode) const {
@@ -51,9 +51,6 @@ void MeasureTool::setMode(std::optional<core::MeasureMode> mode) {
   m_scene->setSelectionModes(mode ? selectionModesFor(*mode) : std::vector<int>{});
   m_updatingSelection = false;
   m_viewport->setAccumulatingSelection(mode.has_value());
-  if (!mode) {
-    clearWitness();
-  }
   m_viewport->setOverlayMarker(std::nullopt);
   m_viewport->invalidateScene();
   Q_EMIT pickProgress(0, mode ? core::picksRequired(*mode) : 0);
@@ -61,7 +58,7 @@ void MeasureTool::setMode(std::optional<core::MeasureMode> mode) {
 
 void MeasureTool::reset() {
   m_picks.clear();
-  clearWitness();
+  clearWitnesses();
   if (!m_viewport->context().IsNull()) {
     m_updatingSelection = true;
     m_viewport->context()->ClearSelected(false);
@@ -170,35 +167,61 @@ void MeasureTool::finish() {
   m_updatingSelection = true;
   m_viewport->context()->ClearSelected(false);
   m_updatingSelection = false;
-  if (result.ok) {
-    showWitness(result.witness);
-  } else {
-    clearWitness();
-  }
   m_viewport->invalidateScene();
   Q_EMIT pickProgress(0, core::picksRequired(*m_mode));
   Q_EMIT measured(result);
 }
 
-void MeasureTool::showWitness(const core::Witness& witness) {
-  clearWitness();
-  if (witness.empty() || m_viewport->context().IsNull()) {
+void MeasureTool::setWitnesses(const std::vector<ShownWitness>& witnesses) {
+  const OccHandle<AIS_InteractiveContext>& context = m_viewport->context();
+  if (context.IsNull()) {
+    m_witnesses.clear();
     return;
   }
-  m_witness = new WitnessPresentation(witness, m_viewport->devicePixelRatioF());
-  // Display without selection modes: witnesses never take picks.
-  m_viewport->context()->Display(m_witness, 0, -1, false);
-}
-
-void MeasureTool::clearWitness() {
-  if (!m_witness.IsNull() && !m_viewport->context().IsNull()) {
-    m_viewport->context()->Remove(m_witness, false);
+  const auto wanted = [&witnesses](int id) {
+    return std::any_of(witnesses.begin(), witnesses.end(),
+                       [id](const ShownWitness& w) { return w.id == id && !w.witness.empty(); });
+  };
+  for (auto it = m_witnesses.begin(); it != m_witnesses.end();) {
+    if (wanted(it->first)) {
+      ++it;
+    } else {
+      context->Remove(it->second, false);
+      it = m_witnesses.erase(it);
+    }
   }
-  m_witness.Nullify();
+  for (const ShownWitness& w : witnesses) {
+    if (w.witness.empty()) {
+      continue;
+    }
+    auto it = m_witnesses.find(w.id);
+    if (it == m_witnesses.end()) {
+      OccHandle<WitnessPresentation> prs =
+          new WitnessPresentation(w.witness, m_viewport->devicePixelRatioF());
+      prs->setEmphasized(w.emphasized);
+      // Display without selection modes: witnesses never take picks.
+      context->Display(prs, 0, -1, false);
+      m_witnesses.emplace(w.id, prs);
+    } else if (it->second->isEmphasized() != w.emphasized) {
+      it->second->setEmphasized(w.emphasized);
+      context->Redisplay(it->second, false);
+    }
+  }
 }
 
-bool MeasureTool::hasWitness() const {
-  return !m_witness.IsNull();
+void MeasureTool::clearWitnesses() {
+  const OccHandle<AIS_InteractiveContext>& context = m_viewport->context();
+  if (!context.IsNull()) {
+    for (const auto& [id, prs] : m_witnesses) {
+      context->Remove(prs, false);
+    }
+  }
+  m_witnesses.clear();
+}
+
+bool MeasureTool::isEmphasized(int id) const {
+  const auto it = m_witnesses.find(id);
+  return it != m_witnesses.end() && it->second->isEmphasized();
 }
 
 } // namespace sc::render

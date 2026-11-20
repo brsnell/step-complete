@@ -218,15 +218,21 @@ void MainWindow::createDocks() {
   tabifyDockWidget(m_pmiDock, m_sectionDock);
   resizeDocks({m_pmiDock}, {340}, Qt::Horizontal);
   m_measurementsDock->hide();
-  connect(m_measurements, &MeasurementsPanel::currentChanged, this, [this](int index) {
-    const auto& results = m_measurements->measurements();
-    if (index >= 0 && index < static_cast<int>(results.size()) && results[static_cast<size_t>(index)].ok) {
-      m_measureTool->showWitness(results[static_cast<size_t>(index)].witness);
-    } else {
-      m_measureTool->clearWitness();
+  connect(m_measurements, &MeasurementsPanel::displayChanged, this, &MainWindow::syncMeasurementWitnesses);
+}
+
+// Draws every checked result's witness; the one the user is looking at is emphasized.
+void MainWindow::syncMeasurementWitnesses() {
+  const auto& results = m_measurements->measurements();
+  const int current = m_measurements->currentIndex();
+  std::vector<render::MeasureTool::ShownWitness> shown;
+  for (int i = 0; i < static_cast<int>(results.size()); ++i) {
+    if (m_measurements->isShown(i)) {
+      shown.push_back({m_measurements->idAt(i), results[static_cast<size_t>(i)].witness, i == current});
     }
-    m_viewport->invalidateScene();
-  });
+  }
+  m_measureTool->setWitnesses(shown);
+  m_viewport->invalidateScene();
 }
 
 void MainWindow::createActions() {
@@ -703,6 +709,7 @@ void MainWindow::onImportFinished() {
     std::shared_ptr<const core::AssemblyIndex> index = job->index();
     m_transparentParts.clear();
     m_measureTool->reset();
+    m_measurements->clear(); // results belong to the previous model
     m_pmiScene->clearViewClipping(m_viewport->view());
     m_sectionTool->reset();
     m_scene->setModel(index);
@@ -773,6 +780,8 @@ void MainWindow::onImportFinished() {
 
 void MainWindow::closeModel() {
   setMeasureMode(-1);
+  m_measureTool->reset();
+  m_measurements->clear();
   setSectionView(false);
   m_pmiScene->clearViewClipping(m_viewport->view());
   m_pmiScene->clear();

@@ -88,6 +88,7 @@ private:
   void setMeasureMode(int mode); // -1 = off, else core::MeasureMode
   void measureMassProperties();
   void onMeasured(const core::Measurement& measurement);
+  void syncMeasurementWitnesses();
   void onPickProgress(int picked, int required);
   void applyMeasureOptions();
 

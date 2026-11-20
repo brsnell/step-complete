@@ -99,7 +99,7 @@ private Q_SLOTS:
     QCOMPARE(m.entities.size(), size_t(2));
     QCOMPARE(m.entities[0], std::string("Face (Plane) on Fixture / Base plate"));
     QCOMPARE(m_tool->pickCount(), 0);
-    QVERIFY(m_tool->hasWitness());
+    QVERIFY(!m.witness.empty());
   }
 
   void radiusOfAPlacedInstance() {
@@ -129,6 +129,7 @@ private Q_SLOTS:
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
     QVERIFY(clickAt(gp_Pnt(10, 10, 30)));
     QCOMPARE(m_results.size(), size_t(1));
+    m_tool->setWitnesses({{1, m_results.front().witness, true}});
     const QImage after = render();
     sc::test::dumpImage(after, "measure_witness");
 
@@ -144,8 +145,48 @@ private Q_SLOTS:
     QVERIFY2(orange > 10, "witness geometry is not visible");
     QVERIFY(sc::test::changedPixelFraction(before, after) > 0.0005);
 
-    m_tool->clearWitness();
+    m_tool->clearWitnesses();
     QVERIFY2(sc::test::changedPixelFraction(before, render()) < 0.0005, "witness was not removed");
+  }
+
+  void severalWitnessesAtOnce() {
+    m_tool->setMode(MeasureMode::Distance);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
+    QVERIFY(clickAt(gp_Pnt(10, 10, 30)));
+    m_tool->setMode(MeasureMode::Radius);
+    QVERIFY(clickAt(gp_Pnt(73, 10, 30)));
+    QCOMPARE(m_results.size(), size_t(2));
+    QCOMPARE(m_tool->witnessCount(), 0); // the tool draws only what it is told to
+
+    const QImage before = render();
+    m_tool->setWitnesses({{7, m_results[0].witness, false}, {9, m_results[1].witness, true}});
+    QCOMPARE(m_tool->witnessCount(), 2);
+    QVERIFY(!m_tool->isEmphasized(7));
+    QVERIFY(m_tool->isEmphasized(9));
+    const QImage both = render();
+    sc::test::dumpImage(both, "measure_two_witnesses");
+
+    // Moving the emphasis restyles in place; dropping an id removes just that one.
+    m_tool->setWitnesses({{7, m_results[0].witness, true}, {9, m_results[1].witness, false}});
+    QVERIFY(m_tool->isEmphasized(7));
+    QVERIFY(!m_tool->isEmphasized(9));
+    m_tool->setWitnesses({{9, m_results[1].witness, true}});
+    QCOMPARE(m_tool->witnessCount(), 1);
+    QVERIFY(!m_tool->hasWitness(7));
+    const QImage one = render();
+    QVERIFY2(sc::test::changedPixelFraction(one, both) > 0.0002, "removed witness is still drawn");
+
+    m_tool->setWitnesses({});
+    QCOMPARE(m_tool->witnessCount(), 0);
+    QVERIFY2(sc::test::changedPixelFraction(before, render()) < 0.0005, "witnesses were not removed");
+  }
+
+  void resetDropsWitnesses() {
+    m_tool->setMode(MeasureMode::EntityInfo);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
+    m_tool->setWitnesses({{1, m_results.front().witness, true}});
+    m_tool->reset();
+    QCOMPARE(m_tool->witnessCount(), 0);
   }
 
   void pointToPointShowsWhereAClickSnaps() {
@@ -205,9 +246,10 @@ private Q_SLOTS:
     QCOMPARE(m_results.size(), size_t(1));
     QCOMPARE(m_results.front().headline, std::string("6000.000 mm\xC2\xB2"));
 
+    m_tool->setWitnesses({{1, m_results.front().witness, true}});
     m_tool->setMode(std::nullopt);
     QVERIFY(m_scene->selectionModes().empty());
-    QVERIFY(!m_tool->hasWitness());
+    QVERIFY2(m_tool->hasWitness(1), "stopping measuring keeps shown results on screen");
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
     QCOMPARE(m_scene->selectedParts().size(), size_t(1));
     QVERIFY2(m_results.size() == 1, "no measurement when off");
