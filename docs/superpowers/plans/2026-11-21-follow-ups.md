@@ -1,6 +1,6 @@
 # Follow-ups after the naming work
 
-Status: in progress.
+Status: done 2026-11-21 (PRs #14, #15).
 
 ## 1. CI off Node 20, plus a stale comment
 

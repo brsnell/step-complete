@@ -89,6 +89,8 @@ private:
   void measureMassProperties();
   void onMeasured(const core::Measurement& measurement);
   void syncMeasurementWitnesses();
+  void onDevicePixelRatioChanged();
+  void declutterPmi();
   void onPickProgress(int picked, int required);
   void applyMeasureOptions();
 

@@ -97,21 +97,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   _declutterTimer = new QTimer(this);
   _declutterTimer->setSingleShot(true);
   _declutterTimer->setInterval(150);
-  connect(_declutterTimer, &QTimer::timeout, this, [this] {
-    if (_pmi && !_pmi->isEmpty() && _pmiScene->semanticLabelsVisible()) {
-      _pmiScene->declutter(_viewport->view());
-      _viewport->invalidateScene();
-    }
-  });
+  connect(_declutterTimer, &QTimer::timeout, this, &MainWindow::declutterPmi);
   _viewport->installEventFilter(this);
   _measureTool = new render::MeasureTool(_viewport, _scene.get(), this);
   connect(_measureTool, &render::MeasureTool::measured, this, &MainWindow::onMeasured);
   connect(_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
   connect(_viewport, &render::OcctViewport::glInitialized, this, &MainWindow::onGlInitialized);
   connect(_viewport, &render::OcctViewport::selectionChanged, this, &MainWindow::onViewportSelectionChanged);
-  // Witnesses are sized in device pixels: rebuild them on a screen with other scaling.
+  // Witnesses and PMI are sized in device pixels: rebuild them on a screen with other scaling.
   connect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this,
-          &MainWindow::syncMeasurementWitnesses);
+          &MainWindow::onDevicePixelRatioChanged);
   _viewport->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(_viewport, &QWidget::customContextMenuRequested, this,
           [this](const QPoint& pos) { showContextMenu(_viewport, pos); });
@@ -230,6 +225,20 @@ void MainWindow::createDocks() {
   // Closing the panel hides the results' witnesses; reopening it shows them again.
   connect(_measurementsDock->toggleViewAction(), &QAction::toggled, this,
           &MainWindow::syncMeasurementWitnesses);
+}
+
+void MainWindow::declutterPmi() {
+  if (_pmi && !_pmi->isEmpty() && _pmiScene->semanticLabelsVisible()) {
+    _pmiScene->declutter(_viewport->view());
+    _viewport->invalidateScene();
+  }
+}
+
+void MainWindow::onDevicePixelRatioChanged() {
+  syncMeasurementWitnesses();
+  _pmiScene->setDevicePixelRatio(_viewport->devicePixelRatioF());
+  _viewport->invalidateScene();
+  declutterPmi(); // the rebuilt labels start from their base positions
 }
 
 // Draws every checked result's witness while the Measurements panel is open; the one the

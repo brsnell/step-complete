@@ -338,6 +338,47 @@ private Q_SLOTS:
     sc::test::dumpImage(render(), "pmi_labels_dpr2");
   }
 
+  // Moving the window to a screen with other scaling rebuilds the PMI at the new ratio
+  // without losing what the user set up.
+  void rebuildsAtANewDevicePixelRatioKeepingItsState() {
+    load();
+    QVERIFY(_pmiScene->semanticLabelsVisible());
+    const int presentations = _pmiScene->presentationCount();
+    _pmiScene->setOnlyVisible({id(_fixture.flatness), id(_fixture.parallelism)});
+    _pmiScene->highlight({id(_fixture.flatness)});
+    const auto before = _pmiScene->labelsOf(id(_fixture.flatness)).front();
+
+    _pmiScene->setDevicePixelRatio(2.0);
+    QCOMPARE(_pmiScene->devicePixelRatio(), 2.0);
+    QVERIFY(_pmiScene->labelsOf(id(_fixture.flatness)).front() != before); // rebuilt
+    QCOMPARE(_pmiScene->presentationCount(), presentations);
+    std::vector<PmiId> visible = _pmiScene->visibleIds();
+    std::vector<PmiId> expected{id(_fixture.flatness), id(_fixture.parallelism)};
+    std::sort(visible.begin(), visible.end());
+    std::sort(expected.begin(), expected.end());
+    QCOMPARE(visible, expected);
+    QCOMPARE(_pmiScene->highlighted(), std::vector<PmiId>{id(_fixture.flatness)});
+    QCOMPARE(_pmiScene->selectedPmi(), std::vector<PmiId>{id(_fixture.flatness)});
+    QVERIFY(countPixels(render(), isTargetOrange) > 0);
+    // The two stacked labels now use the doubled pitch.
+    const QPoint anchor = pixelOf(50, 30, 20);
+    const int pitch = int(sc::render::PmiLabel::stackPitch(2.0));
+    QVERIFY(pmiAt(anchor + QPoint(8, 0)) != sc::core::NoPmi);
+    QVERIFY(pmiAt(anchor + QPoint(8, pitch)) != sc::core::NoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 2 * pitch)), sc::core::NoPmi);
+
+    // The semantic-labels switch is kept, not reset to the file's default.
+    _pmiScene->setSemanticLabelsVisible(false);
+    _pmiScene->setDevicePixelRatio(1.0);
+    QVERIFY(!_pmiScene->semanticLabelsVisible());
+    QCOMPARE(_pmiScene->visibleIds().size(), size_t(2));
+
+    // The same ratio again changes nothing.
+    const auto current = _pmiScene->labelsOf(id(_fixture.flatness)).front();
+    _pmiScene->setDevicePixelRatio(1.0);
+    QVERIFY(_pmiScene->labelsOf(id(_fixture.flatness)).front() == current);
+  }
+
   void drawsFramesDatumFlagsAndValues() {
     load();
     _pmiScene->setOnlyVisible({});
