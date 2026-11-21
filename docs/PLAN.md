@@ -7,7 +7,9 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 
 **License:** MIT · **Repo:** github.com/brsnell/step-complete
 
-**Status:** M0–M4 are done; M5 (ship v1.0) is in progress. Open work is in [TODOS.md](../TODOS.md).
+**Status:** M0–M4 are done; M5 (ship v1.0) is in progress, and v1.0.0 shipped for Windows and
+Linux on 2026-11-15. v1.1 (M6) and v2 (M7) are drafted in §7a. Open work is in
+[TODOS.md](../TODOS.md).
 
 ---
 
@@ -30,8 +32,9 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 ### Non-goals (v1.0)
 - Editing geometry or PMI, writing STEP. (Read-only viewer; keeps scope and risk down.)
 - Other formats besides STEP. The architecture keeps the door open (OCCT's `DE_Wrapper` handles
-  IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1.
-- Model comparison, wall-thickness analysis, markup and collaboration. Candidates for v2.
+  IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1. IGES and mesh formats are planned for v2 (§7a).
+- Model comparison, wall-thickness analysis and markup. Candidates for v2 (see §7a).
+  Collaboration was a candidate too and was dropped on 2026-11-21.
 
 ---
 
@@ -335,6 +338,75 @@ people.
 
 ---
 
+## 7a. After v1.0: v1.1 and v2
+
+Drafted 2026-11-21, after v1.0.0 shipped. Not approved yet: each feature gets a design in
+`docs/designs/` (marked `Status: APPROVED`) before work starts. Working order and per-item detail
+are in [TODOS.md](../TODOS.md).
+
+### Order and why
+1. **Finish v1** (hidden-line), because it was promised in §1 and never built.
+2. **v1.1: quick wins.** Small features users of other viewers expect. Each one fits the
+   read-only viewer as it is today.
+3. **v2: the larger features.** Clash detection and wall thickness first, because they are
+   read-only analysis like measurement. Other import formats next: the importer supports them
+   already, but every subsystem assumes STEP. Model comparison and markup come last: they need
+   things v1 does not have (two models at once, saving data of our own).
+
+Collaboration (a v2 candidate in §1) was dropped on 2026-11-21.
+
+Feedback from v1.0 users can reorder v1.1 and v2.
+
+### M6: v1.1 (≈5–7 weeks): 📝 drafted
+- ✅ **Hidden-line display style** (View > Hidden Line, `L`): white unlit faces, sharp edges and a
+  GPU silhouette for outlines, so the depth buffer hides what is behind
+  ([design](designs/hidden-line.md)). OCCT's exact hidden-line removal was not used: it
+  recomputes on every camera move.
+- **Search in the assembly tree.** A filter box on the Assembly panel, like **Filter PMI...**.
+  Matches part and product names and keeps their parent rows.
+- **Geometry export.** File > Export Geometry: STL (per part or merged), OBJ and glTF/GLB with
+  colors, from the existing mesh and XCAF document. This is the first file the app writes besides
+  images and CSV; writing STEP stays a non-goal.
+- **Section planes at any angle.** `SectionPlane` already takes any normal; the Section panel
+  only offers X, Y and Z. Add "plane on a picked planar face" and a custom normal.
+- **User saved views.** Save the camera, visibility and section planes under a name and restore
+  them later, next to the PMI saved views. The design decides where they are stored (per file,
+  keyed by the open-file cache's file hash, or a sidecar file).
+- **Material density for mass properties.** Mass properties are computed at unit density today.
+  Add a density per part (typed in, or picked from a short list of common materials), and use
+  the file's material when it declares one. Report mass next to volume.
+- **BOM / parts-list export.** Export the assembly tree as CSV: one row per unique part, with
+  quantity, name, product name, path and, optionally, volume, mass and bounding box. Uses the
+  same UTF-8-with-BOM CSV writer as the Measurements panel.
+- **Geometry validity check.** Measure > Check Geometry: run OCCT's shape checker on the
+  selected or visible parts and list the problems (invalid faces, open shells, gaps, small
+  edges), with each problem highlighted in 3D when selected. Shows why a measurement or a
+  section cap can be wrong.
+
+### M7: v2 (≈5–7 months): 📝 drafted
+- **Clash and interference detection.** Find parts that intersect or touch, with an optional
+  clearance distance. List each pair with its overlap volume or minimum gap and highlight it in
+  3D. Pair checks grow fast with part count, so it needs a bounding-box pass first and must run
+  in the background with progress and cancel.
+- **Wall thickness analysis.** Color the model by local thickness with a min/max legend, and add
+  a point-pick readout. Exact (B-rep) thickness or ray casting on the mesh is a design decision;
+  either has to stay usable on the §2a reference machine.
+- **Other import formats.** IGES first (it has B-rep, so measurement works), then mesh formats
+  (STL, OBJ, glTF) through OCCT's `DE_Wrapper`. Mesh files have no exact geometry, so
+  measurement has to fall back to the mesh or be disabled for them, and the UI must say which.
+  The cache, file associations and the open dialog need updating too. PMI stays AP242 only.
+- **Model comparison.** Open two revisions of a model, align them, and color the geometry that
+  was added, removed or changed, with a deviation legend. Needs two documents in one scene
+  (`SceneManager` holds one today) and a way to pair parts between revisions.
+- **Markup.** 3D notes and sketches pinned to geometry. They are saved to a sidecar file next to
+  the model, never into the STEP file, and appear in image export.
+
+### Candidates, not scheduled
+Seen in other viewers. Waiting on user demand: 3D mouse (3Dconnexion) support and part color
+overrides. The deferred items in `TODOS.md` (exploded view and others) are unchanged.
+
+---
+
 ## 8. Testing strategy
 - **Core unit tests** (GoogleTest), headless: importer, assembly index, measurement, PMI
   extraction.
@@ -374,3 +446,5 @@ people.
 2. ✅ M0–M4; M5 mostly done (see §7).
 3. The remaining work (release checks, signing, reference-machine performance, deferred items) is
    tracked in [TODOS.md](../TODOS.md).
+4. M6 (v1.1) and M7 (v2) are drafted in §7a. Approve the plan, then write a design for each
+   feature before building it, starting with hidden-line mode.

@@ -181,6 +181,61 @@ private Q_SLOTS:
     QVERIFY2(sc::test::changedPixelFraction(shadedEdges, shaded) > 0.002,
              "edges are not toggled on instances");
   }
+
+  void hiddenLineDrawsWhiteFacesAndRestoresColors() {
+    std::vector<NodeId> shown;
+    for (const NodeId part : _index->partInstances()) {
+      if (_scene->isVisible(part)) {
+        shown.push_back(part);
+      }
+    }
+    _scene->setVisible(_index->partInstances(), false);
+    const QImage background = render();
+    _scene->setVisible(shown, true);
+    // A transparent part is detached from its prototype; it must follow the style too.
+    _scene->setTransparency({shown.back()}, 0.6);
+    const QImage before = render();
+
+    _scene->setDisplayStyle(sc::render::DisplayStyle::HiddenLine);
+    const QImage hiddenLine = render();
+    sc::test::dumpImage(hiddenLine, "scene_hidden_line");
+
+    // Over the parts (pixels that differ from the empty background) there is no
+    // part color left: only white faces and dark lines.
+    int partPixels = 0;
+    int white = 0;
+    int colored = 0;
+    for (int y = 0; y < hiddenLine.height(); ++y) {
+      for (int x = 0; x < hiddenLine.width(); ++x) {
+        const QColor color = hiddenLine.pixelColor(x, y);
+        const QColor empty = background.pixelColor(x, y);
+        if (qAbs(color.red() - empty.red()) + qAbs(color.green() - empty.green()) +
+                qAbs(color.blue() - empty.blue()) <=
+            24) {
+          continue;
+        }
+        ++partPixels;
+        if (color.red() > 245 && color.green() > 245 && color.blue() > 245) {
+          ++white;
+        }
+        if (color.saturation() > 80 && color.value() > 80) {
+          ++colored;
+        }
+      }
+    }
+    qInfo("hidden line: %d part pixels, %d white, %d colored", partPixels, white, colored);
+    QVERIFY2(partPixels > 2000, "parts are not drawn in hidden-line mode");
+    QVERIFY2(white > partPixels / 2, "faces are not white in hidden-line mode");
+    QVERIFY2(colored < partPixels / 100, "part colors still show in hidden-line mode");
+
+    // Leaving hidden line brings back the file's colors and the lit shading.
+    _scene->setDisplayStyle(sc::render::DisplayStyle::ShadedWithEdges);
+    const QImage after = render();
+    sc::test::dumpImage(after, "scene_after_hidden_line");
+    const double changed = sc::test::changedPixelFraction(before, after);
+    qInfo("shaded with edges before vs after hidden line: %.2f%% changed", changed * 100.0);
+    QVERIFY2(changed < 0.001, "colors or shading are not restored after hidden line");
+  }
 };
 
 int sc::test::runSceneManagerTests(int argc, char** argv) {

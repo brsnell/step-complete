@@ -6,6 +6,8 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- View > Hidden Line (`L`): a display style with white faces and dark sharp edges and outlines,
+  with edges behind faces hidden. Part transparency and section caps work in it.
 - Measurements: every successful result has a checkbox, and all checked results are drawn
   in the 3D view at once. The selected one is full orange, the others thinner and paler.
   New results start checked. A Show All / Hide All button sits next to Export CSV.

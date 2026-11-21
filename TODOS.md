@@ -2,6 +2,8 @@
 
 State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. The Windows packages passed a hands-on test on real hardware (2026-11-16). v1.0.0 ships for Windows and Linux only; the release workflow builds the macOS DMGs but does not publish them until the hands-on macOS check below passes.
 
+Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN.md) §7a, not approved yet. Every open item under Release and Viewport is blocked on hardware or a cost decision, so the v1.1 section is the next work that can be coded. Each v1.1 and v2 item gets a design in `docs/designs/` before work starts.
+
 ## Release
 
 ### Manual test of the packages on a real Mac
@@ -34,7 +36,7 @@ State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see 
 
 **Why:** The "runs well on 10-year-old machines" promise (PLAN §2a) is unverified. Every number in [docs/performance.md](docs/performance.md) comes from CI or a modern machine, and the rendering numbers come from software rendering.
 
-**Context:** Targets: 50 MB / ~1,000 parts interactive in ~30 s, and ≥ 15 fps orbiting 5M triangles on the reference machine. The benchmark model generator and import benchmark tools in `tools/` make this repeatable.
+**Context:** Targets: 50 MB / ~1,000 parts interactive in ~30 s, and ≥ 15 fps orbiting 5M triangles on the reference machine. A first hands-on data point: Hidden Line ran on an older laptop (Core i7-4600U, Intel HD 4400, 8 GB, Windows 10) on 2026-11-21, but nothing was timed. The benchmark model generator and import benchmark tools in `tools/` make this repeatable.
 
 **Effort:** M
 **Priority:** P2
@@ -53,6 +55,154 @@ State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see 
 **Effort:** S
 **Priority:** P2
 **Depends on:** Manual macOS package test.
+
+## v1.1 (M6)
+
+### Search in the assembly tree
+
+**What:** A filter box on the Assembly panel that matches part and product names, keeps the parent rows of matches and expands to them.
+
+**Why:** Large assemblies (hundreds of parts) are hard to get around without it. The PMI panel already has **Filter PMI...**.
+
+**Context:** `AssemblyTreeModel` in `src/app/`. Qt 6's `QSortFilterProxyModel::setRecursiveFilteringEnabled` keeps the ancestors of matches. Selection sync between the tree and the 3D view has to go through the proxy. Add the case to the Qt Test suite.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** Design approved.
+
+### Geometry export (STL, OBJ, glTF)
+
+**What:** File > Export Geometry: STL (merged or one file per part), OBJ, and glTF/GLB with colors and the assembly structure. Choose the visible parts or the selection, and the mesh quality.
+
+**Why:** "I need an STL for my 3D printer" or "a glTF for the web" is a common reason to open a STEP viewer.
+
+**Context:** OCCT has the writers (`StlAPI_Writer`, `RWObj_CafWriter`, `RWGltf_CafWriter`). The CAF writers take the XCAF document the importer already builds. This is the first file the app writes besides images and CSV; writing STEP stays a non-goal (PLAN §1). Run the export off the GUI thread like `ImportJob`, with progress and cancel.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Design approved.
+
+### Section planes at any angle
+
+**What:** Besides X, Y and Z, let a section plane lie on a picked planar face, or use a typed normal.
+
+**Why:** Real parts are rarely cut usefully along the world axes alone. Other viewers offer both options.
+
+**Context:** `SectionPlane` in `src/render/SectionTool.h` already takes any `gp_Dir normal`, and the drag handles move along it; only the Section panel (`SectionPanel`, `SectionModel`) limits the choice to X/Y/Z. Picking reuses the measure tool's face picking.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Design approved.
+
+### User saved views
+
+**What:** Save the current camera, part visibility and section planes under a name and restore them later, listed next to the PMI saved views.
+
+**Why:** Saved views are only available when the file's PMI supplies them. Users want their own for repeat inspections and screenshots.
+
+**Context:** The design has to choose where they are stored: per file in the app's settings or cache (keyed by the open-file cache's file hash), or in a sidecar file that can be shared. Markup (v2) will need the same storage choice, so decide both together.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Design approved.
+
+### Material density for mass properties
+
+**What:** Set a density per part (typed in, or chosen from a short list of common materials such as steel, aluminium, ABS) and report mass next to volume in **Measure > Mass Properties**. Use the file's material and density when it declares them.
+
+**Why:** Mass properties are computed at unit density only, so the app cannot answer "how heavy is this assembly".
+
+**Context:** `Measure` / `Measurement` in `src/core` compute volume and inertia; mass and inertia scale with density. Multi-part results must sum mass per part, not volume times one density. The design decides where per-part densities are stored (the same question as user saved views). Mass needs units (g, kg, lb) in the Measure menu and in CSV export.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Design approved.
+
+### BOM / parts-list export
+
+**What:** File > Export Parts List: a CSV with one row per unique part (quantity, name, product name, path), optionally with volume, mass and bounding box.
+
+**Why:** A bill of materials is a common thing to pull out of a STEP assembly, and other viewers offer it.
+
+**Context:** The assembly index in `src/core` already counts instances per part (shown in the Properties panel). Reuse the Measurements panel's CSV writing (UTF-8 with BOM). Mass columns depend on material density; without it they are left out.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Design approved.
+
+### Geometry validity check
+
+**What:** Measure > Check Geometry: run OCCT's shape checker on the selected or visible parts and list the problems (invalid faces, open shells, gaps, tiny edges), each highlighted in 3D when selected.
+
+**Why:** Bad geometry from the exporting CAD system is why a measurement, a mass property or a section cap can come out wrong. Today the user has no way to tell.
+
+**Context:** `BRepCheck_Analyzer` reports per sub-shape status; `ShapeAnalysis` finds open shells and small edges. Run it off the GUI thread with progress and cancel, since large assemblies take time. The Import Messages panel holds translator messages only; the results probably belong in a panel of their own.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Design approved.
+
+## v2 (M7)
+
+### Clash and interference detection
+
+**What:** Find parts that intersect or touch, with an optional clearance distance. List each pair with its overlap volume or minimum gap, and highlight the pair in 3D when selected.
+
+**Why:** Checking an assembly for interference is a common review task that other viewers offer.
+
+**Context:** Pairs grow with the square of the part count, so start with a bounding-box pass and check exact geometry only for the pairs that overlap (`BRepExtrema_ShapeProximity` for touching and gaps, a Boolean common for overlap volume). Must work on transformed instances and run in the background with progress and cancel.
+
+**Effort:** L
+**Priority:** P2
+**Depends on:** Design approved.
+
+### Wall thickness analysis
+
+**What:** Color the model by local wall thickness with a min/max legend and threshold, plus a pick readout of the thickness at a point.
+
+**Why:** Listed as a v2 candidate (PLAN §1). Used to check castings, moldings and printed parts.
+
+**Context:** Read-only analysis, so it fits the current design best of the v2 items. Choose between exact B-rep thickness (accurate, slow) and ray casting on the display mesh (fast, approximate) in the design. Either way it must stay usable on the PLAN §2a reference machine: run it in the background with progress and cancel.
+
+**Effort:** L
+**Priority:** P2
+**Depends on:** Design approved.
+
+### Other import formats
+
+**What:** Open IGES first, then mesh formats (STL, OBJ, glTF).
+
+**Why:** People often get IGES or mesh files instead of STEP, and other viewers open them.
+
+**Context:** OCCT's `DE_Wrapper` reads all of them. IGES has B-rep geometry, so measurement works. Mesh files have no exact geometry, so measurement has to fall back to the mesh or be turned off for them, and the UI must say which. The importer, the open-file cache, file associations and the Open dialog's filters all assume STEP today. PMI stays AP242 only. This changes a v1 non-goal (PLAN §1).
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** Design approved.
+
+### Model comparison
+
+**What:** Open two revisions of a model, align them, and color what was added, removed or changed, with a deviation legend and a list of changed parts.
+
+**Why:** Listed as a v2 candidate (PLAN §1). Checking what changed between revisions is a frequent review task.
+
+**Context:** Needs two documents in one scene (`SceneManager` and `MainWindow` hold one today), a way to pair parts between revisions (by name, by product, by geometry), and a deviation method (point sampling against the other shape, or Boolean differences).
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** Design approved.
+
+### Markup
+
+**What:** 3D notes and simple sketches pinned to geometry, saved to a sidecar file next to the model and included in image export.
+
+**Why:** Listed as a v2 candidate (PLAN §1). Reviewers need to point at things.
+
+**Context:** It must never write into the STEP file. Notes have to stay attached when the same file is reopened, so they need a stable reference to the geometry (assembly path plus face). Shares the storage decision with user saved views.
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** Design approved; user saved views (storage decision).
 
 ## Deferred
 

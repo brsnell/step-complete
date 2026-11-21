@@ -74,12 +74,16 @@ private Q_SLOTS:
     const QImage edges = renderStyle(sc::render::DisplayStyle::ShadedWithEdges, "shaded_edges");
     const QImage shaded = renderStyle(sc::render::DisplayStyle::Shaded, "shaded");
     const QImage wireframe = renderStyle(sc::render::DisplayStyle::Wireframe, "wireframe");
+    const QImage hiddenLine = renderStyle(sc::render::DisplayStyle::HiddenLine, "hidden_line");
+    const QImage shadedAgain = renderStyle(sc::render::DisplayStyle::Shaded, "shaded_again");
 
     const double edgeDiff = changedPixelFraction(shaded, edges);
     const double wireDiff = changedPixelFraction(shaded, wireframe);
     qInfo("edges vs shaded: %.1f%%, wireframe vs shaded: %.1f%%", edgeDiff * 100.0, wireDiff * 100.0);
     QVERIFY2(edgeDiff > 0.005, "face boundary edges are not drawn");
     QVERIFY2(wireDiff > 0.05, "wireframe looks identical to shaded");
+    QVERIFY2(changedPixelFraction(shaded, hiddenLine) > 0.05, "hidden line looks identical to shaded");
+    QVERIFY2(changedPixelFraction(shaded, shadedAgain) < 0.001, "shaded is not restored after hidden line");
   }
   // Regression: giving OCCT the viewport's own native window (winId()) made the
   // widget a native child and broke Qt's compositing of the other widgets: the
