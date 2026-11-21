@@ -286,10 +286,10 @@ std::string safeFileName(const std::string& name) {
   if (out.empty()) {
     return "part";
   }
-  static const std::set<std::string> reserved = {
+  static const std::set<std::string> Reserved = {
       "con",  "prn",  "aux",  "nul",  "com1", "com2", "com3", "com4", "com5", "com6", "com7",
       "com8", "com9", "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9"};
-  if (reserved.count(lowerAscii(out)) != 0) {
+  if (Reserved.count(lowerAscii(out)) != 0) {
     out += '_';
   }
   return out;
@@ -515,7 +515,12 @@ GeometryExportResult exportGeometry(const AssemblyIndex& index, const std::vecto
         ok = writer.Perform(doc, roots, &filter, fileInfo, writeRange);
       }
       if (!ok || isCancelled(cancel)) {
-        return fail("Open CASCADE could not write " + toUtf8(target.filename()) + ".");
+        std::string error = "Open CASCADE could not write " + toUtf8(target.filename()) + ".";
+        if (options.format != GeometryFormat::Obj) {
+          error +=
+              " Check that the folder can be written to; glTF also needs Open CASCADE built with RapidJSON.";
+        }
+        return fail(error);
       }
       break;
     }

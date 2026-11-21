@@ -3,7 +3,9 @@
 #include "app/AboutDialog.h"
 #include "app/AssemblyFilterProxy.h"
 #include "app/AssemblyTreeModel.h"
+#include "app/ExportGeometryDialog.h"
 #include "app/ExportImageDialog.h"
+#include "app/ExportJob.h"
 #include "app/ImportJob.h"
 #include "app/MeasurementsPanel.h"
 #include "app/PmiPanel.h"
@@ -38,6 +40,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QLocale>
 #include <QMenu>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -287,6 +290,8 @@ void MainWindow::createActions() {
   _exportImageAction = fileMenu->addAction(tr("&Export Image..."), this, &MainWindow::exportImage);
   _exportImageAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
   _exportImageAction->setStatusTip(tr("Save the current 3D view as a PNG or JPEG image"));
+  _exportGeometryAction = fileMenu->addAction(tr("Export &Geometry..."), this, &MainWindow::exportGeometry);
+  _exportGeometryAction->setStatusTip(tr("Save the visible or selected parts as STL, OBJ or glTF"));
   QAction* preferences = fileMenu->addAction(tr("&Preferences..."), this, &MainWindow::showPreferences);
   preferences->setMenuRole(QAction::PreferencesRole); // application menu on macOS
   fileMenu->addSeparator();
@@ -634,6 +639,7 @@ void MainWindow::updateActions() {
   const bool hasModel = _scene->model() != nullptr;
   const bool hasSelection = hasModel && !selectedNodes().empty();
   _closeAction->setEnabled(hasModel);
+  _exportGeometryAction->setEnabled(hasModel && !_export);
   _hideAction->setEnabled(hasSelection);
   _isolateAction->setEnabled(hasSelection);
   _transparentAction->setEnabled(hasSelection);
@@ -1223,6 +1229,155 @@ void MainWindow::exportImage() {
                          image.isNull() ? tr("The 3D view could not be rendered at this size.")
                                         : tr("Could not write %1.").arg(path));
   }
+}
+
+// ---------------------------------------------------------------------------------
+// Geometry export (docs/designs/geometry-export.md)
+// ---------------------------------------------------------------------------------
+
+namespace {
+
+QString geometryFileFilter(core::GeometryFormat format) {
+  switch (format) {
+  case core::GeometryFormat::StlMerged:
+  case core::GeometryFormat::StlPerPart:
+    return MainWindow::tr("STL files (*.stl)");
+  case core::GeometryFormat::Obj:
+    return MainWindow::tr("OBJ files (*.obj)");
+  case core::GeometryFormat::Gltf:
+    return MainWindow::tr("glTF files (*.gltf)");
+  case core::GeometryFormat::Glb:
+    return MainWindow::tr("GLB files (*.glb)");
+  }
+  return {};
+}
+
+} // namespace
+
+void MainWindow::exportGeometry() {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!index || _export) {
+    return;
+  }
+  ExportGeometryDialog dialog(!_scene->selectedParts().empty(), this);
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+  const core::GeometryExportOptions options = dialog.options();
+
+  QSettings settings;
+  const QString dirKey = QStringLiteral("exportGeometry/directory");
+  const QString dir =
+      settings.value(dirKey, settings.value(QStringLiteral("export/directory"), QDir::homePath())).toString();
+  QString path;
+  if (core::writesFolder(options.format)) {
+    path = QFileDialog::getExistingDirectory(this, tr("Export Geometry: Choose a Folder for the Parts"), dir);
+    if (!path.isEmpty()) {
+      settings.setValue(dirKey, path);
+    }
+  } else {
+    const QString source = QString::fromStdString(index->document()->sourcePath());
+    const QString baseName =
+        source.isEmpty() ? QStringLiteral("model") : QFileInfo(source).completeBaseName();
+    const QString extension = QString::fromStdString(core::fileExtension(options.format));
+    path = QFileDialog::getSaveFileName(this, tr("Export Geometry"),
+                                        dir + QLatin1Char('/') + baseName + extension,
+                                        geometryFileFilter(options.format));
+    if (!path.isEmpty()) {
+      if (!path.endsWith(extension, Qt::CaseInsensitive)) {
+        path += extension;
+      }
+      settings.setValue(dirKey, QFileInfo(path).absolutePath());
+    }
+  }
+  if (!path.isEmpty()) {
+    exportGeometryTo(path, options, dialog.selectedPartsOnly());
+  }
+}
+
+void MainWindow::exportGeometryTo(const QString& path, const core::GeometryExportOptions& options,
+                                  bool selectedOnly) {
+  const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
+  if (!index || _export) {
+    return;
+  }
+  std::vector<core::NodeId> parts;
+  if (selectedOnly) {
+    parts = _scene->selectedParts();
+  } else {
+    for (const core::NodeId id : index->partInstances()) {
+      if (_scene->isVisible(id)) {
+        parts.push_back(id);
+      }
+    }
+  }
+  if (parts.empty()) {
+    QMessageBox::information(this, tr("Export Geometry"),
+                             selectedOnly ? tr("No parts are selected.") : tr("No parts are visible."));
+    return;
+  }
+
+  // The job keeps the model alive, so closing or replacing it meanwhile is safe; the export
+  // simply finishes with the parts it was given.
+  _export = new ExportJob(index, std::move(parts), path, options, this);
+  const QString name = QFileInfo(path).fileName();
+  _exportProgress = new QProgressDialog(tr("Exporting %1...").arg(name), tr("Cancel"), 0, 100, this);
+  _exportProgress->setWindowTitle(tr("Export Geometry"));
+  _exportProgress->setWindowModality(Qt::WindowModal);
+  _exportProgress->setMinimumDuration(400);
+  _exportProgress->setAutoClose(false);
+  _exportProgress->setAutoReset(false);
+  _exportProgress->setValue(0);
+  connect(_exportProgress, &QProgressDialog::canceled, _export, &ExportJob::cancel);
+  connect(_export, &ExportJob::progress, _exportProgress, [this, name](int percent, const QString& stage) {
+    if (_exportProgress) {
+      _exportProgress->setLabelText(tr("%1\n%2...").arg(name, stage));
+      _exportProgress->setValue(std::min(percent, 99));
+    }
+  });
+  connect(_export, &ExportJob::finished, this, &MainWindow::onExportFinished);
+  statusBar()->showMessage(tr("Exporting %1...").arg(name));
+  _export->start();
+  updateActions();
+}
+
+void MainWindow::onExportFinished() {
+  ExportJob* job = _export;
+  if (job == nullptr) {
+    return;
+  }
+  if (_exportProgress) {
+    _exportProgress->close();
+    _exportProgress->deleteLater();
+  }
+  const core::GeometryExportResult& result = job->result();
+  const QString name = QFileInfo(job->path()).fileName();
+  if (result.cancelled) {
+    statusBar()->showMessage(tr("Export of %1 was cancelled.").arg(name), 5000);
+  } else if (!result.ok || result.files.empty()) {
+    statusBar()->clearMessage();
+    QMessageBox::warning(this, tr("Export Geometry"),
+                         tr("Could not export %1.\n\n%2").arg(name, QString::fromStdString(result.error)));
+  } else {
+    QString message;
+    if (core::writesFolder(job->options().format)) {
+      message = tr("Exported %n part(s)", nullptr, job->partCount()) + QLatin1Char(' ') +
+                tr("to %n file(s) in %1", nullptr, static_cast<int>(result.files.size())).arg(job->path());
+    } else {
+      const qint64 bytes = QFileInfo(QString::fromStdString(result.files.front())).size();
+      message =
+          tr("Exported %n part(s)", nullptr, job->partCount()) + QLatin1Char(' ') +
+          tr("to %1 (%2)").arg(QDir::toNativeSeparators(job->path()), QLocale().formattedDataSize(bytes));
+    }
+    if (result.skippedFaces > 0) {
+      message +=
+          QLatin1String("; ") + tr("%n face(s) had no mesh and were left out", nullptr, result.skippedFaces);
+    }
+    statusBar()->showMessage(message, 10000);
+  }
+  job->deleteLater();
+  _export = nullptr;
+  updateActions();
 }
 
 void MainWindow::showPreferences() {

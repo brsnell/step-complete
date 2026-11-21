@@ -58,18 +58,6 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ## v1.1 (M6)
 
-### Geometry export (STL, OBJ, glTF)
-
-**What:** File > Export Geometry: STL (merged or one file per part), OBJ, and glTF/GLB with colors and the assembly structure. Choose the visible parts or the selection, and the mesh quality.
-
-**Why:** "I need an STL for my 3D printer" or "a glTF for the web" is a common reason to open a STEP viewer.
-
-**Context:** OCCT has the writers (`StlAPI_Writer`, `RWObj_CafWriter`, `RWGltf_CafWriter`). The CAF writers take the XCAF document the importer already builds. This is the first file the app writes besides images and CSV; writing STEP stays a non-goal (PLAN §1). Run the export off the GUI thread like `ImportJob`, with progress and cancel.
-
-**Effort:** M
-**Priority:** P2
-**Depends on:** Design approved.
-
 ### Section planes at any angle
 
 **What:** Besides X, Y and Z, let a section plane lie on a picked planar face, or use a typed normal.

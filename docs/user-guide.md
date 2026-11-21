@@ -1,13 +1,13 @@
 # STEP Complete user guide
 
 STEP Complete (v1.0) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
-exact measurement, PMI display (GD&T, dimensions, datums, saved views), section views and image
-export. This guide describes what the application does; menu names appear as **Menu > Item**.
+exact measurement, PMI display (GD&T, dimensions, datums, saved views), section views, and image
+and geometry export. This guide describes what the application does; menu names appear as **Menu > Item**.
 
 Contents: [Installing](#1-installing) | [Requirements](#2-system-requirements) |
 [Opening files](#3-opening-files) | [Navigating](#4-navigating-the-3d-view) |
 [Assembly and properties](#5-assembly-tree-and-properties) | [Measuring](#6-measuring) |
-[PMI](#7-pmi) | [Sections](#8-section-views) | [Export](#9-exporting-images) |
+[PMI](#7-pmi) | [Sections](#8-section-views) | [Export](#9-exporting) |
 [Preferences](#10-preferences) | [Shortcuts](#11-keyboard-shortcut-reference) |
 [Troubleshooting](#12-troubleshooting)
 
@@ -322,7 +322,9 @@ For each of Plane 1, 2 and 3:
 handle with the left mouse button to move the plane; it highlights on hover. **Reset** turns all
 planes off, and so does unchecking **Section View**.
 
-## 9. Exporting images
+## 9. Exporting
+
+### Images
 
 **File > Export Image...** (`Ctrl+Shift+E`) saves the current 3D view.
 
@@ -333,6 +335,39 @@ planes off, and so does unchecking **Section View**.
 
 The image is rendered off-screen at the chosen size, so it can be larger than the window. The
 folder is remembered.
+
+### Geometry (STL, OBJ, glTF)
+
+**File > Export Geometry...** saves part meshes for 3D printing, other tools or the web. STEP
+Complete never writes STEP files.
+
+1. Choose the **Format**:
+   - **STL, one file**: every part in place in one binary STL, for printing the assembly.
+   - **STL, one file per part**: one STL per unique part, in the part's own coordinates. A bolt
+     used 20 times gives one `bolt.stl`. You choose a folder; files are named after the parts,
+     and files with the same names in that folder are replaced.
+   - **OBJ (with colors)**: an `.obj` and an `.mtl` file with the part and face colors.
+   - **glTF** (`.gltf` + `.bin`) or **GLB** (one file): colors, transparency and the assembly
+     structure, for web viewers and 3D tools. Repeated parts share one mesh, so files stay small.
+2. Choose the **Mesh quality**:
+   - **As displayed**: the meshes the viewer shows. Fast.
+   - **Fine** and **Extra fine**: smoother curved surfaces (4 and 10 times closer to the exact
+     surface than the display). The model is copied and meshed again, which takes longer and
+     uses more memory while the export runs; the open model is not changed.
+   - **Custom**: a **Tolerance** (the largest gap between the mesh and the exact surface, in
+     the export unit) and an **Angle**.
+3. Choose the **Unit** for STL and OBJ (millimetres by default, which slicers expect). glTF is
+   always in metres.
+4. For OBJ choose the **Up axis**: **Y up** (default, what Blender and game engines expect) or
+   **Z up** as in the STEP file. STL keeps the model's Z up; glTF is always Y up.
+5. Choose the **Parts**: the **Visible parts** (hidden parts are left out), or the **Selected
+   parts**.
+6. Click **Export...** and choose the file (or the folder, for one STL per part).
+
+A progress dialog with **Cancel** shows while the file is written. When it finishes, the status
+bar shows the file and its size. A cancelled or failed export leaves no partial files. Section
+views do not cut the export: parts are written whole. PMI, edges and measurements are not
+exported. The dialog remembers its choices.
 
 ## 10. Preferences
 
@@ -384,7 +419,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + left drag zoom;
 left click select; Shift + click add to selection; right click context menu.
 
-Menu items without shortcuts: Open Recent, Preferences, Show All PMI, PMI Labels from Semantics,
+Menu items without shortcuts: Open Recent, Export Geometry, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 
 ## 12. Troubleshooting

@@ -60,6 +60,10 @@ QList<AboutDialog::LicenseEntry> AboutDialog::licenseEntries() {
                {QStringLiteral(":/licenses/zlib.txt")},
                QStringLiteral("https://zlib.net"),
                false});
+  list.append({QStringLiteral("RapidJSON (used by OCCT for glTF) — MIT"),
+               {QStringLiteral(":/licenses/RapidJSON.txt")},
+               QStringLiteral("https://github.com/Tencent/rapidjson"),
+               false});
   list.append({QStringLiteral("STIX Two Math font — OFL 1.1"),
                {QStringLiteral(":/licenses/OFL.txt")},
                QStringLiteral("https://github.com/stipub/stixfonts"),

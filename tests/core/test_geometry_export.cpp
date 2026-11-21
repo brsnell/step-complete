@@ -5,6 +5,7 @@
 #include "core/AssemblyIndex.h"
 #include "core/GeometryExport.h"
 #include "core/OccCompat.h"
+#include "core/StepImporter.h"
 
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
@@ -20,6 +21,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -441,4 +443,38 @@ TEST(GeometryExport, UnwritablePathIsAnError) {
   EXPECT_FALSE(core::exportGeometry(*index, {}, (dir / "none.stl").string(),
                                     withFormat(core::GeometryFormat::StlMerged))
                    .ok);
+}
+
+// Real imported models (tests/data/fetch.sh, SC_TEST_DATA_DIR): an assembly and a PMI model export
+// in every format, and a finer mesh works on the importer's documents (PMI, presentation data).
+TEST(GeometryExport, RealModelsExportInEveryFormat) {
+  const char* dataDir = std::getenv("SC_TEST_DATA_DIR");
+  if (dataDir == nullptr) {
+    GTEST_SKIP() << "SC_TEST_DATA_DIR is not set (see tests/data/fetch.sh)";
+  }
+  for (const char* model : {"as1-oc-214.stp", "nist_ctc_02_asme1_ap242-e2.stp"}) {
+    const fs::path source = fs::path(dataDir) / model;
+    if (!fs::exists(source)) {
+      GTEST_SKIP() << source << " is missing";
+    }
+    const core::ImportResult imported = core::importStep(source.string());
+    ASSERT_TRUE(imported.ok) << imported.error;
+    const core::AssemblyIndex index(imported.document);
+    const fs::path dir = freshDir(std::string("real-") + model);
+    for (const auto format : {core::GeometryFormat::StlMerged, core::GeometryFormat::StlPerPart,
+                              core::GeometryFormat::Obj, core::GeometryFormat::Glb}) {
+      auto options = withFormat(format);
+      options.quality = format == core::GeometryFormat::StlMerged ? core::MeshQuality::Fine
+                                                                  : core::MeshQuality::AsDisplayed;
+      const fs::path target =
+          core::writesFolder(format) ? dir / "parts" : dir / ("out" + core::fileExtension(format));
+      const auto result = core::exportGeometry(index, index.roots(), target.string(), options);
+      ASSERT_TRUE(result.ok) << model << ": " << result.error;
+      ASSERT_FALSE(result.files.empty());
+      EXPECT_GT(fs::file_size(fs::u8path(result.files.front())), 1000U) << model;
+    }
+    const Stl fine = readStl(dir / "out.stl");
+    ASSERT_TRUE(fine.ok) << model;
+    EXPECT_GT(fine.count, triangleCount(index, index.partInstances())) << model;
+  }
 }

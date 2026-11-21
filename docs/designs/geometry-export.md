@@ -61,6 +61,8 @@ viewer, and other viewers offer it (TODOS v1.1). Writing STEP stays a non-goal (
 8. **Colors.** Part and face colors from the file, as shown in the viewer, with transparency for
    glTF. glTF merges each part's faces into one primitive per color (`SetMergeFaces`), so web
    viewers draw it fast. STL has no color.
+   - Names: glTF nodes and OBJ groups carry the names the Assembly panel shows (the instance
+     name, else the product name; XCAF's automatic `=>[0:1:1:2]` names never appear).
 9. **Background job, modal progress.** An `ExportJob` in `src/app` runs the export on a worker
    thread, like `ImportJob`, behind a modal progress dialog with Cancel. Because the dialog is
    modal, the model cannot be closed or replaced mid-export. Cancel deletes the partial files. On

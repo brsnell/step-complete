@@ -3,6 +3,7 @@
 
 #include "TestModels.h"
 
+#include "app/ExportJob.h"
 #include "app/ImportJob.h"
 #include "app/MainWindow.h"
 #include "app/MeasurementsPanel.h"
@@ -12,10 +13,12 @@
 #include <QAction>
 #include <QApplication>
 #include <QDockWidget>
+#include <QFileInfo>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
 #include <QStandardPaths>
+#include <QStatusBar>
 #include <QTest>
 #include <QTreeView>
 
@@ -255,6 +258,26 @@ private Q_SLOTS:
     openFixture();
     QVERIFY(filter->text().isEmpty());
     QCOMPARE(tree->model()->rowCount(tree->model()->index(0, 0)), 3);
+  }
+
+  // File > Export Geometry: enabled with a model, and the job writes the visible parts.
+  void exportGeometryWritesTheVisibleParts() {
+    QAction* exportGeometry =
+        menuAction(*_window, QStringLiteral("&File"), QStringLiteral("Export &Geometry..."));
+    QVERIFY(exportGeometry != nullptr);
+    QVERIFY(!exportGeometry->isEnabled());
+    openFixture();
+    QVERIFY(exportGeometry->isEnabled());
+
+    const QString path = QString::fromStdString(sc::test::tempPath("main_window_export.stl"));
+    _window->exportGeometryTo(path, sc::core::GeometryExportOptions(), false);
+    QVERIFY(_window->findChild<sc::app::ExportJob*>() != nullptr);
+    QVERIFY(!exportGeometry->isEnabled()); // one export at a time
+    QTRY_VERIFY_WITH_TIMEOUT(_window->findChild<sc::app::ExportJob*>() == nullptr, 60000);
+    QVERIFY(exportGeometry->isEnabled());
+    QVERIFY(QFileInfo(path).size() > 84 + 50); // an STL header and at least one triangle
+    QVERIFY2(_window->statusBar()->currentMessage().startsWith(QStringLiteral("Exported 5 part")),
+             qPrintable(_window->statusBar()->currentMessage()));
   }
 
 private:

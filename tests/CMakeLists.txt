@@ -65,6 +65,7 @@ add_executable(sc_app_tests
   app/test_about_dialog.cpp
   app/test_measurements_panel.cpp
   app/test_assembly_filter.cpp
+  app/test_export_geometry_dialog.cpp
 )
 target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
 sc_target_defaults(sc_app_tests)

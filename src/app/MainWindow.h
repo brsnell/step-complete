@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/AssemblyIndex.h"
+#include "core/GeometryExport.h"
 #include "core/Measurement.h"
 #include "core/PmiModel.h"
 
@@ -37,6 +38,7 @@ class AssemblyFilterProxy;
 class AssemblyTreeModel;
 class ImportJob;
 class MeasurementsPanel;
+class ExportJob;
 class PmiPanel;
 class SectionPanel;
 struct ViewPreferences;
@@ -51,6 +53,11 @@ public:
 
   // Opens the file as soon as the 3D view is ready (used for command-line arguments).
   void openFileWhenReady(const QString& path);
+
+  // Exports the visible (or selected) parts in the background, with a progress dialog: what
+  // File > Export Geometry does once its dialogs are answered. 'path' is the file, or the folder
+  // for one STL per part. Does nothing while another export runs.
+  void exportGeometryTo(const QString& path, const core::GeometryExportOptions& options, bool selectedOnly);
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -113,6 +120,8 @@ private:
 
   // --- Export and view preferences ---------------------------------------------
   void exportImage();
+  void exportGeometry();
+  void onExportFinished();
   void showPreferences();
   void applyViewPreferences(const ViewPreferences& preferences);
   void showAbout();
@@ -140,6 +149,7 @@ private:
   QTimer* _declutterTimer = nullptr; // re-lays out PMI labels once the camera settles
   QAction* _antialiasingAction = nullptr;
   QAction* _exportImageAction = nullptr;
+  QAction* _exportGeometryAction = nullptr;
   MeasurementsPanel* _measurements = nullptr;
   QDockWidget* _measurementsDock = nullptr;
   QActionGroup* _measureGroup = nullptr;
@@ -162,6 +172,8 @@ private:
 
   QPointer<ImportJob> _import;
   QPointer<QProgressDialog> _progress;
+  QPointer<ExportJob> _export;
+  QPointer<QProgressDialog> _exportProgress;
   QString _pendingFile;
   std::vector<core::NodeId> _transparentParts;
   bool _glReady = false;
