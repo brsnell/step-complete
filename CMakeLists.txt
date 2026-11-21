@@ -63,4 +63,16 @@ endif()
 
 include(InstallRules)
 
+# Naming conventions check (rules in .clang-tidy and CLAUDE.md). Build first: test files
+# include Qt's generated .moc files. Usage: cmake --build --preset dev --target tidy
+find_program(SC_RUN_CLANG_TIDY NAMES run-clang-tidy run-clang-tidy-18 run-clang-tidy.py)
+if(SC_RUN_CLANG_TIDY)
+  add_custom_target(tidy
+    COMMAND "${SC_RUN_CLANG_TIDY}" -p "${CMAKE_BINARY_DIR}" -quiet
+            "${CMAKE_SOURCE_DIR}/(src|tests|tools)/.*\\.cpp$"
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+    COMMENT "Checking naming conventions with clang-tidy"
+    VERBATIM USES_TERMINAL)
+endif()
+
 message(STATUS "STEP Complete ${PROJECT_VERSION}: Qt ${Qt6_VERSION}, OCCT ${OpenCASCADE_VERSION}")

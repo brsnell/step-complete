@@ -28,6 +28,40 @@ jobs:
         run: |
           find src tests -name '*.cpp' -o -name '*.h' | xargs clang-format-18 --dry-run --Werror
 
+  # Naming conventions (.clang-tidy, CLAUDE.md). Report-only until the rename PRs land
+  # (docs/superpowers/plans/2026-11-21-naming-conventions.md); the last one makes it fail.
+  naming:
+    name: Naming (clang-tidy)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Qt, OCCT and clang-tidy (Ubuntu packages, as in README)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build qt6-base-dev libqt6opengl6-dev \
+            libgl-dev libgtest-dev libtbb-dev libocct-data-exchange-dev libocct-visualization-dev \
+            libocct-ocaf-dev libfontconfig-dev clang-tidy-18
+      - name: Configure and build
+        # Building generates the files clang-tidy needs (Version.h, Qt's .moc files).
+        run: |
+          cmake --preset dev -DSC_BUILD_TOOLS=ON
+          cmake --build --preset dev
+      - name: Check naming
+        run: |
+          cmake --build --preset dev --target tidy 2>&1 | tee tidy.log
+          # A header's warnings repeat for every file that includes it: count each once.
+          grep 'warning: invalid case style' tidy.log | sort -u > naming.txt || true
+          count=$(wc -l < naming.txt)
+          {
+            echo "### Naming conventions (clang-tidy)"
+            echo
+            echo "$count names to change (report-only for now)."
+            echo
+            echo '```'
+            grep -oE 'invalid case style for [a-z ]+' naming.txt | sort | uniq -c | sort -rn || true
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
   build:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
