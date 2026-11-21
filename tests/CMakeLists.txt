@@ -76,3 +76,12 @@ target_link_libraries(sc_preferences_tests PRIVATE sc::app Qt6::Test)
 sc_target_defaults(sc_preferences_tests)
 add_test(NAME app.preferences COMMAND sc_preferences_tests)
 set_tests_properties(app.preferences PROPERTIES TIMEOUT 120)
+
+# MainWindow wiring (owns a viewport: needs an OpenGL-capable display, e.g. Xvfb + Mesa)
+add_executable(sc_main_window_tests
+  app/test_main_window.cpp
+)
+target_link_libraries(sc_main_window_tests PRIVATE sc::app sc_test_support Qt6::Test)
+sc_target_defaults(sc_main_window_tests)
+add_test(NAME app.main_window COMMAND sc_main_window_tests)
+set_tests_properties(app.main_window PROPERTIES LABELS "render" TIMEOUT 180)
