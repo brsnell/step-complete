@@ -32,9 +32,9 @@ Linux on 2026-11-15. v1.1 (M6) and v2 (M7) are drafted in §7a. Open work is in
 ### Non-goals (v1.0)
 - Editing geometry or PMI, writing STEP. (Read-only viewer; keeps scope and risk down.)
 - Other formats besides STEP. The architecture keeps the door open (OCCT's `DE_Wrapper` handles
-  IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1.
-- Model comparison, wall-thickness analysis, markup and collaboration. Candidates for v2 (see
-  §7a).
+  IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1. IGES and mesh formats are planned for v2 (§7a).
+- Model comparison, wall-thickness analysis and markup. Candidates for v2 (see §7a).
+  Collaboration was a candidate too and was dropped on 2026-11-21.
 
 ---
 
@@ -348,14 +348,16 @@ are in [TODOS.md](../TODOS.md).
 1. **Finish v1** (hidden-line), because it was promised in §1 and never built.
 2. **v1.1: quick wins.** Small features users of other viewers expect. Each one fits the
    read-only viewer as it is today.
-3. **v2: the larger candidates from §1's non-goals.** Wall thickness first, because it is
-   read-only analysis like measurement. Model comparison and markup come next: they need things
-   v1 does not have (two models at once, saving data of our own). Collaboration is last, because
-   it builds on markup and needs its scope defined first.
+3. **v2: the larger features.** Clash detection and wall thickness first, because they are
+   read-only analysis like measurement. Other import formats next: the importer supports them
+   already, but every subsystem assumes STEP. Model comparison and markup come last: they need
+   things v1 does not have (two models at once, saving data of our own).
+
+Collaboration (a v2 candidate in §1) was dropped on 2026-11-21.
 
 Feedback from v1.0 users can reorder v1.1 and v2.
 
-### M6: v1.1 (≈3–5 weeks): 📝 drafted
+### M6: v1.1 (≈5–7 weeks): 📝 drafted
 - **Hidden-line display style.** A fourth `DisplayStyle` next to Shaded, Shaded with Edges and
   Wireframe, using OCCT's hidden-line removal. Risk: computed HLR is slow on large assemblies, so
   it has to be checked against the §6 targets (and maybe cut back while the camera moves).
@@ -369,25 +371,38 @@ Feedback from v1.0 users can reorder v1.1 and v2.
 - **User saved views.** Save the camera, visibility and section planes under a name and restore
   them later, next to the PMI saved views. The design decides where they are stored (per file,
   keyed by the open-file cache's file hash, or a sidecar file).
+- **Material density for mass properties.** Mass properties are computed at unit density today.
+  Add a density per part (typed in, or picked from a short list of common materials), and use
+  the file's material when it declares one. Report mass next to volume.
+- **BOM / parts-list export.** Export the assembly tree as CSV: one row per unique part, with
+  quantity, name, product name, path and, optionally, volume, mass and bounding box. Uses the
+  same UTF-8-with-BOM CSV writer as the Measurements panel.
+- **Geometry validity check.** Measure > Check Geometry: run OCCT's shape checker on the
+  selected or visible parts and list the problems (invalid faces, open shells, gaps, small
+  edges), with each problem highlighted in 3D when selected. Shows why a measurement or a
+  section cap can be wrong.
 
-### M7: v2 (≈4–6 months): 📝 drafted
+### M7: v2 (≈5–7 months): 📝 drafted
+- **Clash and interference detection.** Find parts that intersect or touch, with an optional
+  clearance distance. List each pair with its overlap volume or minimum gap and highlight it in
+  3D. Pair checks grow fast with part count, so it needs a bounding-box pass first and must run
+  in the background with progress and cancel.
 - **Wall thickness analysis.** Color the model by local thickness with a min/max legend, and add
   a point-pick readout. Exact (B-rep) thickness or ray casting on the mesh is a design decision;
   either has to stay usable on the §2a reference machine.
+- **Other import formats.** IGES first (it has B-rep, so measurement works), then mesh formats
+  (STL, OBJ, glTF) through OCCT's `DE_Wrapper`. Mesh files have no exact geometry, so
+  measurement has to fall back to the mesh or be disabled for them, and the UI must say which.
+  The cache, file associations and the open dialog need updating too. PMI stays AP242 only.
 - **Model comparison.** Open two revisions of a model, align them, and color the geometry that
   was added, removed or changed, with a deviation legend. Needs two documents in one scene
   (`SceneManager` holds one today) and a way to pair parts between revisions.
 - **Markup.** 3D notes and sketches pinned to geometry. They are saved to a sidecar file next to
   the model, never into the STEP file, and appear in image export.
-- **Collaboration.** Not defined yet. The smallest version is sharing and merging markup files.
-  Anything hosted (accounts, a server) does not fit an offline, lightweight viewer and needs its
-  own decision. Depends on markup.
 
 ### Candidates, not scheduled
-Seen in other viewers. Waiting on user demand: clash and interference detection, material
-density for mass properties, BOM / parts-list CSV export, 3D mouse (3Dconnexion) support, part
-color overrides, a geometry validity check, and other import formats (IGES, STL, glTF through
-`DE_Wrapper`). The deferred items in `TODOS.md` (exploded view and others) are unchanged.
+Seen in other viewers. Waiting on user demand: 3D mouse (3Dconnexion) support and part color
+overrides. The deferred items in `TODOS.md` (exploded view and others) are unchanged.
 
 ---
 

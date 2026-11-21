@@ -118,7 +118,55 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 **Priority:** P2
 **Depends on:** Design approved.
 
+### Material density for mass properties
+
+**What:** Set a density per part (typed in, or chosen from a short list of common materials such as steel, aluminium, ABS) and report mass next to volume in **Measure > Mass Properties**. Use the file's material and density when it declares them.
+
+**Why:** Mass properties are computed at unit density only, so the app cannot answer "how heavy is this assembly".
+
+**Context:** `Measure` / `Measurement` in `src/core` compute volume and inertia; mass and inertia scale with density. Multi-part results must sum mass per part, not volume times one density. The design decides where per-part densities are stored (the same question as user saved views). Mass needs units (g, kg, lb) in the Measure menu and in CSV export.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Design approved.
+
+### BOM / parts-list export
+
+**What:** File > Export Parts List: a CSV with one row per unique part (quantity, name, product name, path), optionally with volume, mass and bounding box.
+
+**Why:** A bill of materials is a common thing to pull out of a STEP assembly, and other viewers offer it.
+
+**Context:** The assembly index in `src/core` already counts instances per part (shown in the Properties panel). Reuse the Measurements panel's CSV writing (UTF-8 with BOM). Mass columns depend on material density; without it they are left out.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Design approved.
+
+### Geometry validity check
+
+**What:** Measure > Check Geometry: run OCCT's shape checker on the selected or visible parts and list the problems (invalid faces, open shells, gaps, tiny edges), each highlighted in 3D when selected.
+
+**Why:** Bad geometry from the exporting CAD system is why a measurement, a mass property or a section cap can come out wrong. Today the user has no way to tell.
+
+**Context:** `BRepCheck_Analyzer` reports per sub-shape status; `ShapeAnalysis` finds open shells and small edges. Run it off the GUI thread with progress and cancel, since large assemblies take time. The Import Messages panel holds translator messages only; the results probably belong in a panel of their own.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Design approved.
+
 ## v2 (M7)
+
+### Clash and interference detection
+
+**What:** Find parts that intersect or touch, with an optional clearance distance. List each pair with its overlap volume or minimum gap, and highlight the pair in 3D when selected.
+
+**Why:** Checking an assembly for interference is a common review task that other viewers offer.
+
+**Context:** Pairs grow with the square of the part count, so start with a bounding-box pass and check exact geometry only for the pairs that overlap (`BRepExtrema_ShapeProximity` for touching and gaps, a Boolean common for overlap volume). Must work on transformed instances and run in the background with progress and cancel.
+
+**Effort:** L
+**Priority:** P2
+**Depends on:** Design approved.
 
 ### Wall thickness analysis
 
@@ -130,6 +178,18 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 **Effort:** L
 **Priority:** P2
+**Depends on:** Design approved.
+
+### Other import formats
+
+**What:** Open IGES first, then mesh formats (STL, OBJ, glTF).
+
+**Why:** People often get IGES or mesh files instead of STEP, and other viewers open them.
+
+**Context:** OCCT's `DE_Wrapper` reads all of them. IGES has B-rep geometry, so measurement works. Mesh files have no exact geometry, so measurement has to fall back to the mesh or be turned off for them, and the UI must say which. The importer, the open-file cache, file associations and the Open dialog's filters all assume STEP today. PMI stays AP242 only. This changes a v1 non-goal (PLAN §1).
+
+**Effort:** M
+**Priority:** P3
 **Depends on:** Design approved.
 
 ### Model comparison
@@ -155,18 +215,6 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 **Effort:** L
 **Priority:** P3
 **Depends on:** Design approved; user saved views (storage decision).
-
-### Collaboration
-
-**What:** Not defined yet. The smallest version: share markup files and merge markup from several reviewers into one view.
-
-**Why:** Listed as a v2 candidate (PLAN §1).
-
-**Context:** Anything hosted (accounts, a sync server) does not fit an offline, lightweight viewer and needs its own decision before a design.
-
-**Effort:** L
-**Priority:** P4
-**Depends on:** Markup; a decision on scope.
 
 ## Deferred
 
