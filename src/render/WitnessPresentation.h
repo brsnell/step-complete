@@ -20,12 +20,12 @@ class WitnessPresentation : public AIS_InteractiveObject {
 public:
   explicit WitnessPresentation(core::Witness witness, double devicePixelRatio = 1.0);
 
-  const core::Witness& witness() const { return m_witness; }
-  double devicePixelRatio() const { return m_dpr; }
+  const core::Witness& witness() const { return _witness; }
+  double devicePixelRatio() const { return _dpr; }
 
   // Takes effect on the next Redisplay.
-  void setEmphasized(bool emphasized) { m_emphasized = emphasized; }
-  bool isEmphasized() const { return m_emphasized; }
+  void setEmphasized(bool emphasized) { _emphasized = emphasized; }
+  bool isEmphasized() const { return _emphasized; }
 
   bool AcceptDisplayMode(const int mode) const override { return mode == 0; }
 
@@ -35,9 +35,9 @@ protected:
   void ComputeSelection(const OccHandle<SelectMgr_Selection>&, const int) override {}
 
 private:
-  core::Witness m_witness;
-  double m_dpr;
-  bool m_emphasized = true;
+  core::Witness _witness;
+  double _dpr;
+  bool _emphasized = true;
 };
 
 } // namespace sc::render

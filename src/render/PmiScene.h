@@ -37,9 +37,9 @@ protected:
   void ComputeSelection(const OccHandle<SelectMgr_Selection>&, const int) override {}
 
 private:
-  gp_Dir m_dir;
-  gp_Dir m_side;
-  double m_dpr;
+  gp_Dir _dir;
+  gp_Dir _side;
+  double _dpr;
 };
 
 // Draws one PMI item at one placement: the file's graphical presentation
@@ -55,11 +55,11 @@ class PmiPresentation : public AIS_InteractiveObject {
 public:
   PmiPresentation(const core::PmiItem& item, const TopLoc_Location& placement, double devicePixelRatio = 1.0);
 
-  core::PmiId pmiId() const { return m_id; }
-  bool isGraphical() const { return !m_presentation.IsNull(); }
+  core::PmiId pmiId() const { return _id; }
+  bool isGraphical() const { return !_presentation.IsNull(); }
   // Semantic-only items have a text label at labelAnchor() (prototype coordinates).
-  bool hasLabel() const { return !isGraphical() && !m_label.empty(); }
-  const gp_Pnt& labelAnchor() const { return m_labelAnchor; }
+  bool hasLabel() const { return !isGraphical() && !_label.empty(); }
+  const gp_Pnt& labelAnchor() const { return _labelAnchor; }
 
   // Arrowheads of the semantic dimension geometry, in prototype coordinates.
   struct ArrowSpec {
@@ -67,7 +67,7 @@ public:
     gp_Dir dir;  // tail to tip
     gp_Dir side; // in the annotation plane, perpendicular to dir
   };
-  const std::vector<ArrowSpec>& arrows() const { return m_arrows; }
+  const std::vector<ArrowSpec>& arrows() const { return _arrows; }
 
   bool AcceptDisplayMode(const int mode) const override { return mode == 0; }
 
@@ -82,19 +82,19 @@ private:
   bool buildLinear(const core::PmiItem& item);
   void buildArrowedLeader(const core::PmiItem& item, bool angular, bool diameter);
 
-  core::PmiId m_id;
-  TopoDS_Shape m_presentation; // prototype coordinates
-  std::string m_label;         // semantic text when there is no graphical presentation
-  gp_Pnt m_labelAnchor;
-  std::optional<gp_Pnt> m_leaderTarget;
-  double m_dpr;
+  core::PmiId _id;
+  TopoDS_Shape _presentation; // prototype coordinates
+  std::string _label;         // semantic text when there is no graphical presentation
+  gp_Pnt _labelAnchor;
+  std::optional<gp_Pnt> _leaderTarget;
+  double _dpr;
 
   // Geometry in prototype coordinates (the object's local transformation places it).
-  std::vector<std::vector<gp_Pnt>> m_polylines;
-  std::vector<gp_Pnt> m_triangles; // 3 points per triangle
+  std::vector<std::vector<gp_Pnt>> _polylines;
+  std::vector<gp_Pnt> _triangles; // 3 points per triangle
   // Semantic dimension geometry (prototype coordinates).
-  std::vector<std::pair<gp_Pnt, gp_Pnt>> m_segments; // extension and dimension lines
-  std::vector<ArrowSpec> m_arrows;
+  std::vector<std::pair<gp_Pnt, gp_Pnt>> _segments; // extension and dimension lines
+  std::vector<ArrowSpec> _arrows;
 };
 
 // All PMI of a model in the 3D view: one presentation per item and instance of
@@ -113,7 +113,7 @@ public:
   void setModel(std::shared_ptr<const core::PmiModel> pmi, std::shared_ptr<const core::AssemblyIndex> index,
                 double devicePixelRatio = 1.0);
   void clear();
-  const std::shared_ptr<const core::PmiModel>& model() const { return m_pmi; }
+  const std::shared_ptr<const core::PmiModel>& model() const { return _pmi; }
 
   void setVisible(const std::vector<core::PmiId>& ids, bool visible);
   void setOnlyVisible(const std::vector<core::PmiId>& ids);
@@ -122,7 +122,7 @@ public:
 
   // Selects the PMI in the 3D view and highlights the geometry they apply to.
   void highlight(const std::vector<core::PmiId>& ids);
-  const std::vector<core::PmiId>& highlighted() const { return m_highlighted; }
+  const std::vector<core::PmiId>& highlighted() const { return _highlighted; }
 
   // PMI shown by an interactive object (from 3D picking), or NoPmi.
   core::PmiId pmiOf(const OccHandle<AIS_InteractiveObject>& object) const;
@@ -146,7 +146,7 @@ public:
   // have graphics from the file, off otherwise (the file's graphics then tell the story and
   // the labels would duplicate them). Selection and target highlighting work either way.
   void setSemanticLabelsVisible(bool visible);
-  bool semanticLabelsVisible() const { return m_semanticLabels; }
+  bool semanticLabelsVisible() const { return _semanticLabels; }
 
   // Arrowheads drawn for semantic-only dimensions.
   int arrowCount() const;
@@ -164,16 +164,16 @@ private:
   void removeTargetHighlight();
   void updateDisplay(Entry& entry);
 
-  OccHandle<AIS_InteractiveContext> m_context;
-  std::shared_ptr<const core::PmiModel> m_pmi;
-  std::shared_ptr<const core::AssemblyIndex> m_index;
-  std::vector<Entry> m_entries; // by PmiId
-  std::unordered_map<const AIS_InteractiveObject*, core::PmiId> m_objectToPmi;
-  std::vector<core::PmiId> m_highlighted;
-  OccHandle<AIS_InteractiveObject> m_targetHighlight;
-  std::vector<OccHandle<Graphic3d_ClipPlane>> m_clipPlanes;
-  double m_dpr = 1.0;
-  bool m_semanticLabels = true;
+  OccHandle<AIS_InteractiveContext> _context;
+  std::shared_ptr<const core::PmiModel> _pmi;
+  std::shared_ptr<const core::AssemblyIndex> _index;
+  std::vector<Entry> _entries; // by PmiId
+  std::unordered_map<const AIS_InteractiveObject*, core::PmiId> _objectToPmi;
+  std::vector<core::PmiId> _highlighted;
+  OccHandle<AIS_InteractiveObject> _targetHighlight;
+  std::vector<OccHandle<Graphic3d_ClipPlane>> _clipPlanes;
+  double _dpr = 1.0;
+  bool _semanticLabels = true;
 };
 
 } // namespace sc::render

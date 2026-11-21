@@ -13,12 +13,12 @@ namespace sc::render {
 namespace {
 
 // Point-to-point snapping radius around vertices and edge midpoints.
-constexpr double kSnapPixels = 10.0;
+constexpr double SnapPixels = 10.0;
 
 } // namespace
 
 MeasureTool::MeasureTool(OcctViewport* viewport, SceneManager* scene, QObject* parent)
-    : QObject(parent), m_viewport(viewport), m_scene(scene) {
+    : QObject(parent), _viewport(viewport), _scene(scene) {
   connect(viewport, &OcctViewport::selectionChanged, this, &MeasureTool::onSelectionChanged);
   connect(viewport, &OcctViewport::hoverUpdated, this, &MeasureTool::onHoverUpdated);
 }
@@ -42,45 +42,45 @@ std::vector<int> MeasureTool::selectionModesFor(core::MeasureMode mode) const {
 }
 
 void MeasureTool::setMode(std::optional<core::MeasureMode> mode) {
-  if (mode == m_mode) {
+  if (mode == _mode) {
     return;
   }
-  m_picks.clear();
-  m_mode = mode;
-  m_updatingSelection = true;
-  m_scene->setSelectionModes(mode ? selectionModesFor(*mode) : std::vector<int>{});
-  m_updatingSelection = false;
-  m_viewport->setAccumulatingSelection(mode.has_value());
-  m_viewport->setOverlayMarker(std::nullopt);
-  m_viewport->invalidateScene();
+  _picks.clear();
+  _mode = mode;
+  _updatingSelection = true;
+  _scene->setSelectionModes(mode ? selectionModesFor(*mode) : std::vector<int>{});
+  _updatingSelection = false;
+  _viewport->setAccumulatingSelection(mode.has_value());
+  _viewport->setOverlayMarker(std::nullopt);
+  _viewport->invalidateScene();
   Q_EMIT pickProgress(0, mode ? core::picksRequired(*mode) : 0);
 }
 
 void MeasureTool::reset() {
-  m_picks.clear();
+  _picks.clear();
   clearWitnesses();
-  if (!m_viewport->context().IsNull()) {
-    m_updatingSelection = true;
-    m_viewport->context()->ClearSelected(false);
-    m_updatingSelection = false;
+  if (!_viewport->context().IsNull()) {
+    _updatingSelection = true;
+    _viewport->context()->ClearSelected(false);
+    _updatingSelection = false;
   }
-  if (m_mode) {
-    Q_EMIT pickProgress(0, core::picksRequired(*m_mode));
+  if (_mode) {
+    Q_EMIT pickProgress(0, core::picksRequired(*_mode));
   }
 }
 
 std::optional<core::Pick> MeasureTool::makePick(const OccHandle<SelectMgr_EntityOwner>& owner) const {
-  const auto entity = m_scene->pickedEntity(owner);
+  const auto entity = _scene->pickedEntity(owner);
   if (!entity) {
     return std::nullopt;
   }
   core::Pick pick;
   pick.shape = entity->worldShape;
-  pick.owner = m_scene->model()->displayPath(entity->part);
+  pick.owner = _scene->model()->displayPath(entity->part);
 
   // The 3D point under the cursor when this owner was clicked; otherwise a
   // representative point of the entity.
-  const OccHandle<AIS_InteractiveContext>& context = m_viewport->context();
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
   if (context->HasDetected() && context->DetectedOwner() == owner) {
     pick.point = context->MainSelector()->PickedPoint(1);
   } else {
@@ -91,10 +91,10 @@ std::optional<core::Pick> MeasureTool::makePick(const OccHandle<SelectMgr_Entity
 }
 
 void MeasureTool::onSelectionChanged() {
-  if (!m_mode || m_updatingSelection) {
+  if (!_mode || _updatingSelection) {
     return;
   }
-  const OccHandle<AIS_InteractiveContext>& context = m_viewport->context();
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
 
   std::vector<OccHandle<SelectMgr_EntityOwner>> selected;
   for (context->InitSelected(); context->MoreSelected(); context->NextSelected()) {
@@ -102,132 +102,132 @@ void MeasureTool::onSelectionChanged() {
   }
 
   // Un-picked (clicked again): drop.
-  m_picks.erase(std::remove_if(m_picks.begin(), m_picks.end(),
-                               [&selected](const PendingPick& p) {
-                                 return std::find(selected.begin(), selected.end(), p.owner) ==
-                                        selected.end();
-                               }),
-                m_picks.end());
+  _picks.erase(std::remove_if(_picks.begin(), _picks.end(),
+                              [&selected](const PendingPick& pick) {
+                                return std::find(selected.begin(), selected.end(), pick.owner) ==
+                                       selected.end();
+                              }),
+               _picks.end());
 
   // Newly picked: add in selection order; anything that is not a part entity is deselected.
   std::vector<OccHandle<SelectMgr_EntityOwner>> rejected;
   for (const auto& owner : selected) {
-    const bool known = std::any_of(m_picks.begin(), m_picks.end(),
+    const bool known = std::any_of(_picks.begin(), _picks.end(),
                                    [&owner](const PendingPick& p) { return p.owner == owner; });
     if (known) {
       continue;
     }
     if (std::optional<core::Pick> pick = makePick(owner)) {
-      m_picks.push_back({owner, std::move(*pick)});
+      _picks.push_back({owner, std::move(*pick)});
     } else {
       rejected.push_back(owner);
     }
   }
   if (!rejected.empty()) {
-    m_updatingSelection = true;
+    _updatingSelection = true;
     for (const auto& owner : rejected) {
       context->AddOrRemoveSelected(owner, false);
     }
-    m_updatingSelection = false;
+    _updatingSelection = false;
   }
 
-  const int required = core::picksRequired(*m_mode);
-  Q_EMIT pickProgress(static_cast<int>(m_picks.size()), required);
-  if (static_cast<int>(m_picks.size()) >= required) {
+  const int required = core::picksRequired(*_mode);
+  Q_EMIT pickProgress(static_cast<int>(_picks.size()), required);
+  if (static_cast<int>(_picks.size()) >= required) {
     finish();
   }
 }
 
 void MeasureTool::onHoverUpdated() {
-  if (m_mode != core::MeasureMode::PointToPoint) {
+  if (_mode != core::MeasureMode::PointToPoint) {
     return;
   }
-  const OccHandle<AIS_InteractiveContext>& context = m_viewport->context();
-  const auto entity = context->HasDetected() ? m_scene->pickedEntity(context->DetectedOwner()) : std::nullopt;
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
+  const auto entity = context->HasDetected() ? _scene->pickedEntity(context->DetectedOwner()) : std::nullopt;
   if (!entity) {
-    m_viewport->setOverlayMarker(std::nullopt);
+    _viewport->setOverlayMarker(std::nullopt);
     return;
   }
   // No exact face projection here: this runs on every mouse move.
   const core::SnapResult snapped = core::snap(entity->worldShape, context->MainSelector()->PickedPoint(1),
-                                              m_viewport->pixelsToModel(kSnapPixels), false);
-  m_viewport->setOverlayMarker(
+                                              _viewport->pixelsToModel(SnapPixels), false);
+  _viewport->setOverlayMarker(
       OcctViewport::OverlayMarker{snapped.point, QString::fromUtf8(core::toString(snapped.kind))});
 }
 
 void MeasureTool::finish() {
   std::vector<core::Pick> picks;
-  for (const PendingPick& p : m_picks) {
-    picks.push_back(p.pick);
+  for (const PendingPick& pick : _picks) {
+    picks.push_back(pick.pick);
   }
-  m_picks.clear();
+  _picks.clear();
   const core::Measurement result =
-      core::computeMeasurement(*m_mode, picks, m_options, m_viewport->pixelsToModel(kSnapPixels));
+      core::computeMeasurement(*_mode, picks, _options, _viewport->pixelsToModel(SnapPixels));
 
-  m_updatingSelection = true;
-  m_viewport->context()->ClearSelected(false);
-  m_updatingSelection = false;
-  m_viewport->invalidateScene();
-  Q_EMIT pickProgress(0, core::picksRequired(*m_mode));
+  _updatingSelection = true;
+  _viewport->context()->ClearSelected(false);
+  _updatingSelection = false;
+  _viewport->invalidateScene();
+  Q_EMIT pickProgress(0, core::picksRequired(*_mode));
   Q_EMIT measured(result);
 }
 
 void MeasureTool::setWitnesses(const std::vector<ShownWitness>& witnesses) {
-  const OccHandle<AIS_InteractiveContext>& context = m_viewport->context();
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
   if (context.IsNull()) {
-    m_witnesses.clear();
+    _witnesses.clear();
     return;
   }
   const auto wanted = [&witnesses](int id) {
     return std::any_of(witnesses.begin(), witnesses.end(),
                        [id](const ShownWitness& w) { return w.id == id && !w.witness.empty(); });
   };
-  for (auto it = m_witnesses.begin(); it != m_witnesses.end();) {
+  for (auto it = _witnesses.begin(); it != _witnesses.end();) {
     if (wanted(it->first)) {
       ++it;
     } else {
       context->Remove(it->second, false);
-      it = m_witnesses.erase(it);
+      it = _witnesses.erase(it);
     }
   }
-  for (const ShownWitness& w : witnesses) {
-    if (w.witness.empty()) {
+  for (const ShownWitness& shown : witnesses) {
+    if (shown.witness.empty()) {
       continue;
     }
-    auto it = m_witnesses.find(w.id);
-    const double dpr = m_viewport->devicePixelRatioF();
-    if (it != m_witnesses.end() && it->second->devicePixelRatio() != dpr) {
+    auto it = _witnesses.find(shown.id);
+    const double dpr = _viewport->devicePixelRatioF();
+    if (it != _witnesses.end() && it->second->devicePixelRatio() != dpr) {
       // The window moved to a screen with other scaling: rebuild at the new line widths.
       context->Remove(it->second, false);
-      m_witnesses.erase(it);
-      it = m_witnesses.end();
+      _witnesses.erase(it);
+      it = _witnesses.end();
     }
-    if (it == m_witnesses.end()) {
-      OccHandle<WitnessPresentation> prs = new WitnessPresentation(w.witness, dpr);
-      prs->setEmphasized(w.emphasized);
+    if (it == _witnesses.end()) {
+      OccHandle<WitnessPresentation> prs = new WitnessPresentation(shown.witness, dpr);
+      prs->setEmphasized(shown.emphasized);
       // Display without selection modes: witnesses never take picks.
       context->Display(prs, 0, -1, false);
-      m_witnesses.emplace(w.id, prs);
-    } else if (it->second->isEmphasized() != w.emphasized) {
-      it->second->setEmphasized(w.emphasized);
+      _witnesses.emplace(shown.id, prs);
+    } else if (it->second->isEmphasized() != shown.emphasized) {
+      it->second->setEmphasized(shown.emphasized);
       context->Redisplay(it->second, false);
     }
   }
 }
 
 void MeasureTool::clearWitnesses() {
-  const OccHandle<AIS_InteractiveContext>& context = m_viewport->context();
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
   if (!context.IsNull()) {
-    for (const auto& [id, prs] : m_witnesses) {
+    for (const auto& [id, prs] : _witnesses) {
       context->Remove(prs, false);
     }
   }
-  m_witnesses.clear();
+  _witnesses.clear();
 }
 
 bool MeasureTool::isEmphasized(int id) const {
-  const auto it = m_witnesses.find(id);
-  return it != m_witnesses.end() && it->second->isEmphasized();
+  const auto it = _witnesses.find(id);
+  return it != _witnesses.end() && it->second->isEmphasized();
 }
 
 } // namespace sc::render

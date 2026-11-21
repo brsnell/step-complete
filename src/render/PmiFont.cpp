@@ -22,18 +22,18 @@ namespace sc::render {
 
 namespace {
 
-constexpr const char* kFontResource = ":/fonts/STIXTwoMath-Regular.ttf";
-constexpr const char* kFallbackFamily = "Courier"; // OCCT's default font alias
+constexpr const char* FontResource = ":/fonts/STIXTwoMath-Regular.ttf";
+constexpr const char* FallbackFamily = "Courier"; // OCCT's default font alias
 
 struct FontState {
   bool registered = false;
-  std::string family = kFallbackFamily;
+  std::string family = FallbackFamily;
   std::unique_ptr<QTemporaryDir> tempDir; // lives for the process when the cache is not writable
 };
 
 FontState& state() {
-  static FontState s;
-  return s;
+  static FontState fontState;
+  return fontState;
 }
 
 // Writes the resource into `dir` unless a file of the same size is already there.
@@ -42,7 +42,7 @@ QString extractTo(const QString& dir) {
   if (dir.isEmpty() || !QDir().mkpath(dir)) {
     return {};
   }
-  QFile resource(QString::fromLatin1(kFontResource));
+  QFile resource(QString::fromLatin1(FontResource));
   if (!resource.open(QIODevice::ReadOnly)) {
     return {};
   }
@@ -76,22 +76,22 @@ bool registerFile(const QString& path) {
 }
 
 void initialize() {
-  FontState& s = state();
+  FontState& fontState = state();
   try {
     QString path =
         extractTo(QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + QStringLiteral("/fonts"));
     if (path.isEmpty() || !registerFile(path)) {
-      s.tempDir = std::make_unique<QTemporaryDir>();
-      path = s.tempDir->isValid() ? extractTo(s.tempDir->path()) : QString();
+      fontState.tempDir = std::make_unique<QTemporaryDir>();
+      path = fontState.tempDir->isValid() ? extractTo(fontState.tempDir->path()) : QString();
       if (path.isEmpty() || !registerFile(path)) {
-        s.family = kFallbackFamily;
+        fontState.family = FallbackFamily;
         return;
       }
     }
-    s.registered = true;
+    fontState.registered = true;
   } catch (...) {
-    s.registered = false;
-    s.family = kFallbackFamily;
+    fontState.registered = false;
+    fontState.family = FallbackFamily;
   }
 }
 

@@ -15,8 +15,8 @@ namespace sc::render {
 
 namespace {
 
-const Quantity_Color kPartColor(0.72, 0.75, 0.80, Quantity_TOC_sRGB);
-const Quantity_Color kEdgeColor(0.15, 0.16, 0.18, Quantity_TOC_sRGB);
+const Quantity_Color PartColor(0.72, 0.75, 0.80, Quantity_TOC_sRGB);
+const Quantity_Color EdgeColor(0.15, 0.16, 0.18, Quantity_TOC_sRGB);
 
 } // namespace
 
@@ -28,7 +28,7 @@ int configureDrawer(const OccHandle<AIS_Shape>& shape, DisplayStyle style) {
   const bool edges = style == DisplayStyle::ShadedWithEdges;
   drawer->SetFaceBoundaryDraw(edges);
   if (edges) {
-    drawer->SetFaceBoundaryAspect(new Prs3d_LineAspect(kEdgeColor, Aspect_TOL_SOLID, 1.0));
+    drawer->SetFaceBoundaryAspect(new Prs3d_LineAspect(EdgeColor, Aspect_TOL_SOLID, 1.0));
     // Only sharp (C0) edges: skipping tangent edges between fillets and faces keeps
     // filleted parts readable and draws far fewer lines on large models.
     drawer->SetFaceBoundaryUpperContinuity(GeomAbs_C0);
@@ -72,7 +72,7 @@ OccHandle<AIS_Shape> makeDemoPart() {
   }
 
   OccHandle<AIS_Shape> shape = new AIS_Shape(part);
-  shape->SetColor(kPartColor);
+  shape->SetColor(PartColor);
   configureShapeStyle(shape, DisplayStyle::ShadedWithEdges);
   return shape;
 }

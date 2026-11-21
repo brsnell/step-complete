@@ -33,17 +33,17 @@ namespace sc::render {
 namespace {
 
 // Annotations: dark blue, readable on the light background and on part colors.
-const Quantity_Color kInk(0.05, 0.20, 0.55, Quantity_TOC_sRGB);
-const Quantity_Color kPaper(1.0, 1.0, 1.0, Quantity_TOC_sRGB);
-const Quantity_Color kHoverInk(0.20, 0.55, 0.95, Quantity_TOC_sRGB);
-const Quantity_Color kSelectedInk(1.0, 0.62, 0.10, Quantity_TOC_sRGB);
+const Quantity_Color Ink(0.05, 0.20, 0.55, Quantity_TOC_sRGB);
+const Quantity_Color Paper(1.0, 1.0, 1.0, Quantity_TOC_sRGB);
+const Quantity_Color HoverInk(0.20, 0.55, 0.95, Quantity_TOC_sRGB);
+const Quantity_Color SelectedInk(1.0, 0.62, 0.10, Quantity_TOC_sRGB);
 
 // Sizes in logical pixels (scaled by the device pixel ratio).
-constexpr double kFontSize = 13.0;
-constexpr double kRowHeight = 24.0;
-constexpr double kRowGap = 4.0;
-constexpr double kCellPadding = 7.0;
-constexpr double kDatumStem = 12.0;
+constexpr double FontSize = 13.0;
+constexpr double RowHeight = 24.0;
+constexpr double RowGap = 4.0;
+constexpr double CellPadding = 7.0;
+constexpr double DatumStem = 12.0;
 
 // Width of `text` in pixels when drawn at `fontSize` with the bundled font, as OCCT
 // lays it out.
@@ -71,16 +71,15 @@ double textWidth(const std::string& text, double fontSize) {
 } // namespace
 
 double PmiLabel::rowHeight(double dpr) {
-  return std::round(kRowHeight * dpr);
+  return std::round(RowHeight * dpr);
 }
 
 double PmiLabel::stackPitch(double dpr) {
-  return rowHeight(dpr) + std::round(kRowGap * dpr);
+  return rowHeight(dpr) + std::round(RowGap * dpr);
 }
 
 PmiLabel::PmiLabel(const core::PmiItem& item, const gp_Pnt& worldAnchor, int stackIndex, double dpr)
-    : m_id(item.id), m_anchor(worldAnchor), m_stackIndex(std::max(0, stackIndex)),
-      m_dpr(dpr > 0.0 ? dpr : 1.0) {
+    : _id(item.id), _anchor(worldAnchor), _stackIndex(std::max(0, stackIndex)), _dpr(dpr > 0.0 ? dpr : 1.0) {
   layout(item);
   SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomRotatePers, worldAnchor));
   // Over the model, never cut by the surface the anchor lies on.
@@ -91,7 +90,7 @@ PmiLabel::PmiLabel(const core::PmiItem& item, const gp_Pnt& worldAnchor, int sta
   for (const bool selected : {false, true}) {
     OccHandle<Prs3d_Drawer> style = new Prs3d_Drawer();
     style->SetMethod(Aspect_TOHM_BOUNDBOX);
-    style->SetColor(selected ? kSelectedInk : kHoverInk);
+    style->SetColor(selected ? SelectedInk : HoverInk);
     style->SetZLayer(Graphic3d_ZLayerId_Topmost);
     if (selected) {
       SetHilightAttributes(style);
@@ -102,10 +101,10 @@ PmiLabel::PmiLabel(const core::PmiItem& item, const gp_Pnt& worldAnchor, int sta
 }
 
 void PmiLabel::layout(const core::PmiItem& item) {
-  m_rowHeight = rowHeight(m_dpr);
-  m_centerY = -m_stackIndex * stackPitch(m_dpr);
-  const double fontSize = kFontSize * m_dpr;
-  const double padding = std::round(kCellPadding * m_dpr);
+  _rowHeight = rowHeight(_dpr);
+  _centerY = -_stackIndex * stackPitch(_dpr);
+  const double fontSize = FontSize * _dpr;
+  const double padding = std::round(CellPadding * _dpr);
 
   std::vector<std::string> texts;
   if (item.kind == core::PmiKind::GeometricTolerance && !item.frame.empty()) {
@@ -114,38 +113,38 @@ void PmiLabel::layout(const core::PmiItem& item) {
     texts.push_back(!item.text.empty() ? item.text : item.name);
   }
   if (item.kind == core::PmiKind::Datum) {
-    m_stem = std::round(kDatumStem * m_dpr);
+    _stem = std::round(DatumStem * _dpr);
   }
 
-  m_boxLeft = m_stem;
-  double x = m_boxLeft;
+  _boxLeft = _stem;
+  double x = _boxLeft;
   for (std::string& text : texts) {
     Cell cell;
     cell.x0 = x;
     // A datum letter or a single symbol makes a square cell.
-    cell.x1 = x + std::max(m_rowHeight, std::ceil(textWidth(text, fontSize)) + 2.0 * padding);
+    cell.x1 = x + std::max(_rowHeight, std::ceil(textWidth(text, fontSize)) + 2.0 * padding);
     cell.text = std::move(text);
     x = cell.x1;
-    m_cells.push_back(std::move(cell));
+    _cells.push_back(std::move(cell));
   }
-  m_boxWidth = x - m_boxLeft;
+  _boxWidth = x - _boxLeft;
 }
 
 void PmiLabel::setOffset(double dx, double dy) {
-  const double shiftX = dx - m_offsetX;
-  for (Cell& cell : m_cells) {
+  const double shiftX = dx - _offsetX;
+  for (Cell& cell : _cells) {
     cell.x0 += shiftX;
     cell.x1 += shiftX;
   }
-  m_boxLeft += shiftX;
-  m_centerY += dy - m_offsetY;
-  m_offsetX = dx;
-  m_offsetY = dy;
+  _boxLeft += shiftX;
+  _centerY += dy - _offsetY;
+  _offsetX = dx;
+  _offsetY = dy;
 }
 
 std::vector<std::pair<double, double>> PmiLabel::cellExtents() const {
   std::vector<std::pair<double, double>> extents;
-  for (const Cell& cell : m_cells) {
+  for (const Cell& cell : _cells) {
     extents.emplace_back(cell.x0, cell.x1);
   }
   return extents;
@@ -153,19 +152,19 @@ std::vector<std::pair<double, double>> PmiLabel::cellExtents() const {
 
 void PmiLabel::Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHandle<Prs3d_Presentation>& prs,
                        const int mode) {
-  if (mode != 0 || m_cells.empty()) {
+  if (mode != 0 || _cells.empty()) {
     return;
   }
-  const double top = m_centerY + m_rowHeight / 2.0;
-  const double bottom = m_centerY - m_rowHeight / 2.0;
-  const double left = m_boxLeft;
-  const double right = m_boxLeft + m_boxWidth;
+  const double top = _centerY + _rowHeight / 2.0;
+  const double bottom = _centerY - _rowHeight / 2.0;
+  const double left = _boxLeft;
+  const double right = _boxLeft + _boxWidth;
 
   // Fill, pushed back a little so the border and text win the depth test.
   OccHandle<Graphic3d_Group> fillGroup = prs->NewGroup();
   OccHandle<Graphic3d_AspectFillArea3d> fill = new Graphic3d_AspectFillArea3d();
   fill->SetInteriorStyle(Aspect_IS_SOLID);
-  fill->SetInteriorColor(kPaper);
+  fill->SetInteriorColor(Paper);
   fill->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit);
   fill->SetFaceCulling(Graphic3d_TypeOfBackfacingModel_DoubleSided);
   fillGroup->SetGroupPrimitivesAspect(fill);
@@ -180,9 +179,9 @@ void PmiLabel::Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHa
 
   // Border, separators between cells and the datum stem.
   OccHandle<Graphic3d_Group> lineGroup = prs->NewGroup();
-  lineGroup->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(kInk, Aspect_TOL_SOLID, 1.0 * m_dpr));
+  lineGroup->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(Ink, Aspect_TOL_SOLID, 1.0 * _dpr));
   OccHandle<Graphic3d_ArrayOfSegments> lines =
-      new Graphic3d_ArrayOfSegments(static_cast<int>(8 + 2 * m_cells.size() + 4));
+      new Graphic3d_ArrayOfSegments(static_cast<int>(8 + 2 * _cells.size() + 4));
   auto segment = [&lines](double x0, double y0, double x1, double y1) {
     lines->AddVertex(gp_Pnt(x0, y0, 0.0));
     lines->AddVertex(gp_Pnt(x1, y1, 0.0));
@@ -191,11 +190,11 @@ void PmiLabel::Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHa
   segment(right, bottom, right, top);
   segment(right, top, left, top);
   segment(left, top, left, bottom);
-  for (size_t i = 1; i < m_cells.size(); ++i) {
-    segment(m_cells[i].x0, bottom, m_cells[i].x0, top);
+  for (size_t i = 1; i < _cells.size(); ++i) {
+    segment(_cells[i].x0, bottom, _cells[i].x0, top);
   }
-  if (m_stem > 0.0 && m_offsetX == 0.0 && m_offsetY == 0.0) {
-    segment(0.0, m_centerY, left, m_centerY);
+  if (_stem > 0.0 && _offsetX == 0.0 && _offsetY == 0.0) {
+    segment(0.0, _centerY, left, _centerY);
   }
   // A label displaced from its anchor (stacked or moved by declutter) gets a connector from
   // the anchor to the nearest point of its box.
@@ -210,28 +209,28 @@ void PmiLabel::Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHa
   OccHandle<Graphic3d_Group> textGroup = prs->NewGroup();
   OccHandle<Prs3d_TextAspect> aspect = new Prs3d_TextAspect();
   aspect->SetFont(pmiFontName());
-  aspect->SetColor(kInk);
-  aspect->SetHeight(kFontSize * m_dpr);
+  aspect->SetColor(Ink);
+  aspect->SetHeight(FontSize * _dpr);
   aspect->SetHorizontalJustification(Graphic3d_HTA_CENTER);
   aspect->SetVerticalJustification(Graphic3d_VTA_CENTER);
   textGroup->SetGroupPrimitivesAspect(aspect->Aspect());
-  for (const Cell& cell : m_cells) {
+  for (const Cell& cell : _cells) {
     Prs3d_Text::Draw(textGroup, aspect, TCollection_ExtendedString(cell.text.c_str(), true),
-                     gp_Pnt((cell.x0 + cell.x1) / 2.0, m_centerY, 0.0));
+                     gp_Pnt((cell.x0 + cell.x1) / 2.0, _centerY, 0.0));
   }
 }
 
 void PmiLabel::ComputeSelection(const OccHandle<SelectMgr_Selection>& selection, const int mode) {
-  if (mode != 0 || m_cells.empty()) {
+  if (mode != 0 || _cells.empty()) {
     return;
   }
   OccHandle<SelectMgr_EntityOwner> owner = new SelectMgr_EntityOwner(this, 7);
-  const gp_Pnt a(m_boxLeft, m_centerY - m_rowHeight / 2.0, 0.0);
-  const gp_Pnt b(m_boxLeft + m_boxWidth, a.Y(), 0.0);
-  const gp_Pnt c(b.X(), m_centerY + m_rowHeight / 2.0, 0.0);
-  const gp_Pnt d(a.X(), c.Y(), 0.0);
-  selection->Add(new Select3D_SensitiveTriangle(owner, a, b, c));
-  selection->Add(new Select3D_SensitiveTriangle(owner, a, c, d));
+  const gp_Pnt bottomLeft(_boxLeft, _centerY - _rowHeight / 2.0, 0.0);
+  const gp_Pnt bottomRight(_boxLeft + _boxWidth, bottomLeft.Y(), 0.0);
+  const gp_Pnt topRight(bottomRight.X(), _centerY + _rowHeight / 2.0, 0.0);
+  const gp_Pnt topLeft(bottomLeft.X(), topRight.Y(), 0.0);
+  selection->Add(new Select3D_SensitiveTriangle(owner, bottomLeft, bottomRight, topRight));
+  selection->Add(new Select3D_SensitiveTriangle(owner, bottomLeft, topRight, topLeft));
 }
 
 } // namespace sc::render
