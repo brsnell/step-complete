@@ -134,8 +134,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {
-  delete m_import;      // cancels and waits for a running import
-  delete m_measureTool; // removes its witness while the viewer exists
+  delete m_import; // cancels and waits for a running import
+  // The panel and its dock still emit while child widgets are torn down; nothing may reach
+  // syncMeasurementWitnesses once the tool is gone.
+  disconnect(m_measurements, nullptr, this, nullptr);
+  disconnect(m_measurementsDock->toggleViewAction(), nullptr, this, nullptr);
+  delete m_measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
   delete m_sectionTool; // removes its handles and the parts' clip planes
   m_pmiScene.reset();
@@ -218,15 +222,26 @@ void MainWindow::createDocks() {
   tabifyDockWidget(m_pmiDock, m_sectionDock);
   resizeDocks({m_pmiDock}, {340}, Qt::Horizontal);
   m_measurementsDock->hide();
-  connect(m_measurements, &MeasurementsPanel::currentChanged, this, [this](int index) {
-    const auto& results = m_measurements->measurements();
-    if (index >= 0 && index < static_cast<int>(results.size()) && results[static_cast<size_t>(index)].ok) {
-      m_measureTool->showWitness(results[static_cast<size_t>(index)].witness);
-    } else {
-      m_measureTool->clearWitness();
+  connect(m_measurements, &MeasurementsPanel::displayChanged, this, &MainWindow::syncMeasurementWitnesses);
+  // Closing the panel hides the results' witnesses; reopening it shows them again.
+  connect(m_measurementsDock->toggleViewAction(), &QAction::toggled, this,
+          &MainWindow::syncMeasurementWitnesses);
+}
+
+// Draws every checked result's witness while the Measurements panel is open; the one the
+// user is looking at is emphasized.
+void MainWindow::syncMeasurementWitnesses() {
+  const auto& results = m_measurements->measurements();
+  const int current = m_measurements->currentIndex();
+  const bool panelOpen = m_measurementsDock->toggleViewAction()->isChecked(); // open, even if tabbed behind
+  std::vector<render::MeasureTool::ShownWitness> shown;
+  for (int i = 0; i < static_cast<int>(results.size()) && panelOpen; ++i) {
+    if (m_measurements->isShown(i)) {
+      shown.push_back({m_measurements->idAt(i), results[static_cast<size_t>(i)].witness, i == current});
     }
-    m_viewport->invalidateScene();
-  });
+  }
+  m_measureTool->setWitnesses(shown);
+  m_viewport->invalidateScene();
 }
 
 void MainWindow::createActions() {
@@ -518,6 +533,7 @@ void MainWindow::onPickProgress(int picked, int required) {
 }
 
 void MainWindow::onMeasured(const core::Measurement& measurement) {
+  m_measurementsDock->show(); // a closed panel hides witnesses: reopen it to show the new result
   m_measurements->addMeasurement(measurement);
   if (!measurement.ok) {
     statusBar()->showMessage(QString::fromStdString(measurement.error), 6000);
@@ -703,6 +719,7 @@ void MainWindow::onImportFinished() {
     std::shared_ptr<const core::AssemblyIndex> index = job->index();
     m_transparentParts.clear();
     m_measureTool->reset();
+    m_measurements->clear(); // results belong to the previous model
     m_pmiScene->clearViewClipping(m_viewport->view());
     m_sectionTool->reset();
     m_scene->setModel(index);
@@ -773,6 +790,8 @@ void MainWindow::onImportFinished() {
 
 void MainWindow::closeModel() {
   setMeasureMode(-1);
+  m_measureTool->reset();
+  m_measurements->clear();
   setSectionView(false);
   m_pmiScene->clearViewClipping(m_viewport->view());
   m_pmiScene->clear();

@@ -154,6 +154,7 @@ A run that is not for a `v*` tag only uploads the packages. It does not publish 
 | Measure: entity info / distance / point to point | `M` / `D` / `Shift+D` |
 | Measure: angle / radius / mass properties | `A` / `R` / `Shift+M` |
 | Stop measuring | `Esc` |
+| Remove measurement | `Delete` in the Measurements panel (also `Backspace` on macOS) |
 | Section view | `X` (drag a plane's handle to move it) |
 | Export image | `Ctrl+Shift+E` |
 | Saved view (PMI) | double-click it in the PMI panel; View → Show All PMI to reset |

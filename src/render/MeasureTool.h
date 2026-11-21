@@ -7,6 +7,7 @@
 
 #include <QObject>
 
+#include <map>
 #include <optional>
 #include <vector>
 
@@ -21,9 +22,12 @@ class WitnessPresentation;
 // While a mode is active, parts are pickable by vertex/edge/face (whichever
 // the mode accepts), hovering pre-highlights the entity under the cursor and
 // each click adds a pick. When the mode has enough picks the result is
-// computed on the exact B-rep in world coordinates, its witness geometry is
-// drawn, and measured() is emitted; the next click starts a new measurement.
-// Clicking a picked entity again un-picks it.
+// computed on the exact B-rep in world coordinates and measured() is emitted;
+// the next click starts a new measurement. Clicking a picked entity again
+// un-picks it.
+//
+// The tool also draws the witness geometry of the results the caller wants
+// on screen (setWitnesses): any number at once, one of them emphasized.
 class MeasureTool : public QObject {
   Q_OBJECT
 
@@ -41,13 +45,21 @@ public:
 
   int pickCount() const { return static_cast<int>(m_picks.size()); }
 
-  // Shows a result's witness (e.g. when it is chosen in the results list) or
-  // removes it. The caller redraws the viewport.
-  void showWitness(const core::Witness& witness);
-  void clearWitness();
-  bool hasWitness() const;
+  struct ShownWitness {
+    int id = 0; // stable per result: the same id keeps its presentation
+    core::Witness witness;
+    bool emphasized = false;
+  };
+  // Draws exactly these witnesses: new ids are added, missing ids removed and
+  // changed emphasis restyled. Empty witnesses are skipped. The caller redraws
+  // the viewport.
+  void setWitnesses(const std::vector<ShownWitness>& witnesses);
+  void clearWitnesses();
+  int witnessCount() const { return static_cast<int>(m_witnesses.size()); }
+  bool hasWitness(int id) const { return m_witnesses.count(id) != 0; }
+  bool isEmphasized(int id) const;
 
-  // Drops pending picks and clears the selection, e.g. when the model changes.
+  // Drops pending picks, witnesses and the selection, e.g. when the model changes.
   void reset();
 
 public Q_SLOTS:
@@ -77,7 +89,7 @@ private:
   std::optional<core::MeasureMode> m_mode;
   core::MeasureDisplayOptions m_options;
   std::vector<PendingPick> m_picks;
-  OccHandle<WitnessPresentation> m_witness;
+  std::map<int, OccHandle<WitnessPresentation>> m_witnesses;
   bool m_updatingSelection = false;
 };
 

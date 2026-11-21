@@ -196,8 +196,9 @@ Choose a mode, then click entities in the 3D view. Faces, edges and vertices are
 (which kinds depends on the mode). The hint line at the top of the Measurements panel and the
 status bar show progress ("pick 1 of 2"). Clicking a picked entity again un-picks it. After the
 last pick the result appears at once, with a witness drawn on top of the model (dimension line,
-markers and a label). Measuring continues in the same mode until you press `Esc`. Starting a
-measurement clears the part selection, and selecting a PMI annotation leaves measure mode.
+markers and a label). Measuring continues in the same mode until you press `Esc`; the results
+and their witnesses stay when you stop. Starting a measurement clears the part selection, and
+selecting a PMI annotation leaves measure mode.
 
 **Snapping (Point to Point).** While hovering, a marker and label show where a click will snap:
 *Vertex*, *Endpoint*, *Midpoint* and *Center* (circle centers) are preferred when the cursor is
@@ -217,15 +218,29 @@ the percentage difference and a verdict such as "Matches".
 
 ### Measurements panel
 
-Results collect in the **Measurements** panel (right dock). The newest is expanded; selecting a
-row redraws its witness in the 3D view. Buttons at the bottom:
+Results collect in the **Measurements** panel (right dock), which opens when a new result
+arrives. The newest is expanded; older results keep whatever you expanded, so several can be
+compared.
+
+Each successful result has a checkbox, and new results start checked. Every checked result's
+witness is drawn in the 3D view at once: the selected result is emphasized in full orange, the
+others are thinner and paler. Closing the Measurements panel hides the witnesses; reopening it
+shows them again.
+
+Buttons at the bottom:
 
 - **Copy:** selected results as readable text on the clipboard.
 - **Export CSV...:** all results to a CSV file (UTF-8 with byte-order mark, so spreadsheet apps
   show units such as mm2 and degree signs correctly).
-- **Remove** (selected) and **Clear** (all).
+- **Show All / Hide All:** checks or unchecks every result. It reads **Hide All** while any
+  result is shown.
+- **Remove** (the selected results, or the current one when none is selected) and **Clear**
+  (all). `Delete` in the list also removes the selected results (`Backspace` too on macOS).
 
-Results are cleared when a new file is opened.
+Right-clicking the list opens a menu with **Copy**, **Remove**, **Show in 3D View**, **Show All**,
+**Hide All** and **Clear All**. Right-clicking a row that is not selected acts on that row alone.
+
+Results and their witnesses are cleared when another file is opened or the model is closed.
 
 ### Units
 
@@ -355,6 +370,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `R` | Measure: radius / diameter |
 | `Shift+M` | Mass properties |
 | `Esc` | Stop measuring |
+| `Delete` | Remove the selected measurements (in the Measurements panel; also `Backspace` on macOS) |
 
 Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + left drag zoom;
 left click select; Shift + click add to selection; right click context menu.
