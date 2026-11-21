@@ -23,7 +23,7 @@ jobs:
     name: clang-format
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check formatting
         run: |
           find src tests -name '*.cpp' -o -name '*.h' | xargs clang-format-18 --dry-run --Werror
@@ -33,7 +33,7 @@ jobs:
     name: Naming (clang-tidy)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Qt, OCCT and clang-tidy (Ubuntu packages, as in README)
         run: |
           sudo apt-get update
@@ -92,7 +92,7 @@ jobs:
             skip-tests: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install Linux packages
         if: runner.os == 'Linux'
@@ -110,7 +110,7 @@ jobs:
 
       - name: Set up MSVC
         if: runner.os == 'Windows'
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ./.github/actions/msvc-env
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
@@ -122,7 +122,7 @@ jobs:
       # as soon as vcpkg finishes, even if compiling our code fails afterwards.
       - name: Restore vcpkg binary cache
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .vcpkg-cache
           key: vcpkg-${{ matrix.triplet }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/**') }}
@@ -152,7 +152,7 @@ jobs:
 
       - name: Save vcpkg binary cache
         if: ${{ always() && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .vcpkg-cache
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
@@ -214,7 +214,7 @@ jobs:
       # How the NIST PMI models look with this build's OCCT (for docs/pmi-coverage.md).
       - name: Upload PMI snapshots
         if: ${{ always() && matrix.render-tests }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: pmi-snapshots-${{ matrix.triplet }}
           path: snapshots/nist_*.png
@@ -237,7 +237,7 @@ jobs:
 
       - name: Upload test frames on failure
         if: ${{ failure() && matrix.render-tests }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: render-frames-${{ matrix.triplet }}
           path: build/vcpkg/Testing/Temporary/

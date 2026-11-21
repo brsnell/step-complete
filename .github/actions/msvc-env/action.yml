@@ -1,0 +1,27 @@
+name: Set up MSVC
+description: >
+  Puts the x64 MSVC compiler on the environment of the job's later steps, as the Developer
+  Command Prompt does: finds Visual Studio with vswhere, runs vcvarsall.bat and copies every
+  variable it adds or changes into GITHUB_ENV. Replaces ilammy/msvc-dev-cmd, which runs on
+  Node 20 and has no Node 24 release.
+runs:
+  using: composite
+  steps:
+    - shell: pwsh
+      run: |
+        $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+        $vs = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+        if (-not $vs) { throw 'No Visual Studio with the x64 C++ tools found' }
+        $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvarsall.bat'
+        $before = @{}
+        Get-ChildItem env: | ForEach-Object { $before[$_.Name] = $_.Value }
+        $after = cmd /c "`"$vcvars`" x64 >nul && set"
+        if ($LASTEXITCODE -ne 0) { throw "vcvarsall.bat failed with exit code $LASTEXITCODE" }
+        $changed = 0
+        foreach ($line in $after) {
+          if ($line -match '^([^=]+)=(.*)$' -and $before[$Matches[1]] -cne $Matches[2]) {
+            "$($Matches[1])=$($Matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+            $changed++
+          }
+        }
+        Write-Host "MSVC from $vs ($changed variables set)"
