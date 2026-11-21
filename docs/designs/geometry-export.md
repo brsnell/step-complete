@@ -1,6 +1,6 @@
 # Geometry export (STL, OBJ, glTF)
 
-Status: DRAFT (2026-11-21)
+Status: APPROVED (2026-11-21)
 
 ## What
 
@@ -49,8 +49,11 @@ viewer, and other viewers offer it (TODOS v1.1). Writing STEP stays a non-goal (
    characters that file systems refuse become `_`). The user picks a folder. A merged STL has
    every chosen instance in place, in world coordinates.
 6. **Units and axes.**
-   - STL and OBJ: the unit is millimetres by default, or centimetres, metres or inches. Axes are
-     the model's own (Z up), as in the STEP file.
+   - STL and OBJ: the unit is millimetres by default, or centimetres, metres or inches.
+   - STL: the model's own axes (Z up), as in the STEP file, because slicers for 3D printing expect
+     Z up.
+   - OBJ: Y up by default, the convention most mesh tools (Blender, game engines) expect, or Z up
+     as in the STEP file. Y up turns the model so its +Z becomes +Y.
    - glTF: metres and Y up, as the glTF spec requires (OCCT's coordinate converter). There is no
      unit choice.
 7. **Instancing.** glTF shares one mesh between the instances of a part, so a repeated part costs
@@ -63,7 +66,7 @@ viewer, and other viewers offer it (TODOS v1.1). Writing STEP stays a non-goal (
    modal, the model cannot be closed or replaced mid-export. Cancel deletes the partial files. On
    success the status bar shows the file name and size. Errors (disk full, no permission, a writer
    failure) appear in a message box and leave no partial files.
-10. **The dialog remembers its choices** (format, parts, quality, unit, STL mode) in `QSettings`
+10. **The dialog remembers its choices** (format, parts, quality, unit, STL mode, OBJ up axis) in `QSettings`
     under `exportGeometry/`. The file dialog starts in the folder last exported to, with the
     model's name.
 11. **Code layout.**
@@ -86,7 +89,7 @@ viewer, and other viewers offer it (TODOS v1.1). Writing STEP stays a non-goal (
 - Writing STEP, IGES or other B-rep formats (PLAN §1 non-goal).
 - PMI, edges, section caps and measurement witnesses in the export.
 - ASCII STL, 3MF, PLY, FBX, USD and Draco-compressed glTF.
-- Choosing the up axis for STL and OBJ.
+- Choosing the up axis for STL, or any up axis but Y or Z for OBJ.
 - A command-line export (no CLI yet).
 
 ## Tests
@@ -95,7 +98,7 @@ viewer, and other viewers offer it (TODOS v1.1). Writing STEP stays a non-goal (
   - merged STL: triangle count, and the bounding box in each unit;
   - per-part STL: one file per unique part, file naming with repeated and unsafe names, parts in
     their own coordinates;
-  - OBJ: read back with `RWObj_CafReader`, names and colors kept;
+  - OBJ: read back with `RWObj_CafReader`, names and colors kept, Y up and Z up;
   - glTF and GLB: read back with `RWGltf_CafReader`, assembly structure, instances sharing one
     mesh, metres;
   - only the chosen parts are written;

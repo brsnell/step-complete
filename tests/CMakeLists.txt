@@ -25,6 +25,7 @@ add_executable(sc_core_tests
   core/test_pmi_model.cpp
   core/test_compressed_step.cpp
   core/test_document_cache.cpp
+  core/test_geometry_export.cpp
 )
 target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support ZLIB::ZLIB GTest::gtest_main)
 sc_target_defaults(sc_core_tests)

@@ -60,4 +60,10 @@ private:
   std::uint64_t _maxBytes;
 };
 
+// A deep copy of the document made through BinXCAF in memory: the same labels (entries),
+// names, colors and shapes, sharing nothing with the source. Without triangulations the copy's
+// faces have no meshes. Returns null on failure. Opens a document in OCCT's shared XCAF
+// application: hold xcafMutex() when other threads may import, and while the copy is destroyed.
+DocumentPtr copyDocument(const Document& source, bool withTriangulations);
+
 } // namespace sc::core

@@ -4,6 +4,7 @@
 
 #include <atomic>
 #include <functional>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -77,5 +78,10 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
 // same lock as importStep, so it is safe to call from the import worker thread after the
 // result was published, but it reads the document: do not modify it meanwhile.
 bool storeInCache(const std::string& utf8Path, const ImportResult& result, const ImportOptions& options);
+
+// The lock importStep and storeInCache hold: OCCT's translator parameters and its XCAF
+// application (which opens and closes documents) are process-global. Other code that opens or
+// closes XCAF documents off the UI thread takes it too.
+std::mutex& xcafMutex();
 
 } // namespace sc::core

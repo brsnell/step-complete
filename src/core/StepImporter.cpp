@@ -4,6 +4,7 @@
 #include "core/DocumentCache.h"
 #include "core/OccCompat.h"
 #include "core/OccHandle.h"
+#include "core/ProgressBridge.h"
 
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <IFSelect_ReturnStatus.hxx>
@@ -12,7 +13,6 @@
 #include <Interface_EntityIterator.hxx>
 #include <Interface_Graph.hxx>
 #include <Interface_InterfaceModel.hxx>
-#include <Message_ProgressIndicator.hxx>
 #include <Message_ProgressScope.hxx>
 #include <OSD_Parallel.hxx>
 #include <OSD_ThreadPool.hxx>
@@ -277,40 +277,6 @@ std::vector<StepCamera> readCameras(const OccHandle<Interface_InterfaceModel>& m
 
 // OCCT translators keep their parameters in process-global state.
 std::mutex g_importMutex;
-
-// Bridges OCCT's progress reporting to our callback and cancel token.
-class ProgressBridge : public Message_ProgressIndicator {
-public:
-  ProgressBridge(const ProgressCallback& callback, const CancelToken* cancel)
-      : _callback(callback), _cancel(cancel) {}
-
-  void setStage(std::string stage) {
-    _stage = std::move(stage);
-    report(GetPosition(), true);
-  }
-
-  bool UserBreak() override { return _cancel != nullptr && _cancel->isCancelled(); }
-
-  void Show(const Message_ProgressScope&, const bool isForce) override { report(GetPosition(), isForce); }
-
-  void report(double fraction, bool force) {
-    if (!_callback) {
-      return;
-    }
-    const Clock::time_point now = Clock::now();
-    if (!force && now - _lastReport < std::chrono::milliseconds(50)) {
-      return;
-    }
-    _lastReport = now;
-    _callback(fraction, _stage);
-  }
-
-private:
-  const ProgressCallback& _callback;
-  const CancelToken* _cancel;
-  std::string _stage;
-  Clock::time_point _lastReport{};
-};
 
 void collectChecks(const Interface_CheckIterator& checks, std::vector<ImportMessage>& out) {
   std::map<std::pair<ImportMessage::Severity, std::string>, int> merged;
@@ -689,6 +655,10 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
     result.error = std::string("Error: ") + error.what();
   }
   return result;
+}
+
+std::mutex& xcafMutex() {
+  return g_importMutex;
 }
 
 bool storeInCache(const std::string& utf8Path, const ImportResult& result, const ImportOptions& options) {
