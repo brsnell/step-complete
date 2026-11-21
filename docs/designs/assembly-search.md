@@ -1,6 +1,6 @@
 # Search in the assembly tree
 
-Status: DRAFT (written with the first implementation on 2026-11-21; awaiting approval)
+Status: APPROVED (2026-11-21)
 
 ## What
 

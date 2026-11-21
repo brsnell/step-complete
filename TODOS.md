@@ -58,20 +58,6 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ## v1.1 (M6)
 
-### Search in the assembly tree
-
-**Status:** Built on branch `feature/assembly-search` (View > Find Part..., `Ctrl+F`). Design: [docs/designs/assembly-search.md](docs/designs/assembly-search.md), drafted, awaiting approval. Remove this entry once it is approved and merged.
-
-**What:** A filter box on the Assembly panel that matches part and product names, keeps the parent rows of matches and expands to them.
-
-**Why:** Large assemblies (hundreds of parts) are hard to get around without it. The PMI panel already has **Filter PMI...**.
-
-**Context:** `AssemblyTreeModel` in `src/app/`. Qt 6's `QSortFilterProxyModel::setRecursiveFilteringEnabled` keeps the ancestors of matches. Selection sync between the tree and the 3D view has to go through the proxy. Add the case to the Qt Test suite.
-
-**Effort:** S
-**Priority:** P1
-**Depends on:** Design approved.
-
 ### Geometry export (STL, OBJ, glTF)
 
 **What:** File > Export Geometry: STL (merged or one file per part), OBJ, and glTF/GLB with colors and the assembly structure. Choose the visible parts or the selection, and the mesh quality.
