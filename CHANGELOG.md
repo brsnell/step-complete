@@ -6,6 +6,8 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- Assembly panel: a filter box above the tree (View > Find Part..., `Ctrl+F`) shows only the
+  parts and assemblies whose name or product name contains the text, expanded to the matches.
 - View > Hidden Line (`L`): a display style with white faces and dark sharp edges and outlines,
   with edges behind faces hidden. Part transparency and section caps work in it.
 - Measurements: every successful result has a checkbox, and all checked results are drawn

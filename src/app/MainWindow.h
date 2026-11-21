@@ -15,6 +15,8 @@ class QAction;
 class QActionGroup;
 class QDockWidget;
 class QLabel;
+class QLineEdit;
+class QModelIndex;
 class QListWidget;
 class QMenu;
 class QProgressDialog;
@@ -31,6 +33,7 @@ class SceneManager;
 
 namespace sc::app {
 
+class AssemblyFilterProxy;
 class AssemblyTreeModel;
 class ImportJob;
 class MeasurementsPanel;
@@ -71,6 +74,11 @@ private:
   std::vector<core::NodeId> selectedNodes() const;
   void onTreeSelectionChanged();
   void onViewportSelectionChanged();
+  // Filters the Assembly tree by the filter box's text and expands to the matches.
+  void applyTreeFilter();
+  // Expands the rows that have a match below them; returns whether the subtree has one.
+  bool expandToMatches(const QModelIndex& parent);
+  void focusTreeFilter();
 
   // --- View commands ------------------------------------------------------------
   void hideSelected();
@@ -112,7 +120,10 @@ private:
   render::OcctViewport* _viewport = nullptr;
   std::unique_ptr<render::SceneManager> _scene;
   AssemblyTreeModel* _treeModel = nullptr;
+  AssemblyFilterProxy* _treeProxy = nullptr;
+  QLineEdit* _treeFilter = nullptr;
   QTreeView* _treeView = nullptr;
+  QDockWidget* _treeDock = nullptr;
   PropertiesPanel* _properties = nullptr;
   QListWidget* _messages = nullptr;
   render::MeasureTool* _measureTool = nullptr;

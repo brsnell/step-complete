@@ -6,6 +6,8 @@ add_library(sc_app STATIC
   ImportJob.cpp
   AssemblyTreeModel.h
   AssemblyTreeModel.cpp
+  AssemblyFilterProxy.h
+  AssemblyFilterProxy.cpp
   PropertiesPanel.h
   PropertiesPanel.cpp
   MeasurementsPanel.h

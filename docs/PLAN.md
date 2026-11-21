@@ -362,8 +362,9 @@ Feedback from v1.0 users can reorder v1.1 and v2.
   GPU silhouette for outlines, so the depth buffer hides what is behind
   ([design](designs/hidden-line.md)). OCCT's exact hidden-line removal was not used: it
   recomputes on every camera move.
-- **Search in the assembly tree.** A filter box on the Assembly panel, like **Filter PMI...**.
-  Matches part and product names and keeps their parent rows.
+- ✅ **Search in the assembly tree** (View > Find Part..., `Ctrl+F`): a filter box above the
+  Assembly tree that matches part and product names, keeps the path to each match and expands to
+  it ([design](designs/assembly-search.md)).
 - **Geometry export.** File > Export Geometry: STL (per part or merged), OBJ and glTF/GLB with
   colors, from the existing mesh and XCAF document. This is the first file the app writes besides
   images and CSV; writing STEP stays a non-goal.
