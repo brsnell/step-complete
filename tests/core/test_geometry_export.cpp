@@ -41,7 +41,7 @@ constexpr double Pi = 3.14159265358979323846;
 // The importer meshes every part at the viewer's quality; do the same for the fixture.
 std::shared_ptr<core::AssemblyIndex> meshedFixture() {
   const core::DocumentPtr document = test::buildFixtureAssembly();
-  occ::LabelSequence labels;
+  sc::occ::LabelSequence labels; // qualified: OCCT 8 has a global namespace occ too
   XCAFDoc_DocumentTool::ShapeTool(document->ocaf()->Main())->GetShapes(labels);
   for (const TDF_Label& label : labels) {
     if (!XCAFDoc_ShapeTool::IsAssembly(label)) {
