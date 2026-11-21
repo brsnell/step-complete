@@ -164,6 +164,15 @@ private Q_SLOTS:
     QCOMPARE(m_tool->witnessCount(), 1);
     QVERIFY(m_tool->hasWitness(m_panel->idAt(1)));
     QVERIFY(!m_tool->hasWitness(m_panel->idAt(0)));
+
+    // A pick measurement finishing while the panel is closed reopens it, so its witness shows.
+    const sc::core::Measurement picked = m_panel->measurements().back();
+    dock->toggleViewAction()->trigger();
+    QVERIFY(dock->isHidden());
+    Q_EMIT m_tool->measured(picked);
+    QVERIFY(!dock->isHidden());
+    QCOMPARE(m_panel->measurements().size(), size_t(3));
+    QVERIFY(m_tool->hasWitness(m_panel->idAt(2)));
   }
 
 private:

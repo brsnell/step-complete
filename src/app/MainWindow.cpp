@@ -533,6 +533,7 @@ void MainWindow::onPickProgress(int picked, int required) {
 }
 
 void MainWindow::onMeasured(const core::Measurement& measurement) {
+  m_measurementsDock->show(); // a closed panel hides witnesses: reopen it to show the new result
   m_measurements->addMeasurement(measurement);
   if (!measurement.ok) {
     statusBar()->showMessage(QString::fromStdString(measurement.error), 6000);
