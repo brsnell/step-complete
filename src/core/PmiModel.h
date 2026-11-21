@@ -29,7 +29,7 @@
 namespace sc::core {
 
 using PmiId = int;
-constexpr PmiId kNoPmi = -1;
+constexpr PmiId NoPmi = -1;
 
 enum class PmiKind {
   Dimension,
@@ -41,7 +41,7 @@ enum class PmiKind {
 const char* toString(PmiKind kind);
 
 struct PmiItem {
-  PmiId id = kNoPmi;
+  PmiId id = NoPmi;
   PmiKind kind = PmiKind::Dimension;
   TDF_Label label;
   // Further XCAF labels merged into this item. OCCT creates one datum label per
@@ -110,17 +110,17 @@ class PmiModel {
 public:
   explicit PmiModel(const DocumentPtr& document, int decimals = 3);
 
-  const std::vector<PmiItem>& items() const { return m_items; }
-  const PmiItem& item(PmiId id) const { return m_items.at(static_cast<size_t>(id)); }
-  const std::vector<PmiSavedView>& views() const { return m_views; }
+  const std::vector<PmiItem>& items() const { return _items; }
+  const PmiItem& item(PmiId id) const { return _items.at(static_cast<size_t>(id)); }
+  const std::vector<PmiSavedView>& views() const { return _views; }
 
-  bool isEmpty() const { return m_items.empty() && m_views.empty(); }
+  bool isEmpty() const { return _items.empty() && _views.empty(); }
   int count(PmiKind kind) const;
   int uninterpretedCount() const;
 
   // PMI attached to the given shape label or any of its sub-shape labels.
   std::vector<PmiId> itemsTargeting(const TDF_Label& shapeLabel) const;
-  // The item read from this XCAF label (or merged from it), or kNoPmi.
+  // The item read from this XCAF label (or merged from it), or NoPmi.
   PmiId itemFor(const TDF_Label& label) const;
 
 private:
@@ -130,10 +130,10 @@ private:
   void mergeDuplicatePresentations();
   void readViews();
 
-  DocumentPtr m_document;
-  int m_decimals;
-  std::vector<PmiItem> m_items;
-  std::vector<PmiSavedView> m_views;
+  DocumentPtr _document;
+  int _decimals;
+  std::vector<PmiItem> _items;
+  std::vector<PmiSavedView> _views;
 };
 
 } // namespace sc::core

@@ -13,11 +13,11 @@ namespace sc::core {
 // Thread-safe cancellation flag shared between the UI and an import running on a worker.
 class CancelToken {
 public:
-  void cancel() { m_cancelled.store(true, std::memory_order_relaxed); }
-  bool isCancelled() const { return m_cancelled.load(std::memory_order_relaxed); }
+  void cancel() { _cancelled.store(true, std::memory_order_relaxed); }
+  bool isCancelled() const { return _cancelled.load(std::memory_order_relaxed); }
 
 private:
-  std::atomic<bool> m_cancelled{false};
+  std::atomic<bool> _cancelled{false};
 };
 
 // Called from the importing thread. 'fraction' is in [0, 1]; 'stage' is a short label.

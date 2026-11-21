@@ -10,7 +10,7 @@ namespace sc::core {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
+constexpr double Pi = 3.14159265358979323846;
 
 struct LengthUnitInfo {
   LengthUnit unit;
@@ -19,7 +19,7 @@ struct LengthUnitInfo {
   std::string_view name;
 };
 
-constexpr std::array<LengthUnitInfo, 6> kLengthUnits{{
+constexpr std::array<LengthUnitInfo, 6> LengthUnits{{
     {LengthUnit::Micrometer, 0.001, "\xC2\xB5m", "Micrometers"}, // µm
     {LengthUnit::Millimeter, 1.0, "mm", "Millimeters"},
     {LengthUnit::Centimeter, 10.0, "cm", "Centimeters"},
@@ -29,12 +29,12 @@ constexpr std::array<LengthUnitInfo, 6> kLengthUnits{{
 }};
 
 const LengthUnitInfo& info(LengthUnit unit) {
-  for (const auto& entry : kLengthUnits) {
+  for (const auto& entry : LengthUnits) {
     if (entry.unit == unit) {
       return entry;
     }
   }
-  return kLengthUnits[1]; // unreachable for valid enum values
+  return LengthUnits[1]; // unreachable for valid enum values
 }
 
 } // namespace
@@ -67,9 +67,9 @@ std::optional<LengthUnit> lengthUnitFromScale(double mmPerUnit) {
   if (!(mmPerUnit > 0.0) || !std::isfinite(mmPerUnit)) {
     return std::nullopt;
   }
-  constexpr double kRelTol = 1e-6;
-  for (const auto& entry : kLengthUnits) {
-    if (std::abs(mmPerUnit - entry.mmPerUnit) <= kRelTol * entry.mmPerUnit) {
+  constexpr double RelTol = 1e-6;
+  for (const auto& entry : LengthUnits) {
+    if (std::abs(mmPerUnit - entry.mmPerUnit) <= RelTol * entry.mmPerUnit) {
       return entry.unit;
     }
   }
@@ -137,7 +137,7 @@ std::string formatVolume(double mm3, LengthUnit unit, int decimals) {
 
 std::string formatAngle(double radians, AngleUnit unit, int decimals) {
   if (unit == AngleUnit::Degree) {
-    return formatNumber(radians * 180.0 / kPi, decimals) + std::string(symbol(unit));
+    return formatNumber(radians * 180.0 / Pi, decimals) + std::string(symbol(unit));
   }
   return formatNumber(radians, decimals) + " " + std::string(symbol(unit));
 }

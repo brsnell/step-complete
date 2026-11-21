@@ -39,7 +39,7 @@ class DocumentCache {
 public:
   explicit DocumentCache(std::filesystem::path dir, std::uint64_t maxBytes = std::uint64_t{1} << 30);
 
-  const std::filesystem::path& directory() const { return m_dir; }
+  const std::filesystem::path& directory() const { return _dir; }
 
   // A hit refreshes the entry's modification time (LRU order for prune()).
   std::optional<CachedImport> load(const std::string& key) const;
@@ -56,8 +56,8 @@ public:
 private:
   std::filesystem::path entryPath(const std::string& key, const char* extension) const;
 
-  std::filesystem::path m_dir;
-  std::uint64_t m_maxBytes;
+  std::filesystem::path _dir;
+  std::uint64_t _maxBytes;
 };
 
 } // namespace sc::core

@@ -120,7 +120,7 @@ QModelIndex PmiTreeModel::indexOfNode(int node) const {
 
 core::PmiId PmiTreeModel::pmiId(const QModelIndex& index) const {
   const Node* node = nodeAt(index);
-  return node && node->type == NodeType::Item ? node->payload : core::kNoPmi;
+  return node && node->type == NodeType::Item ? node->payload : core::NoPmi;
 }
 
 int PmiTreeModel::viewId(const QModelIndex& index) const {

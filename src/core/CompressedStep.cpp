@@ -17,66 +17,66 @@ namespace {
 
 namespace fs = std::filesystem;
 
-constexpr std::size_t kChunk = 256 * 1024;
+constexpr std::size_t Chunk = 256 * 1024;
 
 fs::path toPath(const std::string& utf8) {
   return fs::u8path(utf8);
 }
 
-std::uint32_t le16(const unsigned char* p) {
-  return static_cast<std::uint32_t>(p[0]) | (static_cast<std::uint32_t>(p[1]) << 8);
+std::uint32_t le16(const unsigned char* bytes) {
+  return static_cast<std::uint32_t>(bytes[0]) | (static_cast<std::uint32_t>(bytes[1]) << 8);
 }
 
-std::uint32_t le32(const unsigned char* p) {
-  return le16(p) | (le16(p + 2) << 16);
+std::uint32_t le32(const unsigned char* bytes) {
+  return le16(bytes) | (le16(bytes + 2) << 16);
 }
 
 // Writes inflated data, enforcing the size cap and polling cancellation.
 class Sink {
 public:
-  Sink(std::ofstream& out, const DecompressOptions& options) : m_out(out), m_options(options) {}
+  Sink(std::ofstream& out, const DecompressOptions& options) : _out(out), _options(options) {}
 
   // False (with error set) when decompression must stop.
   bool write(const unsigned char* data, std::size_t size) {
-    m_total += size;
-    if (m_total > m_options.maxBytes) {
-      m_error = "The compressed file expands to more than " + std::to_string(m_options.maxBytes >> 20) +
-                " MB; refusing to open it.";
+    _total += size;
+    if (_total > _options.maxBytes) {
+      _error = "The compressed file expands to more than " + std::to_string(_options.maxBytes >> 20) +
+               " MB; refusing to open it.";
       return false;
     }
-    m_out.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(size));
-    if (!m_out) {
-      m_error = "Could not write the temporary decompressed file (disk full?).";
+    _out.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(size));
+    if (!_out) {
+      _error = "Could not write the temporary decompressed file (disk full?).";
       return false;
     }
-    m_crc = crc32(m_crc, data, static_cast<uInt>(size));
+    _crc = crc32(_crc, data, static_cast<uInt>(size));
     return true;
   }
 
   bool poll(double fraction) {
-    if (m_options.isCancelled && m_options.isCancelled()) {
-      m_cancelled = true;
+    if (_options.isCancelled && _options.isCancelled()) {
+      _cancelled = true;
       return false;
     }
-    if (m_options.progress) {
-      m_options.progress(std::clamp(fraction, 0.0, 1.0));
+    if (_options.progress) {
+      _options.progress(std::clamp(fraction, 0.0, 1.0));
     }
     return true;
   }
 
-  std::uint64_t total() const { return m_total; }
-  std::uint32_t crc() const { return static_cast<std::uint32_t>(m_crc); }
-  bool cancelled() const { return m_cancelled; }
-  const std::string& error() const { return m_error; }
-  void fail(std::string message) { m_error = std::move(message); }
+  std::uint64_t total() const { return _total; }
+  std::uint32_t crc() const { return static_cast<std::uint32_t>(_crc); }
+  bool cancelled() const { return _cancelled; }
+  const std::string& error() const { return _error; }
+  void fail(std::string message) { _error = std::move(message); }
 
 private:
-  std::ofstream& m_out;
-  const DecompressOptions& m_options;
-  std::uint64_t m_total = 0;
-  uLong m_crc = crc32(0L, Z_NULL, 0);
-  bool m_cancelled = false;
-  std::string m_error;
+  std::ofstream& _out;
+  const DecompressOptions& _options;
+  std::uint64_t _total = 0;
+  uLong _crc = crc32(0L, Z_NULL, 0);
+  bool _cancelled = false;
+  std::string _error;
 };
 
 // Inflates 'compressedSize' bytes starting at the stream's current position.
@@ -84,19 +84,19 @@ private:
 // across concatenated gzip members. Returns true on a clean end of stream.
 bool inflateStream(std::ifstream& in, std::uint64_t compressedSize, int windowBits, bool multiMember,
                    Sink& sink) {
-  z_stream zs{};
-  if (inflateInit2(&zs, windowBits) != Z_OK) {
+  z_stream stream{};
+  if (inflateInit2(&stream, windowBits) != Z_OK) {
     sink.fail("Could not initialize the decompressor.");
     return false;
   }
-  std::vector<unsigned char> inBuf(kChunk), outBuf(kChunk);
+  std::vector<unsigned char> inBuf(Chunk), outBuf(Chunk);
   std::uint64_t remaining = compressedSize;
   const double denom = compressedSize > 0 ? static_cast<double>(compressedSize) : 1.0;
   bool ok = false;
   bool atMemberEnd = false; // the current member finished; zs is waiting for a reset
 
   while (true) {
-    if (zs.avail_in == 0) {
+    if (stream.avail_in == 0) {
       std::size_t got = 0;
       if (remaining > 0) {
         const std::size_t want = static_cast<std::size_t>(std::min<std::uint64_t>(remaining, inBuf.size()));
@@ -112,55 +112,55 @@ bool inflateStream(std::ifstream& in, std::uint64_t compressedSize, int windowBi
         break;
       }
       remaining -= got;
-      zs.next_in = inBuf.data();
-      zs.avail_in = static_cast<uInt>(got);
+      stream.next_in = inBuf.data();
+      stream.avail_in = static_cast<uInt>(got);
       if (!sink.poll(static_cast<double>(compressedSize - remaining) / denom)) {
         break;
       }
     }
     if (atMemberEnd) {
       // Another gzip member follows only if the gzip magic does; otherwise ignore trailing padding.
-      if (zs.avail_in >= 2 && zs.next_in[0] == 0x1F && zs.next_in[1] == 0x8B) {
-        inflateReset(&zs);
+      if (stream.avail_in >= 2 && stream.next_in[0] == 0x1F && stream.next_in[1] == 0x8B) {
+        inflateReset(&stream);
         atMemberEnd = false;
       } else {
         ok = true;
         break;
       }
     }
-    zs.next_out = outBuf.data();
-    zs.avail_out = static_cast<uInt>(outBuf.size());
-    const int rc = inflate(&zs, Z_NO_FLUSH);
-    const std::size_t produced = outBuf.size() - zs.avail_out;
+    stream.next_out = outBuf.data();
+    stream.avail_out = static_cast<uInt>(outBuf.size());
+    const int status = inflate(&stream, Z_NO_FLUSH);
+    const std::size_t produced = outBuf.size() - stream.avail_out;
     if (produced > 0 && !sink.write(outBuf.data(), produced)) {
       break;
     }
-    if (rc == Z_STREAM_END) {
+    if (status == Z_STREAM_END) {
       if (!multiMember) {
         ok = true;
         break;
       }
       atMemberEnd = true;
-    } else if (rc != Z_OK && rc != Z_BUF_ERROR) {
+    } else if (status != Z_OK && status != Z_BUF_ERROR) {
       sink.fail(std::string("The compressed data is corrupt") +
-                (zs.msg != nullptr ? std::string(" (") + zs.msg + ")" : std::string()) + ".");
+                (stream.msg != nullptr ? std::string(" (") + stream.msg + ")" : std::string()) + ".");
       break;
     }
     if (!sink.poll(static_cast<double>(compressedSize - remaining) / denom)) {
       break;
     }
   }
-  inflateEnd(&zs);
+  inflateEnd(&stream);
   return ok;
 }
 
 bool endsWithNoCase(const std::string& name, const char* suffix) {
-  const std::size_t n = std::strlen(suffix);
-  if (name.size() < n) {
+  const std::size_t suffixLength = std::strlen(suffix);
+  if (name.size() < suffixLength) {
     return false;
   }
-  for (std::size_t i = 0; i < n; ++i) {
-    if (std::tolower(static_cast<unsigned char>(name[name.size() - n + i])) != suffix[i]) {
+  for (std::size_t i = 0; i < suffixLength; ++i) {
+    if (std::tolower(static_cast<unsigned char>(name[name.size() - suffixLength + i])) != suffix[i]) {
       return false;
     }
   }
@@ -216,8 +216,8 @@ std::string findZipEntry(std::ifstream& in, std::uint64_t fileSize, ZipEntry& ch
   if (static_cast<std::uint64_t>(cdOffset) + cdSize > fileSize) {
     return "The zip archive is corrupt (bad central directory).";
   }
-  std::vector<unsigned char> cd(cdSize);
-  if (!readBytes(in, cdOffset, cd.data(), cd.size())) {
+  std::vector<unsigned char> centralDirectory(cdSize);
+  if (!readBytes(in, cdOffset, centralDirectory.data(), centralDirectory.size())) {
     return "The zip archive is truncated.";
   }
 
@@ -225,24 +225,24 @@ std::string findZipEntry(std::ifstream& in, std::uint64_t fileSize, ZipEntry& ch
   bool haveAny = false;
   std::size_t pos = 0;
   for (std::uint32_t i = 0; i < entryCount; ++i) {
-    if (pos + 46 > cd.size() || le32(&cd[pos]) != 0x02014b50) {
+    if (pos + 46 > centralDirectory.size() || le32(&centralDirectory[pos]) != 0x02014b50) {
       return "The zip archive is corrupt (bad directory entry).";
     }
-    const unsigned char* p = &cd[pos];
-    const std::size_t nameLen = le16(p + 28);
-    const std::size_t extraLen = le16(p + 30);
-    const std::size_t commentLen = le16(p + 32);
-    if (pos + 46 + nameLen + extraLen + commentLen > cd.size()) {
+    const unsigned char* record = &centralDirectory[pos];
+    const std::size_t nameLen = le16(record + 28);
+    const std::size_t extraLen = le16(record + 30);
+    const std::size_t commentLen = le16(record + 32);
+    if (pos + 46 + nameLen + extraLen + commentLen > centralDirectory.size()) {
       return "The zip archive is corrupt (bad directory entry).";
     }
     ZipEntry entry;
-    entry.name.assign(reinterpret_cast<const char*>(p + 46), nameLen);
-    entry.flags = le16(p + 8);
-    entry.method = le16(p + 10);
-    entry.crc = le32(p + 16);
-    entry.compressedSize = le32(p + 20);
-    entry.size = le32(p + 24);
-    entry.localOffset = le32(p + 42);
+    entry.name.assign(reinterpret_cast<const char*>(record + 46), nameLen);
+    entry.flags = le16(record + 8);
+    entry.method = le16(record + 10);
+    entry.crc = le32(record + 16);
+    entry.compressedSize = le32(record + 20);
+    entry.size = le32(record + 24);
+    entry.localOffset = le32(record + 42);
     pos += 46 + nameLen + extraLen + commentLen;
 
     if (entry.name.empty() || entry.name.back() == '/' || entry.name.back() == '\\') {
@@ -315,7 +315,7 @@ DecompressResult extractZip(std::ifstream& in, std::uint64_t fileSize, Sink& sin
   if (entry.method == 8) {
     ok = inflateStream(in, entry.compressedSize, -15, false, sink);
   } else {
-    std::vector<unsigned char> buf(kChunk);
+    std::vector<unsigned char> buf(Chunk);
     std::uint64_t remaining = entry.compressedSize;
     ok = true;
     while (remaining > 0) {

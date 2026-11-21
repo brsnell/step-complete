@@ -108,13 +108,13 @@ double lengthUnitInMillimeters(const OccHandle<StepBasic_NamedUnit>& unit, int d
   if (unit.IsNull() || depth > 3) {
     return 0.0;
   }
-  if (const auto si = OccHandle<StepBasic_SiUnit>::DownCast(unit); !si.IsNull()) {
-    if (si->Name() != StepBasic_sunMetre) {
+  if (const auto siUnit = OccHandle<StepBasic_SiUnit>::DownCast(unit); !siUnit.IsNull()) {
+    if (siUnit->Name() != StepBasic_sunMetre) {
       return 0.0;
     }
     int exponent = 0; // power of ten relative to the metre
-    if (si->HasPrefix()) {
-      switch (si->Prefix()) {
+    if (siUnit->HasPrefix()) {
+      switch (siUnit->Prefix()) {
       case StepBasic_spKilo:
         exponent = 3;
         break;
@@ -282,34 +282,34 @@ std::mutex g_importMutex;
 class ProgressBridge : public Message_ProgressIndicator {
 public:
   ProgressBridge(const ProgressCallback& callback, const CancelToken* cancel)
-      : m_callback(callback), m_cancel(cancel) {}
+      : _callback(callback), _cancel(cancel) {}
 
   void setStage(std::string stage) {
-    m_stage = std::move(stage);
+    _stage = std::move(stage);
     report(GetPosition(), true);
   }
 
-  bool UserBreak() override { return m_cancel != nullptr && m_cancel->isCancelled(); }
+  bool UserBreak() override { return _cancel != nullptr && _cancel->isCancelled(); }
 
   void Show(const Message_ProgressScope&, const bool isForce) override { report(GetPosition(), isForce); }
 
   void report(double fraction, bool force) {
-    if (!m_callback) {
+    if (!_callback) {
       return;
     }
     const Clock::time_point now = Clock::now();
-    if (!force && now - m_lastReport < std::chrono::milliseconds(50)) {
+    if (!force && now - _lastReport < std::chrono::milliseconds(50)) {
       return;
     }
-    m_lastReport = now;
-    m_callback(fraction, m_stage);
+    _lastReport = now;
+    _callback(fraction, _stage);
   }
 
 private:
-  const ProgressCallback& m_callback;
-  const CancelToken* m_cancel;
-  std::string m_stage;
-  Clock::time_point m_lastReport{};
+  const ProgressCallback& _callback;
+  const CancelToken* _cancel;
+  std::string _stage;
+  Clock::time_point _lastReport{};
 };
 
 void collectChecks(const Interface_CheckIterator& checks, std::vector<ImportMessage>& out) {
@@ -456,19 +456,19 @@ public:
     std::random_device random;
     const std::string name =
         "stepcomplete-" + std::to_string(random()) + "-" + std::to_string(counter.fetch_add(1)) + ".stp";
-    m_path = std::filesystem::temp_directory_path() / name;
+    _path = std::filesystem::temp_directory_path() / name;
   }
   ~TempFile() {
     std::error_code ec;
-    std::filesystem::remove(m_path, ec);
+    std::filesystem::remove(_path, ec);
   }
   TempFile(const TempFile&) = delete;
   TempFile& operator=(const TempFile&) = delete;
 
-  std::string utf8() const { return m_path.u8string(); }
+  std::string utf8() const { return _path.u8string(); }
 
 private:
-  std::filesystem::path m_path;
+  std::filesystem::path _path;
 };
 
 // Cached documents differ in content with the PMI option, so it is part of the key.
@@ -523,9 +523,9 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
     // Gzip / zip containers (.stpz, .stp.gz) are inflated to a temporary file first: OCCT 7.6 has
     // no stream reader. Detection is by content, so misnamed files work.
     const Compression compression = detectCompression(utf8Path);
-    constexpr double kDecompressShare = 10.0;
+    constexpr double DecompressShare = 10.0;
     Message_ProgressScope root(bridge->Start(), "Import",
-                               compression == Compression::None ? 100.0 : 100.0 + kDecompressShare);
+                               compression == Compression::None ? 100.0 : 100.0 + DecompressShare);
 
     std::optional<TempFile> temp;
     std::string readPath = utf8Path;
@@ -534,7 +534,7 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
       DecompressOptions decompress;
       decompress.isCancelled = [cancel] { return cancelled(cancel); };
       decompress.progress = [&bridge](double fraction) {
-        bridge->report(fraction * kDecompressShare / (100.0 + kDecompressShare), false);
+        bridge->report(fraction * DecompressShare / (100.0 + DecompressShare), false);
       };
       temp.emplace();
       const DecompressResult inflated = decompressStepFile(utf8Path, compression, temp->utf8(), decompress);
@@ -547,7 +547,7 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
         return result;
       }
       readPath = temp->utf8();
-      root.Next(kDecompressShare);
+      root.Next(DecompressShare);
     }
 
     // --- Parse ---------------------------------------------------------------

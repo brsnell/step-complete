@@ -12,22 +12,22 @@ namespace sc::core {
 
 Document::Document() {
   OccHandle<XCAFApp_Application> app = XCAFApp_Application::GetApplication();
-  app->NewDocument(TCollection_ExtendedString("BinXCAF"), m_doc);
+  app->NewDocument(TCollection_ExtendedString("BinXCAF"), _doc);
   // All geometry is stored in millimeters; the STEP reader converts into this unit.
-  XCAFDoc_DocumentTool::SetLengthUnit(m_doc, 0.001);
+  XCAFDoc_DocumentTool::SetLengthUnit(_doc, 0.001);
 }
 
-Document::Document(OccHandle<TDocStd_Document> adopted) : m_doc(std::move(adopted)) {}
+Document::Document(OccHandle<TDocStd_Document> adopted) : _doc(std::move(adopted)) {}
 
 Document::~Document() {
-  if (!m_doc.IsNull() && m_doc->IsOpened()) {
-    XCAFApp_Application::GetApplication()->Close(m_doc);
+  if (!_doc.IsNull() && _doc->IsOpened()) {
+    XCAFApp_Application::GetApplication()->Close(_doc);
   }
 }
 
 void Document::setFileUnit(std::string name, std::optional<LengthUnit> unit) {
-  m_fileUnitName = std::move(name);
-  m_fileUnit = unit;
+  _fileUnitName = std::move(name);
+  _fileUnit = unit;
 }
 
 std::string toUtf8(const TCollection_ExtendedString& text) {
@@ -38,9 +38,9 @@ std::string toUtf8(const TCollection_ExtendedString& text) {
 
 std::optional<LengthUnit> lengthUnitFromStepName(const std::string& name) {
   std::string key;
-  for (const char c : name) {
-    if (std::isalpha(static_cast<unsigned char>(c))) {
-      key += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  for (const char character : name) {
+    if (std::isalpha(static_cast<unsigned char>(character))) {
+      key += static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
     }
   }
   if (key == "millimetre" || key == "millimeter" || key == "mm") {

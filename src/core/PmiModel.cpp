@@ -105,7 +105,7 @@ const char* toString(PmiKind kind) {
   return "PMI";
 }
 
-PmiModel::PmiModel(const DocumentPtr& document, int decimals) : m_document(document), m_decimals(decimals) {
+PmiModel::PmiModel(const DocumentPtr& document, int decimals) : _document(document), _decimals(decimals) {
   if (!document || document->ocaf().IsNull()) {
     return;
   }
@@ -118,7 +118,7 @@ PmiModel::PmiModel(const DocumentPtr& document, int decimals) : m_document(docum
 }
 
 void PmiModel::readDatums() {
-  OccHandle<XCAFDoc_DimTolTool> tool = XCAFDoc_DocumentTool::DimTolTool(m_document->ocaf()->Main());
+  OccHandle<XCAFDoc_DimTolTool> tool = XCAFDoc_DocumentTool::DimTolTool(_document->ocaf()->Main());
   occ::LabelSequence labels;
   tool->GetDatumLabels(labels);
   std::map<std::string, PmiId> byKey; // merge the per-reference copies of one datum
@@ -139,7 +139,7 @@ void PmiModel::readDatums() {
                         ? "Datum target (" + pmi::datumTargetTypeName(object->GetDatumTargetType()) + ")"
                         : "Datum";
     item.text = pmi::datumText(object);
-    item.properties = pmi::datumProperties(object, m_decimals);
+    item.properties = pmi::datumProperties(object, _decimals);
     readPresentation(object, item);
     if (object->HasPointText()) {
       item.textPosition = object->GetPointTextAttach();
@@ -150,7 +150,7 @@ void PmiModel::readDatums() {
                                               : std::string(toString(item.kind)) + ":" + item.text;
     const auto existing = byKey.find(key);
     if (existing != byKey.end()) {
-      PmiItem& merged = m_items[static_cast<size_t>(existing->second)];
+      PmiItem& merged = _items[static_cast<size_t>(existing->second)];
       merged.aliases.push_back(label);
       for (size_t i = 0; i < item.targets.size(); ++i) {
         const bool known = std::find(merged.targetLabels.begin(), merged.targetLabels.end(),
@@ -172,13 +172,13 @@ void PmiModel::readDatums() {
       }
       continue;
     }
-    item.id = static_cast<PmiId>(m_items.size());
+    item.id = static_cast<PmiId>(_items.size());
     item.name = !item.text.empty() ? item.typeName + " " + item.text : generatedName(item.typeName, unnamed);
     byKey.emplace(key, item.id);
-    m_items.push_back(std::move(item));
+    _items.push_back(std::move(item));
   }
   // Datums show their letter; a presentation name from the file is kept as a property.
-  for (PmiItem& datum : m_items) {
+  for (PmiItem& datum : _items) {
     if (!datum.presentationName.empty()) {
       datum.properties.emplace_back("Presentation", datum.presentationName);
     }
@@ -186,7 +186,7 @@ void PmiModel::readDatums() {
 }
 
 void PmiModel::readDimensions() {
-  OccHandle<XCAFDoc_DimTolTool> tool = XCAFDoc_DocumentTool::DimTolTool(m_document->ocaf()->Main());
+  OccHandle<XCAFDoc_DimTolTool> tool = XCAFDoc_DocumentTool::DimTolTool(_document->ocaf()->Main());
   occ::LabelSequence labels;
   tool->GetDimensionLabels(labels);
   std::map<std::string, int> ordinals;
@@ -200,7 +200,7 @@ void PmiModel::readDimensions() {
       continue;
     }
     PmiItem item;
-    item.id = static_cast<PmiId>(m_items.size());
+    item.id = static_cast<PmiId>(_items.size());
     item.label = label;
     item.kind = PmiKind::Dimension;
     // Graphical annotations OCCT could not interpret come through as "common
@@ -212,8 +212,8 @@ void PmiModel::readDimensions() {
                     type != XCAFDimTolObjects_DimensionType_DimensionPresentation &&
                     !(type == XCAFDimTolObjects_DimensionType_Location_None && noValue);
     item.typeName = item.semantic ? pmi::dimensionTypeName(object->GetType()) : "Annotation";
-    item.text = item.semantic ? pmi::dimensionText(object, m_decimals) : std::string();
-    item.properties = pmi::dimensionProperties(object, m_decimals);
+    item.text = item.semantic ? pmi::dimensionText(object, _decimals) : std::string();
+    item.properties = pmi::dimensionProperties(object, _decimals);
     readPresentation(object, item);
     if (object->HasPoint2()) {
       item.point2 = object->GetPoint2();
@@ -224,12 +224,12 @@ void PmiModel::readDimensions() {
     readTargets(tool, label, item);
     item.name = !item.presentationName.empty() ? item.presentationName
                                                : generatedName(item.typeName, ++ordinals[item.typeName]);
-    m_items.push_back(std::move(item));
+    _items.push_back(std::move(item));
   }
 }
 
 void PmiModel::readTolerances() {
-  OccHandle<XCAFDoc_DimTolTool> tool = XCAFDoc_DocumentTool::DimTolTool(m_document->ocaf()->Main());
+  OccHandle<XCAFDoc_DimTolTool> tool = XCAFDoc_DocumentTool::DimTolTool(_document->ocaf()->Main());
   occ::LabelSequence labels;
   tool->GetGeomToleranceLabels(labels);
   std::map<std::string, int> ordinals;
@@ -243,7 +243,7 @@ void PmiModel::readTolerances() {
       continue;
     }
     PmiItem item;
-    item.id = static_cast<PmiId>(m_items.size());
+    item.id = static_cast<PmiId>(_items.size());
     item.label = label;
     item.kind = PmiKind::GeometricTolerance;
     item.semantic = object->GetType() != XCAFDimTolObjects_GeomToleranceType_None;
@@ -256,7 +256,7 @@ void PmiModel::readTolerances() {
     for (const TDF_Label& datumLabel : datumLabels) {
       const PmiId datum = itemFor(datumLabel);
       OccHandle<XCAFDoc_Datum> datumAttribute;
-      if (datum == kNoPmi || !datumLabel.FindAttribute(XCAFDoc_Datum::GetID(), datumAttribute) ||
+      if (datum == NoPmi || !datumLabel.FindAttribute(XCAFDoc_Datum::GetID(), datumAttribute) ||
           datumAttribute->GetObject().IsNull()) {
         continue;
       }
@@ -272,10 +272,10 @@ void PmiModel::readTolerances() {
 
     item.typeName = item.semantic ? pmi::toleranceTypeName(object->GetType()) : "Annotation";
     if (item.semantic) {
-      item.frame = pmi::featureControlFrame(object, datumObjects, m_decimals);
-      item.text = pmi::toleranceText(object, datumObjects, m_decimals);
+      item.frame = pmi::featureControlFrame(object, datumObjects, _decimals);
+      item.text = pmi::toleranceText(object, datumObjects, _decimals);
     }
-    item.properties = pmi::toleranceProperties(object, datumObjects, m_decimals);
+    item.properties = pmi::toleranceProperties(object, datumObjects, _decimals);
     readPresentation(object, item);
     if (object->HasPointText()) {
       item.textPosition = object->GetPointTextAttach();
@@ -283,7 +283,7 @@ void PmiModel::readTolerances() {
     readTargets(tool, label, item);
     item.name = !item.presentationName.empty() ? item.presentationName
                                                : generatedName(item.typeName, ++ordinals[item.typeName]);
-    m_items.push_back(std::move(item));
+    _items.push_back(std::move(item));
   }
 }
 
@@ -298,7 +298,7 @@ void PmiModel::readTolerances() {
 // Ambiguous cases are left alone: the graphics stay visible as "not interpreted".
 void PmiModel::mergeDuplicatePresentations() {
   std::map<std::string, PmiId> semanticByName;
-  for (const PmiItem& item : m_items) {
+  for (const PmiItem& item : _items) {
     if (item.semantic && !item.presentation.IsNull() && !item.presentationName.empty()) {
       semanticByName.emplace(item.presentationName, item.id);
     }
@@ -313,21 +313,21 @@ void PmiModel::mergeDuplicatePresentations() {
   };
 
   // Pass 1: decide which items fold into which (no moves yet).
-  std::vector<PmiId> foldInto(m_items.size(), kNoPmi);
-  std::vector<bool> claimed(m_items.size(), false); // semantic items that received graphics by geometry
+  std::vector<PmiId> foldInto(_items.size(), NoPmi);
+  std::vector<bool> claimed(_items.size(), false); // semantic items that received graphics by geometry
   bool any = false;
-  for (const PmiItem& item : m_items) {
+  for (const PmiItem& item : _items) {
     if (item.semantic || item.presentation.IsNull()) {
       continue;
     }
-    PmiId owner = kNoPmi;
+    PmiId owner = NoPmi;
     if (!item.presentationName.empty()) {
       const auto it = semanticByName.find(item.presentationName);
-      owner = it == semanticByName.end() ? kNoPmi : it->second;
+      owner = it == semanticByName.end() ? NoPmi : it->second;
     }
-    if (owner == kNoPmi) {
+    if (owner == NoPmi) {
       int matches = 0;
-      for (const PmiItem& candidate : m_items) {
+      for (const PmiItem& candidate : _items) {
         if (candidate.semantic && candidate.presentation.IsNull() &&
             !claimed[static_cast<size_t>(candidate.id)] && sameTargets(item, candidate)) {
           owner = candidate.id;
@@ -337,7 +337,7 @@ void PmiModel::mergeDuplicatePresentations() {
       if (matches != 1) {
         continue;
       }
-      PmiItem& target = m_items[static_cast<size_t>(owner)];
+      PmiItem& target = _items[static_cast<size_t>(owner)];
       claimed[static_cast<size_t>(owner)] = true;
       target.presentation = item.presentation;
       if (target.presentationName.empty()) {
@@ -350,24 +350,24 @@ void PmiModel::mergeDuplicatePresentations() {
         target.textPosition = item.textPosition;
       }
     }
-    if (owner == kNoPmi) {
+    if (owner == NoPmi) {
       continue;
     }
     foldInto[static_cast<size_t>(item.id)] = owner;
-    m_items[static_cast<size_t>(owner)].aliases.push_back(item.label);
+    _items[static_cast<size_t>(owner)].aliases.push_back(item.label);
     any = true;
   }
   if (!any) {
     return;
   }
   // Pass 2: compact and renumber.
-  std::vector<PmiId> remap(m_items.size(), kNoPmi);
+  std::vector<PmiId> remap(_items.size(), NoPmi);
   std::vector<PmiItem> kept;
-  kept.reserve(m_items.size());
-  for (size_t i = 0; i < m_items.size(); ++i) {
-    if (foldInto[i] == kNoPmi) {
+  kept.reserve(_items.size());
+  for (size_t i = 0; i < _items.size(); ++i) {
+    if (foldInto[i] == NoPmi) {
       remap[i] = static_cast<PmiId>(kept.size());
-      kept.push_back(std::move(m_items[i]));
+      kept.push_back(std::move(_items[i]));
     }
   }
   for (PmiItem& item : kept) {
@@ -376,7 +376,7 @@ void PmiModel::mergeDuplicatePresentations() {
       datum = remap[static_cast<size_t>(datum)];
     }
   }
-  m_items = std::move(kept);
+  _items = std::move(kept);
 }
 
 namespace {
@@ -402,7 +402,7 @@ const StepCamera* matchCamera(const std::vector<StepCamera>& cameras, std::vecto
 } // namespace
 
 void PmiModel::readViews() {
-  const TDF_Label main = m_document->ocaf()->Main();
+  const TDF_Label main = _document->ocaf()->Main();
   if (!XCAFDoc_DocumentTool::CheckViewTool(main)) {
     return;
   }
@@ -410,7 +410,7 @@ void PmiModel::readViews() {
   OccHandle<XCAFDoc_ClippingPlaneTool> clipping = XCAFDoc_DocumentTool::ClippingPlaneTool(main);
   occ::LabelSequence labels;
   tool->GetViewLabels(labels);
-  const std::vector<StepCamera>& cameras = m_document->cameras();
+  const std::vector<StepCamera>& cameras = _document->cameras();
   std::vector<bool> cameraUsed(cameras.size(), false);
   for (const TDF_Label& label : labels) {
     OccHandle<XCAFDoc_View> attribute;
@@ -422,7 +422,7 @@ void PmiModel::readViews() {
       continue;
     }
     PmiSavedView view;
-    view.id = static_cast<int>(m_views.size());
+    view.id = static_cast<int>(_views.size());
     view.label = label;
     view.name = ascii(object->Name());
     if (view.name.empty()) {
@@ -436,7 +436,7 @@ void PmiModel::readViews() {
     view.windowWidth = object->WindowHorizontalSize();
     view.windowHeight = object->WindowVerticalSize();
     if (const StepCamera* camera =
-            matchCamera(cameras, cameraUsed, ascii(object->Name()), labels.Length(), m_views.size())) {
+            matchCamera(cameras, cameraUsed, ascii(object->Name()), labels.Length(), _views.size())) {
       view.eye = camera->location;
       if (camera->windowWidth > 0.0 && camera->windowHeight > 0.0) {
         view.windowWidthMm = camera->windowWidth;
@@ -466,7 +466,7 @@ void PmiModel::readViews() {
       for (const TDF_Label& gdt : refs) {
         const PmiId id = itemFor(gdt);
         // Merged labels (datum copies, duplicate presentations) resolve to the same item.
-        if (id != kNoPmi && std::find(view.pmi.begin(), view.pmi.end(), id) == view.pmi.end()) {
+        if (id != NoPmi && std::find(view.pmi.begin(), view.pmi.end(), id) == view.pmi.end()) {
           view.pmi.push_back(id);
         }
       }
@@ -482,33 +482,33 @@ void PmiModel::readViews() {
         }
       }
     }
-    m_views.push_back(std::move(view));
+    _views.push_back(std::move(view));
   }
 }
 
 int PmiModel::count(PmiKind kind) const {
-  return static_cast<int>(std::count_if(m_items.begin(), m_items.end(),
-                                        [kind](const PmiItem& item) { return item.kind == kind; }));
+  return static_cast<int>(
+      std::count_if(_items.begin(), _items.end(), [kind](const PmiItem& item) { return item.kind == kind; }));
 }
 
 int PmiModel::uninterpretedCount() const {
   return static_cast<int>(
-      std::count_if(m_items.begin(), m_items.end(), [](const PmiItem& item) { return !item.semantic; }));
+      std::count_if(_items.begin(), _items.end(), [](const PmiItem& item) { return !item.semantic; }));
 }
 
 PmiId PmiModel::itemFor(const TDF_Label& label) const {
-  for (const PmiItem& item : m_items) {
+  for (const PmiItem& item : _items) {
     if (item.label == label ||
         std::find(item.aliases.begin(), item.aliases.end(), label) != item.aliases.end()) {
       return item.id;
     }
   }
-  return kNoPmi;
+  return NoPmi;
 }
 
 std::vector<PmiId> PmiModel::itemsTargeting(const TDF_Label& shapeLabel) const {
   std::vector<PmiId> result;
-  for (const PmiItem& item : m_items) {
+  for (const PmiItem& item : _items) {
     for (const auto* labels : {&item.targetLabels, &item.secondTargetLabels}) {
       if (std::any_of(labels->begin(), labels->end(), [&shapeLabel](const TDF_Label& target) {
             return isAncestorOrSelf(shapeLabel, target);

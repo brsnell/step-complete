@@ -35,8 +35,8 @@ namespace fs = std::filesystem;
 namespace {
 
 // Bump when the entry layout or what is stored in it changes.
-constexpr int kCacheFormatVersion = 1;
-constexpr const char* kMetaMagic = "SCMETA";
+constexpr int CacheFormatVersion = 1;
+constexpr const char* MetaMagic = "SCMETA";
 
 // --- Hashing --------------------------------------------------------------------
 
@@ -45,7 +45,7 @@ public:
   void add(const void* data, size_t size) {
     const auto* bytes = static_cast<const unsigned char*>(data);
     for (size_t i = 0; i < size; ++i) {
-      m_state = (m_state ^ bytes[i]) * 0x100000001b3ull;
+      _state = (_state ^ bytes[i]) * 0x100000001b3ull;
     }
   }
   void add(std::string_view text) {
@@ -54,15 +54,15 @@ public:
   }
   void addU64(std::uint64_t value) { add(&value, sizeof value); }
   void addDouble(double value) { add(&value, sizeof value); }
-  std::uint64_t value() const { return m_state; }
+  std::uint64_t value() const { return _state; }
 
 private:
-  std::uint64_t m_state = 0xcbf29ce484222325ull;
+  std::uint64_t _state = 0xcbf29ce484222325ull;
 };
 
-constexpr std::uint64_t kBlock = std::uint64_t{1} << 20; // 1 MiB
-constexpr int kSampleBlocks = 6;
-constexpr size_t kSampleSize = 64 * 1024;
+constexpr std::uint64_t Block = std::uint64_t{1} << 20; // 1 MiB
+constexpr int SampleBlocks = 6;
+constexpr size_t SampleSize = 64 * 1024;
 
 fs::path pathFromUtf8(const std::string& utf8) {
 #if defined(_WIN32)
@@ -96,19 +96,19 @@ double doubleOf(std::uint64_t bits) {
 
 class MetaWriter {
 public:
-  explicit MetaWriter(std::ostream& os) : m_os(os) {}
-  void i(long long v) { m_os << v << '\n'; }
-  void d(double v) { m_os << std::hex << bitsOf(v) << std::dec << '\n'; }
+  explicit MetaWriter(std::ostream& os) : _os(os) {}
+  void i(long long v) { _os << v << '\n'; }
+  void d(double v) { _os << std::hex << bitsOf(v) << std::dec << '\n'; }
   void s(const std::string& v) {
-    m_os << v.size() << ':';
-    m_os.write(v.data(), static_cast<std::streamsize>(v.size()));
-    m_os << '\n';
+    _os << v.size() << ':';
+    _os.write(v.data(), static_cast<std::streamsize>(v.size()));
+    _os << '\n';
   }
-  void word(const char* v) { m_os << v << '\n'; }
-  void pnt(const gp_Pnt& p) {
-    d(p.X());
-    d(p.Y());
-    d(p.Z());
+  void word(const char* v) { _os << v << '\n'; }
+  void pnt(const gp_Pnt& point) {
+    d(point.X());
+    d(point.Y());
+    d(point.Z());
   }
   void dir(const gp_Dir& v) {
     d(v.X());
@@ -121,38 +121,38 @@ public:
   }
 
 private:
-  std::ostream& m_os;
+  std::ostream& _os;
 };
 
 class MetaReader {
 public:
-  explicit MetaReader(std::istream& is) : m_is(is) {}
-  bool ok() const { return !m_failed && !m_is.fail(); }
+  explicit MetaReader(std::istream& is) : _is(is) {}
+  bool ok() const { return !_failed && !_is.fail(); }
   long long i() {
     long long v = 0;
-    m_is >> v;
+    _is >> v;
     return v;
   }
   double d() {
     std::uint64_t bits = 0;
-    m_is >> std::hex >> bits >> std::dec;
+    _is >> std::hex >> bits >> std::dec;
     return doubleOf(bits);
   }
   std::string s() {
     size_t size = 0;
     char colon = 0;
-    m_is >> size >> colon;
-    if (!m_is || colon != ':' || size > (std::size_t{1} << 28)) {
-      m_failed = true;
+    _is >> size >> colon;
+    if (!_is || colon != ':' || size > (std::size_t{1} << 28)) {
+      _failed = true;
       return {};
     }
     std::string out(size, '\0');
-    m_is.read(out.data(), static_cast<std::streamsize>(size));
+    _is.read(out.data(), static_cast<std::streamsize>(size));
     return out;
   }
   std::string word() {
     std::string v;
-    m_is >> v;
+    _is >> v;
     return v;
   }
   gp_Pnt pnt() {
@@ -167,7 +167,7 @@ public:
     const double y = d();
     const double z = d();
     if (std::abs(x) + std::abs(y) + std::abs(z) < 1e-9) {
-      m_failed = true;
+      _failed = true;
       return gp_Dir();
     }
     return gp_Dir(x, y, z);
@@ -179,106 +179,106 @@ public:
   }
 
 private:
-  std::istream& m_is;
-  bool m_failed = false;
+  std::istream& _is;
+  bool _failed = false;
 };
 
 void writeMeta(std::ostream& os, const Document& document, const std::vector<ImportMessage>& messages,
                int rootCount, int uniqueParts) {
-  MetaWriter w(os);
-  w.word(kMetaMagic);
-  w.i(kCacheFormatVersion);
-  w.s(document.sourcePath());
-  w.s(document.fileUnitName());
-  w.i(document.fileUnit() ? static_cast<int>(*document.fileUnit()) : -1);
-  w.i(rootCount);
-  w.i(uniqueParts);
-  w.i(static_cast<long long>(document.cameras().size()));
-  for (const StepCamera& c : document.cameras()) {
-    w.s(c.name);
-    w.pnt(c.location);
-    w.dir(c.axis);
-    w.dir(c.refDirection);
-    w.i(c.perspective);
-    w.pnt(c.projectionPoint);
-    w.d(c.viewPlaneDistance);
-    w.opt(c.frontPlaneDistance);
-    w.opt(c.backPlaneDistance);
-    w.i(c.frontPlaneClipping);
-    w.i(c.backPlaneClipping);
-    w.i(c.sidesClipping);
-    w.d(c.windowWidth);
-    w.d(c.windowHeight);
-    w.d(c.windowCenterX);
-    w.d(c.windowCenterY);
+  MetaWriter writer(os);
+  writer.word(MetaMagic);
+  writer.i(CacheFormatVersion);
+  writer.s(document.sourcePath());
+  writer.s(document.fileUnitName());
+  writer.i(document.fileUnit() ? static_cast<int>(*document.fileUnit()) : -1);
+  writer.i(rootCount);
+  writer.i(uniqueParts);
+  writer.i(static_cast<long long>(document.cameras().size()));
+  for (const StepCamera& camera : document.cameras()) {
+    writer.s(camera.name);
+    writer.pnt(camera.location);
+    writer.dir(camera.axis);
+    writer.dir(camera.refDirection);
+    writer.i(camera.perspective);
+    writer.pnt(camera.projectionPoint);
+    writer.d(camera.viewPlaneDistance);
+    writer.opt(camera.frontPlaneDistance);
+    writer.opt(camera.backPlaneDistance);
+    writer.i(camera.frontPlaneClipping);
+    writer.i(camera.backPlaneClipping);
+    writer.i(camera.sidesClipping);
+    writer.d(camera.windowWidth);
+    writer.d(camera.windowHeight);
+    writer.d(camera.windowCenterX);
+    writer.d(camera.windowCenterY);
   }
-  w.i(static_cast<long long>(messages.size()));
-  for (const ImportMessage& m : messages) {
-    w.i(static_cast<int>(m.severity));
-    w.i(m.count);
-    w.s(m.text);
+  writer.i(static_cast<long long>(messages.size()));
+  for (const ImportMessage& message : messages) {
+    writer.i(static_cast<int>(message.severity));
+    writer.i(message.count);
+    writer.s(message.text);
   }
-  w.word("END"); // detects truncated files
+  writer.word("END"); // detects truncated files
 }
 
 bool readMeta(std::istream& is, Document& document, std::vector<ImportMessage>& messages, int& rootCount,
               int& uniqueParts) {
-  MetaReader r(is);
-  if (r.word() != kMetaMagic || r.i() != kCacheFormatVersion) {
+  MetaReader reader(is);
+  if (reader.word() != MetaMagic || reader.i() != CacheFormatVersion) {
     return false;
   }
-  document.setSourcePath(r.s());
-  std::string unitName = r.s();
-  const int unit = static_cast<int>(r.i());
+  document.setSourcePath(reader.s());
+  std::string unitName = reader.s();
+  const int unit = static_cast<int>(reader.i());
   if (unit < -1 || unit > static_cast<int>(LengthUnit::Foot)) {
     return false;
   }
   document.setFileUnit(std::move(unitName),
                        unit >= 0 ? std::optional<LengthUnit>(static_cast<LengthUnit>(unit)) : std::nullopt);
-  rootCount = static_cast<int>(r.i());
-  uniqueParts = static_cast<int>(r.i());
+  rootCount = static_cast<int>(reader.i());
+  uniqueParts = static_cast<int>(reader.i());
 
-  const long long cameraCount = r.i();
-  if (!r.ok() || cameraCount < 0 || cameraCount > 1000000) {
+  const long long cameraCount = reader.i();
+  if (!reader.ok() || cameraCount < 0 || cameraCount > 1000000) {
     return false;
   }
   std::vector<StepCamera> cameras;
-  for (long long n = 0; n < cameraCount && r.ok(); ++n) {
-    StepCamera c;
-    c.name = r.s();
-    c.location = r.pnt();
-    c.axis = r.dir();
-    c.refDirection = r.dir();
-    c.perspective = r.i() != 0;
-    c.projectionPoint = r.pnt();
-    c.viewPlaneDistance = r.d();
-    c.frontPlaneDistance = r.opt();
-    c.backPlaneDistance = r.opt();
-    c.frontPlaneClipping = r.i() != 0;
-    c.backPlaneClipping = r.i() != 0;
-    c.sidesClipping = r.i() != 0;
-    c.windowWidth = r.d();
-    c.windowHeight = r.d();
-    c.windowCenterX = r.d();
-    c.windowCenterY = r.d();
-    cameras.push_back(std::move(c));
+  for (long long cameraIndex = 0; cameraIndex < cameraCount && reader.ok(); ++cameraIndex) {
+    StepCamera camera;
+    camera.name = reader.s();
+    camera.location = reader.pnt();
+    camera.axis = reader.dir();
+    camera.refDirection = reader.dir();
+    camera.perspective = reader.i() != 0;
+    camera.projectionPoint = reader.pnt();
+    camera.viewPlaneDistance = reader.d();
+    camera.frontPlaneDistance = reader.opt();
+    camera.backPlaneDistance = reader.opt();
+    camera.frontPlaneClipping = reader.i() != 0;
+    camera.backPlaneClipping = reader.i() != 0;
+    camera.sidesClipping = reader.i() != 0;
+    camera.windowWidth = reader.d();
+    camera.windowHeight = reader.d();
+    camera.windowCenterX = reader.d();
+    camera.windowCenterY = reader.d();
+    cameras.push_back(std::move(camera));
   }
-  const long long messageCount = r.i();
-  if (!r.ok() || messageCount < 0 || messageCount > 10000000) {
+  const long long messageCount = reader.i();
+  if (!reader.ok() || messageCount < 0 || messageCount > 10000000) {
     return false;
   }
-  for (long long n = 0; n < messageCount && r.ok(); ++n) {
-    ImportMessage m;
-    const int severity = static_cast<int>(r.i());
+  for (long long messageIndex = 0; messageIndex < messageCount && reader.ok(); ++messageIndex) {
+    ImportMessage message;
+    const int severity = static_cast<int>(reader.i());
     if (severity < 0 || severity > static_cast<int>(ImportMessage::Severity::Error)) {
       return false;
     }
-    m.severity = static_cast<ImportMessage::Severity>(severity);
-    m.count = static_cast<int>(r.i());
-    m.text = r.s();
-    messages.push_back(std::move(m));
+    message.severity = static_cast<ImportMessage::Severity>(severity);
+    message.count = static_cast<int>(reader.i());
+    message.text = reader.s();
+    messages.push_back(std::move(message));
   }
-  if (!r.ok() || r.word() != "END") {
+  if (!reader.ok() || reader.word() != "END") {
     return false;
   }
   document.setCameras(std::move(cameras));
@@ -366,8 +366,8 @@ std::string cacheKey(const std::string& utf8Path, std::string_view variant) {
   }
 
   Fnv1a64 hash;
-  hash.addU64(kCacheFormatVersion);
-  hash.add(kAppVersion);
+  hash.addU64(CacheFormatVersion);
+  hash.add(AppVersion);
   hash.add(OCC_VERSION_COMPLETE);
   hash.add(variant);
   {
@@ -394,24 +394,24 @@ std::string cacheKey(const std::string& utf8Path, std::string_view variant) {
     hash.addU64(offset);
     hash.add(buffer.data(), got);
   };
-  hashRange(0, kBlock);
-  if (size > 2 * kBlock) {
-    hashRange(size - kBlock, kBlock);
-    const std::uint64_t middle = size - 2 * kBlock;
-    for (int n = 1; n <= kSampleBlocks; ++n) {
-      hashRange(kBlock + middle * static_cast<std::uint64_t>(n) / (kSampleBlocks + 1), kSampleSize);
+  hashRange(0, Block);
+  if (size > 2 * Block) {
+    hashRange(size - Block, Block);
+    const std::uint64_t middle = size - 2 * Block;
+    for (int block = 1; block <= SampleBlocks; ++block) {
+      hashRange(Block + middle * static_cast<std::uint64_t>(block) / (SampleBlocks + 1), SampleSize);
     }
-  } else if (size > kBlock) {
-    hashRange(kBlock, kBlock);
+  } else if (size > Block) {
+    hashRange(Block, Block);
   }
   return toHex(hash.value());
 }
 
 DocumentCache::DocumentCache(fs::path dir, std::uint64_t maxBytes)
-    : m_dir(std::move(dir)), m_maxBytes(maxBytes) {}
+    : _dir(std::move(dir)), _maxBytes(maxBytes) {}
 
 fs::path DocumentCache::entryPath(const std::string& key, const char* extension) const {
-  return m_dir / (key + extension);
+  return _dir / (key + extension);
 }
 
 bool DocumentCache::contains(const std::string& key) const {
@@ -469,7 +469,7 @@ bool DocumentCache::store(const std::string& key, const Document& document,
   std::error_code ec;
   bool ok = false;
   try {
-    fs::create_directories(m_dir, ec);
+    fs::create_directories(_dir, ec);
     ok = writeBinXCAF(document.ocaf(), cbfTmp);
     if (ok) {
       std::ofstream out(metaTmp, std::ios::binary | std::ios::trunc);
@@ -504,7 +504,7 @@ bool DocumentCache::store(const std::string& key, const Document& document,
 std::uint64_t DocumentCache::totalBytes() const {
   std::uint64_t total = 0;
   std::error_code ec;
-  for (fs::directory_iterator it(m_dir, ec), end; !ec && it != end; it.increment(ec)) {
+  for (fs::directory_iterator it(_dir, ec), end; !ec && it != end; it.increment(ec)) {
     std::error_code fileEc;
     if (it->is_regular_file(fileEc)) {
       total += it->file_size(fileEc);
@@ -520,7 +520,7 @@ void DocumentCache::prune() const {
   };
   std::map<std::string, Entry> entries; // by key
   std::error_code ec;
-  for (fs::directory_iterator it(m_dir, ec), end; !ec && it != end; it.increment(ec)) {
+  for (fs::directory_iterator it(_dir, ec), end; !ec && it != end; it.increment(ec)) {
     std::error_code fileEc;
     if (!it->is_regular_file(fileEc)) {
       continue;
@@ -542,7 +542,7 @@ void DocumentCache::prune() const {
   std::sort(ordered.begin(), ordered.end(),
             [](const auto& a, const auto& b) { return a.second.mtime < b.second.mtime; });
   for (const auto& [key, entry] : ordered) {
-    if (total <= m_maxBytes) {
+    if (total <= _maxBytes) {
       break;
     }
     remove(key);

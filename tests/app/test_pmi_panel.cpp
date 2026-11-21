@@ -74,7 +74,7 @@ PmiId findItem(const sc::core::PmiModel& pmi, PmiKind kind, const std::string& t
       return item.id;
     }
   }
-  return sc::core::kNoPmi;
+  return sc::core::NoPmi;
 }
 
 } // namespace
@@ -133,7 +133,7 @@ void PmiPanelTest::rowContent() {
   model.setModel(pmi);
 
   const PmiId height = findItem(*pmi, PmiKind::Dimension, "Linear distance");
-  QVERIFY2(height != sc::core::kNoPmi, "fixture has a linear distance");
+  QVERIFY2(height != sc::core::NoPmi, "fixture has a linear distance");
   QModelIndex row = model.indexOf(height);
   QVERIFY(row.isValid());
   QCOMPARE(model.pmiId(row), height);
@@ -146,7 +146,7 @@ void PmiPanelTest::rowContent() {
   QCOMPARE(row.parent(), groupIndex(model, "Dimensions"));
 
   // Group rows carry no PmiId.
-  QCOMPARE(model.pmiId(groupIndex(model, "Datums")), sc::core::kNoPmi);
+  QCOMPARE(model.pmiId(groupIndex(model, "Datums")), sc::core::NoPmi);
   QVERIFY(!groupIndex(model, "Datums").data(PmiTreeModel::PmiIdRole).isValid());
   QCOMPARE(model.indexOf(9999), QModelIndex());
 }
@@ -169,7 +169,7 @@ void PmiPanelTest::viewRowHasNoCheckBox() {
   QVERIFY(!view.data(Qt::CheckStateRole).isValid());
   QVERIFY(!(model.flags(view) & Qt::ItemIsUserCheckable));
   QVERIFY(model.flags(view) & Qt::ItemIsSelectable);
-  QCOMPARE(model.pmiId(view), sc::core::kNoPmi);
+  QCOMPARE(model.pmiId(view), sc::core::NoPmi);
   QVERIFY(!model.setData(view, Qt::Unchecked, Qt::CheckStateRole));
 
   // PMI rows and their groups do have one.

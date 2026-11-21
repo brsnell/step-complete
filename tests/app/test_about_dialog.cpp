@@ -38,7 +38,7 @@ private Q_SLOTS:
     AboutDialog dialog;
     dialog.setGraphicsInfo(QStringLiteral("GLvendor: Test Vendor\nGLrenderer: Test Renderer"));
     const QString info = dialog.systemInfo();
-    QVERIFY(info.contains(QString::fromUtf8(sc::core::kAppVersion)));
+    QVERIFY(info.contains(QString::fromUtf8(sc::core::AppVersion)));
     QVERIFY(info.contains(QString::fromLatin1(qVersion())));
     QVERIFY(info.contains(QStringLiteral(QT_VERSION_STR)));
     QVERIFY(info.contains(QStringLiteral("Open CASCADE")));

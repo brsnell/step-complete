@@ -56,7 +56,7 @@ public:
   void setModel(std::shared_ptr<const core::PmiModel> model, bool initiallyVisible = true);
   const std::shared_ptr<const core::PmiModel>& pmiModel() const { return m_pmi; }
 
-  core::PmiId pmiId(const QModelIndex& index) const; // kNoPmi if not an item row
+  core::PmiId pmiId(const QModelIndex& index) const; // NoPmi if not an item row
   int viewId(const QModelIndex& index) const;        // -1 if not a saved view row
   QModelIndex indexOf(core::PmiId id) const;
   QModelIndex indexOfView(int viewId) const;

@@ -288,10 +288,10 @@ void SceneManager::setTransparency(const std::vector<core::NodeId>& nodes, doubl
 
 core::NodeId SceneManager::partOf(const OccHandle<AIS_InteractiveObject>& object) const {
   if (object.IsNull()) {
-    return core::kNoNode;
+    return core::NoNode;
   }
   const auto it = m_objectToPart.find(object.get());
-  return it == m_objectToPart.end() ? core::kNoNode : it->second;
+  return it == m_objectToPart.end() ? core::NoNode : it->second;
 }
 
 void SceneManager::setClipPlanes(const OccHandle<Graphic3d_SequenceOfHClipPlane>& planes) {
@@ -358,7 +358,7 @@ SceneManager::pickedEntity(const OccHandle<SelectMgr_EntityOwner>& owner) const 
     return std::nullopt;
   }
   const core::NodeId part = partOf(OccHandle<AIS_InteractiveObject>::DownCast(brepOwner->Selectable()));
-  if (part == core::kNoNode) {
+  if (part == core::NoNode) {
     return std::nullopt;
   }
   // Owners of connected and detached instances hold the prototype-space shape;
@@ -370,7 +370,7 @@ std::vector<core::NodeId> SceneManager::selectedParts() const {
   std::vector<core::NodeId> parts;
   for (m_context->InitSelected(); m_context->MoreSelected(); m_context->NextSelected()) {
     const core::NodeId id = partOf(m_context->SelectedInteractive());
-    if (id != core::kNoNode && std::find(parts.begin(), parts.end(), id) == parts.end()) {
+    if (id != core::NoNode && std::find(parts.begin(), parts.end(), id) == parts.end()) {
       parts.push_back(id);
     }
   }

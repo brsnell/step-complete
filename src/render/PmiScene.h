@@ -124,7 +124,7 @@ public:
   void highlight(const std::vector<core::PmiId>& ids);
   const std::vector<core::PmiId>& highlighted() const { return m_highlighted; }
 
-  // PMI shown by an interactive object (from 3D picking), or kNoPmi.
+  // PMI shown by an interactive object (from 3D picking), or NoPmi.
   core::PmiId pmiOf(const OccHandle<AIS_InteractiveObject>& object) const;
   // PMI currently selected in the context.
   std::vector<core::PmiId> selectedPmi() const;

@@ -57,7 +57,7 @@ void AssemblyTreeModel::computeVisibleCounts() {
       m_totalParts[id] = 1;
       m_visibleParts[id] = m_visibility && m_visibility(it->id) ? 1 : 0;
     }
-    if (it->parent != core::kNoNode) {
+    if (it->parent != core::NoNode) {
       m_totalParts[static_cast<size_t>(it->parent)] += m_totalParts[id];
       m_visibleParts[static_cast<size_t>(it->parent)] += m_visibleParts[id];
     }
@@ -90,7 +90,7 @@ void AssemblyTreeModel::refreshVisibility() {
 
 core::NodeId AssemblyTreeModel::nodeId(const QModelIndex& index) const {
   if (!index.isValid() || index.internalId() == 0) {
-    return core::kNoNode;
+    return core::NoNode;
   }
   return static_cast<core::NodeId>(index.internalId() - 1);
 }
@@ -116,7 +116,7 @@ QModelIndex AssemblyTreeModel::index(int row, int column, const QModelIndex& par
 
 QModelIndex AssemblyTreeModel::parent(const QModelIndex& child) const {
   const core::NodeId id = nodeId(child);
-  if (id == core::kNoNode) {
+  if (id == core::NoNode) {
     return {};
   }
   return indexOf(m_index->node(id).parent);
@@ -141,7 +141,7 @@ int AssemblyTreeModel::columnCount(const QModelIndex&) const {
 
 QVariant AssemblyTreeModel::data(const QModelIndex& index, int role) const {
   const core::NodeId id = nodeId(index);
-  if (id == core::kNoNode) {
+  if (id == core::NoNode) {
     return {};
   }
   const core::AssemblyNode& node = m_index->node(id);
@@ -167,7 +167,7 @@ QVariant AssemblyTreeModel::data(const QModelIndex& index, int role) const {
 
 bool AssemblyTreeModel::setData(const QModelIndex& index, const QVariant& value, int role) {
   const core::NodeId id = nodeId(index);
-  if (id == core::kNoNode || role != Qt::CheckStateRole) {
+  if (id == core::NoNode || role != Qt::CheckStateRole) {
     return false;
   }
   // Clicking a partly visible assembly shows everything below it.

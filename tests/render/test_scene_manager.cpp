@@ -26,7 +26,7 @@ NodeId findNode(const AssemblyIndex& index, const std::string& name, int occurre
       return node.id;
     }
   }
-  return sc::core::kNoNode;
+  return sc::core::NoNode;
 }
 
 const std::string kPin = "Pin \xC3\x98"
@@ -38,7 +38,7 @@ int displayedParts(const SceneManager& scene, const OccHandle<AIS_InteractiveCon
   context->DisplayedObjects(objects);
   int count = 0;
   for (sc::occ::InteractiveList::Iterator it(objects); it.More(); it.Next()) {
-    if (scene.partOf(it.Value()) != sc::core::kNoNode) {
+    if (scene.partOf(it.Value()) != sc::core::NoNode) {
       ++count;
     }
   }

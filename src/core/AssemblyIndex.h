@@ -17,7 +17,7 @@
 namespace sc::core {
 
 using NodeId = std::int32_t;
-inline constexpr NodeId kNoNode = -1;
+inline constexpr NodeId NoNode = -1;
 
 enum class NodeKind {
   Assembly,
@@ -27,8 +27,8 @@ enum class NodeKind {
 // One node of the flattened product structure: an assembly or part *instance*.
 // A part used 20 times appears as 20 nodes sharing one prototypeLabel.
 struct AssemblyNode {
-  NodeId id = kNoNode;
-  NodeId parent = kNoNode;
+  NodeId id = NoNode;
+  NodeId parent = NoNode;
   std::vector<NodeId> children;
   NodeKind kind = NodeKind::Part;
   int depth = 0;
@@ -66,17 +66,17 @@ public:
   AssemblyIndex() = default;
   explicit AssemblyIndex(const DocumentPtr& document);
 
-  const DocumentPtr& document() const { return m_document; }
-  bool isEmpty() const { return m_nodes.empty(); }
+  const DocumentPtr& document() const { return _document; }
+  bool isEmpty() const { return _nodes.empty(); }
 
-  const std::vector<AssemblyNode>& nodes() const { return m_nodes; }
-  const AssemblyNode& node(NodeId id) const { return m_nodes.at(static_cast<size_t>(id)); }
-  const std::vector<NodeId>& roots() const { return m_roots; }
+  const std::vector<AssemblyNode>& nodes() const { return _nodes; }
+  const AssemblyNode& node(NodeId id) const { return _nodes.at(static_cast<size_t>(id)); }
+  const std::vector<NodeId>& roots() const { return _roots; }
 
   // All part instances, in tree order.
-  const std::vector<NodeId>& partInstances() const { return m_partInstances; }
+  const std::vector<NodeId>& partInstances() const { return _partInstances; }
   // Number of distinct part definitions (prototypes).
-  int uniquePartCount() const { return m_uniquePartCount; }
+  int uniquePartCount() const { return _uniquePartCount; }
 
   // Node and all nodes below it, in tree order.
   std::vector<NodeId> subtree(NodeId id) const;
@@ -109,11 +109,11 @@ private:
   void addNode(const TDF_Label& label, NodeId parent, const TopLoc_Location& parentLocation,
                const std::optional<Quantity_ColorRGBA>& parentColor, bool parentVisible, int depth);
 
-  DocumentPtr m_document;
-  std::vector<AssemblyNode> m_nodes;
-  std::vector<NodeId> m_roots;
-  std::vector<NodeId> m_partInstances;
-  int m_uniquePartCount = 0;
+  DocumentPtr _document;
+  std::vector<AssemblyNode> _nodes;
+  std::vector<NodeId> _roots;
+  std::vector<NodeId> _partInstances;
+  int _uniquePartCount = 0;
 };
 
 } // namespace sc::core

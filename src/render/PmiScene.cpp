@@ -846,14 +846,14 @@ std::vector<core::PmiId> PmiScene::visibleIds() const {
 
 core::PmiId PmiScene::pmiOf(const OccHandle<AIS_InteractiveObject>& object) const {
   const auto it = m_objectToPmi.find(object.get());
-  return it == m_objectToPmi.end() ? core::kNoPmi : it->second;
+  return it == m_objectToPmi.end() ? core::NoPmi : it->second;
 }
 
 std::vector<core::PmiId> PmiScene::selectedPmi() const {
   std::vector<core::PmiId> ids;
   for (m_context->InitSelected(); m_context->MoreSelected(); m_context->NextSelected()) {
     const core::PmiId id = pmiOf(m_context->SelectedInteractive());
-    if (id != core::kNoPmi && std::find(ids.begin(), ids.end(), id) == ids.end()) {
+    if (id != core::NoPmi && std::find(ids.begin(), ids.end(), id) == ids.end()) {
       ids.push_back(id);
     }
   }
