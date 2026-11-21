@@ -175,6 +175,29 @@ private Q_SLOTS:
     QVERIFY(m_tool->hasWitness(m_panel->idAt(2)));
   }
 
+  // Value: protects=a device-pixel-ratio change (window moved to a screen with other scaling)
+  // re-syncs the witnesses; fails_when=the viewport's devicePixelRatioChanged is not connected
+  // to the sync; why_new=new wiring; seam=none; no_claim=detecting a real scale change (Xvfb
+  // offers one scale; the detection is checked by hand on a mixed-DPI desktop)
+  void scaleChangeResyncsWitnesses() {
+    openFixture();
+    m_mass->trigger();
+    QCOMPARE(m_tool->witnessCount(), 1);
+    auto* dock = qobject_cast<QDockWidget*>(m_panel->parentWidget());
+    QVERIFY(dock != nullptr);
+    {
+      // Close the panel without its own sync, so only the scale signal can remove the witness.
+      const QSignalBlocker blocker(dock->toggleViewAction());
+      dock->hide();
+    }
+    QVERIFY(!dock->toggleViewAction()->isChecked());
+    QCOMPARE(m_tool->witnessCount(), 1);
+
+    auto* viewport = m_window->findChild<sc::render::OcctViewport*>();
+    Q_EMIT viewport->devicePixelRatioChanged();
+    QCOMPARE(m_tool->witnessCount(), 0);
+  }
+
 private:
   void openFixture() {
     m_window->openFileWhenReady(m_path); // GL is ready (init), so the import starts now

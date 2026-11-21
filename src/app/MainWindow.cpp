@@ -109,6 +109,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(m_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
   connect(m_viewport, &render::OcctViewport::glInitialized, this, &MainWindow::onGlInitialized);
   connect(m_viewport, &render::OcctViewport::selectionChanged, this, &MainWindow::onViewportSelectionChanged);
+  // Witnesses are sized in device pixels: rebuild them on a screen with other scaling.
+  connect(m_viewport, &render::OcctViewport::devicePixelRatioChanged, this,
+          &MainWindow::syncMeasurementWitnesses);
   m_viewport->setContextMenuPolicy(Qt::CustomContextMenu);
   connect(m_viewport, &QWidget::customContextMenuRequested, this,
           [this](const QPoint& pos) { showContextMenu(m_viewport, pos); });
@@ -139,6 +142,7 @@ MainWindow::~MainWindow() {
   // syncMeasurementWitnesses once the tool is gone.
   disconnect(m_measurements, nullptr, this, nullptr);
   disconnect(m_measurementsDock->toggleViewAction(), nullptr, this, nullptr);
+  disconnect(m_viewport, &render::OcctViewport::devicePixelRatioChanged, this, nullptr);
   delete m_measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
   delete m_sectionTool; // removes its handles and the parts' clip planes
@@ -591,7 +595,7 @@ void MainWindow::measureMassProperties() {
   QApplication::restoreOverrideCursor();
 
   m_measurementsDock->show();
-  // Adding selects the new row, which draws its witness (see MeasurementsPanel::currentChanged).
+  // Adding emits MeasurementsPanel::displayChanged, so syncMeasurementWitnesses draws the witness.
   m_measurements->addMeasurement(result);
   if (!result.ok) {
     statusBar()->showMessage(QString::fromStdString(result.error), 6000);
