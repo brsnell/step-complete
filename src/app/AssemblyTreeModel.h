@@ -23,7 +23,7 @@ public:
   explicit AssemblyTreeModel(QObject* parent = nullptr);
 
   void setModel(std::shared_ptr<const core::AssemblyIndex> index, PartVisibility visibility);
-  const std::shared_ptr<const core::AssemblyIndex>& assembly() const { return m_index; }
+  const std::shared_ptr<const core::AssemblyIndex>& assembly() const { return _index; }
 
   core::NodeId nodeId(const QModelIndex& index) const;
   QModelIndex indexOf(core::NodeId node) const;
@@ -47,13 +47,13 @@ Q_SIGNALS:
 private:
   void computeVisibleCounts();
 
-  std::shared_ptr<const core::AssemblyIndex> m_index;
-  PartVisibility m_visibility;
-  std::vector<int> m_rowInParent;  // per node
-  std::vector<int> m_visibleParts; // per node: visible part instances in subtree
-  std::vector<int> m_totalParts;   // per node: part instances in subtree
-  QIcon m_assemblyIcon;
-  QIcon m_partIcon;
+  std::shared_ptr<const core::AssemblyIndex> _index;
+  PartVisibility _visibility;
+  std::vector<int> _rowInParent;  // per node
+  std::vector<int> _visibleParts; // per node: visible part instances in subtree
+  std::vector<int> _totalParts;   // per node: part instances in subtree
+  QIcon _assemblyIcon;
+  QIcon _partIcon;
 };
 
 } // namespace sc::app

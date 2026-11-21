@@ -30,27 +30,27 @@ public:
   static void setCacheEnabled(bool enabled);
 
   void start();
-  void cancel() { m_cancel.cancel(); }
+  void cancel() { _cancel.cancel(); }
 
-  const QString& path() const { return m_path; }
-  const core::ImportResult& result() const { return m_result; }
-  const std::shared_ptr<const core::AssemblyIndex>& index() const { return m_index; }
-  const std::shared_ptr<const core::PmiModel>& pmi() const { return m_pmi; }
-  double elapsedSeconds() const { return m_elapsedSeconds; }
+  const QString& path() const { return _path; }
+  const core::ImportResult& result() const { return _result; }
+  const std::shared_ptr<const core::AssemblyIndex>& index() const { return _index; }
+  const std::shared_ptr<const core::PmiModel>& pmi() const { return _pmi; }
+  double elapsedSeconds() const { return _elapsedSeconds; }
 
 Q_SIGNALS:
   void progress(int percent, const QString& stage);
   void finished();
 
 private:
-  QString m_path;
-  core::CancelToken m_cancel;
-  QThread* m_thread = nullptr;
-  QElapsedTimer m_timer;
-  core::ImportResult m_result;
-  std::shared_ptr<const core::AssemblyIndex> m_index;
-  std::shared_ptr<const core::PmiModel> m_pmi;
-  double m_elapsedSeconds = 0.0;
+  QString _path;
+  core::CancelToken _cancel;
+  QThread* _thread = nullptr;
+  QElapsedTimer _timer;
+  core::ImportResult _result;
+  std::shared_ptr<const core::AssemblyIndex> _index;
+  std::shared_ptr<const core::PmiModel> _pmi;
+  double _elapsedSeconds = 0.0;
 };
 
 } // namespace sc::app

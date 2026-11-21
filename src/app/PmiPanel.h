@@ -39,7 +39,7 @@ public:
   using QWidget::setVisible;
   std::vector<core::PmiId> visibleIds() const;
 
-  const PmiTreeModel* treeModel() const { return m_model; }
+  const PmiTreeModel* treeModel() const { return _model; }
 
 Q_SIGNALS:
   // The selection changed by user action; ids of the selected PMI rows (groups and saved views excluded).
@@ -55,13 +55,13 @@ private:
   void onSelectionChanged();
   void onActivated(const QModelIndex& proxyIndex);
 
-  QLineEdit* m_search = nullptr;
-  QComboBox* m_kind = nullptr;
-  QTreeView* m_tree = nullptr;
-  QLabel* m_summary = nullptr;
-  PmiTreeModel* m_model = nullptr;
-  PmiFilterProxy* m_proxy = nullptr;
-  bool m_programmaticSelection = false;
+  QLineEdit* _search = nullptr;
+  QComboBox* _kind = nullptr;
+  QTreeView* _tree = nullptr;
+  QLabel* _summary = nullptr;
+  PmiTreeModel* _model = nullptr;
+  PmiFilterProxy* _proxy = nullptr;
+  bool _programmaticSelection = false;
 };
 
 } // namespace sc::app

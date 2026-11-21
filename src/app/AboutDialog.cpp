@@ -82,7 +82,7 @@ QString AboutDialog::licenseText(const LicenseEntry& entry) {
   return text;
 }
 
-AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent), m_entries(licenseEntries()) {
+AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent), _entries(licenseEntries()) {
   setWindowTitle(tr("About %1").arg(QString::fromUtf8(core::AppName)));
   resize(720, 520);
 
@@ -125,11 +125,11 @@ AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent), m_entries(licenseEn
   // --- System info ---
   auto* system = new QWidget(tabs);
   auto* systemLayout = new QVBoxLayout(system);
-  m_systemText = new QPlainTextEdit(system);
-  m_systemText->setReadOnly(true);
-  m_systemText->setLineWrapMode(QPlainTextEdit::NoWrap);
-  m_systemText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-  systemLayout->addWidget(m_systemText);
+  _systemText = new QPlainTextEdit(system);
+  _systemText->setReadOnly(true);
+  _systemText->setLineWrapMode(QPlainTextEdit::NoWrap);
+  _systemText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+  systemLayout->addWidget(_systemText);
   auto* copy = new QPushButton(tr("Copy to clipboard"), system);
   copy->setObjectName(QStringLiteral("copySystemInfoButton"));
   connect(copy, &QPushButton::clicked, this, &AboutDialog::copySystemInfo);
@@ -144,27 +144,27 @@ AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent), m_entries(licenseEn
   auto* licenses = new QWidget(tabs);
   auto* licensesLayout = new QVBoxLayout(licenses);
   auto* splitter = new QSplitter(Qt::Horizontal, licenses);
-  m_licenseList = new QListWidget(splitter);
-  for (const LicenseEntry& entry : m_entries) {
-    m_licenseList->addItem(entry.title);
+  _licenseList = new QListWidget(splitter);
+  for (const LicenseEntry& entry : _entries) {
+    _licenseList->addItem(entry.title);
   }
-  m_licenseText = new QPlainTextEdit(splitter);
-  m_licenseText->setReadOnly(true);
-  m_licenseText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+  _licenseText = new QPlainTextEdit(splitter);
+  _licenseText->setReadOnly(true);
+  _licenseText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
   splitter->setStretchFactor(0, 0);
   splitter->setStretchFactor(1, 1);
   splitter->setSizes({220, 480});
   licensesLayout->addWidget(splitter, 1);
-  m_licenseSource = new QLabel(licenses);
-  m_licenseSource->setOpenExternalLinks(true);
-  m_licenseSource->setTextInteractionFlags(Qt::TextBrowserInteraction);
-  licensesLayout->addWidget(m_licenseSource);
-  m_licenseNote = new QLabel(licenses);
-  m_licenseNote->setWordWrap(true);
-  licensesLayout->addWidget(m_licenseNote);
+  _licenseSource = new QLabel(licenses);
+  _licenseSource->setOpenExternalLinks(true);
+  _licenseSource->setTextInteractionFlags(Qt::TextBrowserInteraction);
+  licensesLayout->addWidget(_licenseSource);
+  _licenseNote = new QLabel(licenses);
+  _licenseNote->setWordWrap(true);
+  licensesLayout->addWidget(_licenseNote);
   tabs->addTab(licenses, tr("Licenses"));
-  connect(m_licenseList, &QListWidget::currentRowChanged, this, &AboutDialog::showLicense);
-  m_licenseList->setCurrentRow(0);
+  connect(_licenseList, &QListWidget::currentRowChanged, this, &AboutDialog::showLicense);
+  _licenseList->setCurrentRow(0);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, this);
   connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -175,7 +175,7 @@ AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent), m_entries(licenseEn
 }
 
 void AboutDialog::setGraphicsInfo(const QString& info) {
-  m_graphicsInfo = info;
+  _graphicsInfo = info;
   refreshSystemInfo();
 }
 
@@ -190,7 +190,7 @@ QString AboutDialog::systemInfo() const {
   text += QStringLiteral("Kernel: %1 %2\n").arg(QSysInfo::kernelType(), QSysInfo::kernelVersion());
   text += QStringLiteral("CPU architecture: %1\n").arg(QSysInfo::currentCpuArchitecture());
   text += QStringLiteral("\nGraphics:\n");
-  text += m_graphicsInfo.isEmpty() ? QStringLiteral("(not available)") : m_graphicsInfo;
+  text += _graphicsInfo.isEmpty() ? QStringLiteral("(not available)") : _graphicsInfo;
   if (!text.endsWith(QLatin1Char('\n'))) {
     text += QLatin1Char('\n');
   }
@@ -198,8 +198,8 @@ QString AboutDialog::systemInfo() const {
 }
 
 void AboutDialog::refreshSystemInfo() {
-  if (m_systemText != nullptr) {
-    m_systemText->setPlainText(systemInfo());
+  if (_systemText != nullptr) {
+    _systemText->setPlainText(systemInfo());
   }
 }
 
@@ -210,28 +210,28 @@ void AboutDialog::copySystemInfo() {
 }
 
 int AboutDialog::licenseCount() const {
-  return static_cast<int>(m_entries.size());
+  return static_cast<int>(_entries.size());
 }
 
 void AboutDialog::selectLicense(int index) {
-  m_licenseList->setCurrentRow(index);
+  _licenseList->setCurrentRow(index);
 }
 
 QString AboutDialog::shownLicenseText() const {
-  return m_licenseText->toPlainText();
+  return _licenseText->toPlainText();
 }
 
 void AboutDialog::showLicense(int index) {
-  if (index < 0 || index >= m_entries.size()) {
+  if (index < 0 || index >= _entries.size()) {
     return;
   }
-  const LicenseEntry& entry = m_entries.at(index);
+  const LicenseEntry& entry = _entries.at(index);
   const QString text = licenseText(entry);
-  m_licenseText->setPlainText(text.isEmpty() ? tr("The license text could not be loaded.") : text);
-  m_licenseSource->setText(tr("Source: <a href=\"%1\">%1</a>").arg(entry.sourceUrl));
-  m_licenseNote->setText(tr("This library is dynamically linked; you may replace it with your own compatible "
-                            "build, as the LGPL permits."));
-  m_licenseNote->setVisible(entry.replaceable);
+  _licenseText->setPlainText(text.isEmpty() ? tr("The license text could not be loaded.") : text);
+  _licenseSource->setText(tr("Source: <a href=\"%1\">%1</a>").arg(entry.sourceUrl));
+  _licenseNote->setText(tr("This library is dynamically linked; you may replace it with your own compatible "
+                           "build, as the LGPL permits."));
+  _licenseNote->setVisible(entry.replaceable);
 }
 
 } // namespace sc::app

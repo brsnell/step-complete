@@ -33,13 +33,13 @@ private:
   void addRow(QTreeWidgetItem* group, const QString& key, const QString& value);
   void rebuild();
 
-  QTreeWidget* m_tree = nullptr;
-  std::shared_ptr<const core::AssemblyIndex> m_index;
-  core::ImportStats m_stats;
-  double m_loadSeconds = 0.0;
-  std::vector<core::NodeId> m_selection;
-  std::shared_ptr<const core::PmiModel> m_pmi;
-  std::vector<core::PmiId> m_pmiSelection;
+  QTreeWidget* _tree = nullptr;
+  std::shared_ptr<const core::AssemblyIndex> _index;
+  core::ImportStats _stats;
+  double _loadSeconds = 0.0;
+  std::vector<core::NodeId> _selection;
+  std::shared_ptr<const core::PmiModel> _pmi;
+  std::vector<core::PmiId> _pmiSelection;
 };
 
 } // namespace sc::app

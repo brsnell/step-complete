@@ -54,7 +54,7 @@ public:
 
   // Rebuilds the tree. Every item starts with the given visibility.
   void setModel(std::shared_ptr<const core::PmiModel> model, bool initiallyVisible = true);
-  const std::shared_ptr<const core::PmiModel>& pmiModel() const { return m_pmi; }
+  const std::shared_ptr<const core::PmiModel>& pmiModel() const { return _pmi; }
 
   core::PmiId pmiId(const QModelIndex& index) const; // NoPmi if not an item row
   int viewId(const QModelIndex& index) const;        // -1 if not a saved view row
@@ -100,13 +100,13 @@ private:
   Qt::CheckState groupCheckState(const Node& group) const;
   void emitGroupChanged(int groupNode);
 
-  std::shared_ptr<const core::PmiModel> m_pmi;
+  std::shared_ptr<const core::PmiModel> _pmi;
   // Nodes 0..groupCount-1 are the groups in display order; each group's children follow contiguously.
-  std::vector<Node> m_nodes;
-  int m_groupCount = 0;
-  std::vector<int> m_nodeOfItem; // per PmiId: node index
-  std::unordered_map<int, int> m_nodeOfView;
-  std::vector<bool> m_visible; // per PmiId
+  std::vector<Node> _nodes;
+  int _groupCount = 0;
+  std::vector<int> _nodeOfItem; // per PmiId: node index
+  std::unordered_map<int, int> _nodeOfView;
+  std::vector<bool> _visible; // per PmiId
 };
 
 } // namespace sc::app

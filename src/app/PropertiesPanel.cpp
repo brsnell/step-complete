@@ -31,56 +31,56 @@ QString colorText(const Quantity_ColorRGBA& color) {
 } // namespace
 
 PropertiesPanel::PropertiesPanel(QWidget* parent) : QWidget(parent) {
-  m_tree = new QTreeWidget(this);
-  m_tree->setColumnCount(2);
-  m_tree->setHeaderLabels({tr("Property"), tr("Value")});
-  m_tree->setRootIsDecorated(false);
-  m_tree->setIndentation(8);
-  m_tree->setAlternatingRowColors(true);
-  m_tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
-  m_tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-  m_tree->header()->setStretchLastSection(true);
+  _tree = new QTreeWidget(this);
+  _tree->setColumnCount(2);
+  _tree->setHeaderLabels({tr("Property"), tr("Value")});
+  _tree->setRootIsDecorated(false);
+  _tree->setIndentation(8);
+  _tree->setAlternatingRowColors(true);
+  _tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  _tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+  _tree->header()->setStretchLastSection(true);
 
   auto* layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
-  layout->addWidget(m_tree);
+  layout->addWidget(_tree);
 }
 
 void PropertiesPanel::setModel(std::shared_ptr<const core::AssemblyIndex> index,
                                const core::ImportStats& stats, double loadSeconds) {
-  m_index = std::move(index);
-  m_stats = stats;
-  m_loadSeconds = loadSeconds;
-  m_selection.clear();
-  m_pmi.reset();
-  m_pmiSelection.clear();
+  _index = std::move(index);
+  _stats = stats;
+  _loadSeconds = loadSeconds;
+  _selection.clear();
+  _pmi.reset();
+  _pmiSelection.clear();
   rebuild();
 }
 
 void PropertiesPanel::clear() {
-  m_index.reset();
-  m_selection.clear();
-  m_pmi.reset();
-  m_pmiSelection.clear();
+  _index.reset();
+  _selection.clear();
+  _pmi.reset();
+  _pmiSelection.clear();
   rebuild();
 }
 
 void PropertiesPanel::showSelection(const std::vector<core::NodeId>& nodes) {
-  m_selection = nodes;
-  m_pmiSelection.clear();
+  _selection = nodes;
+  _pmiSelection.clear();
   rebuild();
 }
 
 void PropertiesPanel::showPmi(std::shared_ptr<const core::PmiModel> pmi,
                               const std::vector<core::PmiId>& ids) {
-  m_pmi = std::move(pmi);
-  m_pmiSelection = ids;
-  m_selection.clear();
+  _pmi = std::move(pmi);
+  _pmiSelection = ids;
+  _selection.clear();
   rebuild();
 }
 
 QTreeWidgetItem* PropertiesPanel::addGroup(const QString& title) {
-  auto* group = new QTreeWidgetItem(m_tree, {title});
+  auto* group = new QTreeWidgetItem(_tree, {title});
   QFont font = group->font(0);
   font.setBold(true);
   group->setFont(0, font);
@@ -95,14 +95,14 @@ void PropertiesPanel::addRow(QTreeWidgetItem* group, const QString& key, const Q
 }
 
 void PropertiesPanel::rebuild() {
-  m_tree->clear();
-  if (!m_index) {
+  _tree->clear();
+  if (!_index) {
     return;
   }
 
   // --- PMI ------------------------------------------------------------------------
-  if (m_pmi && m_pmiSelection.size() == 1) {
-    const core::PmiItem& item = m_pmi->item(m_pmiSelection.front());
+  if (_pmi && _pmiSelection.size() == 1) {
+    const core::PmiItem& item = _pmi->item(_pmiSelection.front());
     QTreeWidgetItem* group = addGroup(QString::fromUtf8(core::toString(item.kind)));
     const auto hasProperty = [&item](const char* key) {
       return std::any_of(item.properties.begin(), item.properties.end(),
@@ -124,7 +124,7 @@ void PropertiesPanel::rebuild() {
     if (!item.datums.empty()) {
       QStringList datums;
       for (const core::PmiId datum : item.datums) {
-        datums << QString::fromStdString(m_pmi->item(datum).text);
+        datums << QString::fromStdString(_pmi->item(datum).text);
       }
       addRow(group, tr("Datum references"), datums.join(QStringLiteral(" | ")));
     }
@@ -132,25 +132,25 @@ void PropertiesPanel::rebuild() {
            tr("%n entities", nullptr, static_cast<int>(item.targets.size() + item.secondTargets.size())));
     addRow(group, tr("Presentation"),
            item.presentation.IsNull() ? tr("Semantic only") : tr("Graphical (from file)"));
-  } else if (m_pmi && m_pmiSelection.size() > 1) {
+  } else if (_pmi && _pmiSelection.size() > 1) {
     QTreeWidgetItem* group = addGroup(tr("PMI"));
-    addRow(group, tr("Selected annotations"), QString::number(m_pmiSelection.size()));
+    addRow(group, tr("Selected annotations"), QString::number(_pmiSelection.size()));
   }
 
   // --- Selection ------------------------------------------------------------------
-  if (m_selection.size() == 1) {
-    const core::NodeId id = m_selection.front();
-    const core::AssemblyNode& node = m_index->node(id);
+  if (_selection.size() == 1) {
+    const core::NodeId id = _selection.front();
+    const core::AssemblyNode& node = _index->node(id);
     QTreeWidgetItem* group = addGroup(node.kind == core::NodeKind::Assembly ? tr("Assembly") : tr("Part"));
     addRow(group, tr("Name"), QString::fromStdString(node.name));
     if (node.prototypeName != node.name && !node.prototypeName.empty()) {
       addRow(group, tr("Product"), QString::fromStdString(node.prototypeName));
     }
-    addRow(group, tr("Path"), QString::fromStdString(m_index->displayPath(id)));
-    addRow(group, tr("Instances in model"), QString::number(m_index->instanceCount(id)));
+    addRow(group, tr("Path"), QString::fromStdString(_index->displayPath(id)));
+    addRow(group, tr("Instances in model"), QString::number(_index->instanceCount(id)));
     if (node.kind == core::NodeKind::Assembly) {
       addRow(group, tr("Children"), QString::number(node.children.size()));
-      addRow(group, tr("Parts below"), QString::number(m_index->partsBelow(id).size()));
+      addRow(group, tr("Parts below"), QString::number(_index->partsBelow(id).size()));
     }
     const gp_XYZ position = node.location.Transformation().TranslationPart();
     addRow(
@@ -159,7 +159,7 @@ void PropertiesPanel::rebuild() {
     if (node.inheritedColor) {
       addRow(group, tr("Instance color"), colorText(*node.inheritedColor));
     }
-    const auto layers = m_index->layers(id);
+    const auto layers = _index->layers(id);
     if (!layers.empty()) {
       QStringList names;
       for (const auto& layer : layers) {
@@ -170,26 +170,26 @@ void PropertiesPanel::rebuild() {
     if (!node.visibleInFile) {
       addRow(group, tr("Hidden in file"), tr("Yes"));
     }
-    const auto attributes = m_index->attributes(id);
+    const auto attributes = _index->attributes(id);
     if (!attributes.empty()) {
       QTreeWidgetItem* attributeGroup = addGroup(tr("Attributes"));
       for (const auto& [key, value] : attributes) {
         addRow(attributeGroup, QString::fromStdString(key), QString::fromStdString(value));
       }
     }
-  } else if (m_selection.size() > 1) {
+  } else if (_selection.size() > 1) {
     QTreeWidgetItem* group = addGroup(tr("Selection"));
-    addRow(group, tr("Selected items"), QString::number(m_selection.size()));
+    addRow(group, tr("Selected items"), QString::number(_selection.size()));
     size_t parts = 0;
-    for (const core::NodeId id : m_selection) {
-      parts += m_index->partsBelow(id).size();
+    for (const core::NodeId id : _selection) {
+      parts += _index->partsBelow(id).size();
     }
     addRow(group, tr("Part instances"), QString::number(parts));
   }
 
   // --- Model ----------------------------------------------------------------------
   QTreeWidgetItem* model = addGroup(tr("Model"));
-  const auto& document = m_index->document();
+  const auto& document = _index->document();
   if (document) {
     const QFileInfo file(QString::fromStdString(document->sourcePath()));
     addRow(model, tr("File"), file.fileName());
@@ -203,12 +203,12 @@ void PropertiesPanel::rebuild() {
     }
     addRow(model, tr("File unit"), unit.isEmpty() ? tr("Unknown") : unit);
   }
-  addRow(model, tr("Part instances"), QString::number(m_index->partInstances().size()));
-  addRow(model, tr("Unique parts"), QString::number(m_index->uniquePartCount()));
+  addRow(model, tr("Part instances"), QString::number(_index->partInstances().size()));
+  addRow(model, tr("Unique parts"), QString::number(_index->uniquePartCount()));
   addRow(model, tr("Load time"),
          tr("%1 s (read %2 s, build %3 s, mesh %4 s)")
-             .arg(number(m_loadSeconds, 2), number(m_stats.readSeconds, 2),
-                  number(m_stats.transferSeconds, 2), number(m_stats.meshSeconds, 2)));
+             .arg(number(_loadSeconds, 2), number(_stats.readSeconds, 2), number(_stats.transferSeconds, 2),
+                  number(_stats.meshSeconds, 2)));
 }
 
 } // namespace sc::app

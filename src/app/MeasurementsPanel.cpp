@@ -22,7 +22,7 @@ namespace sc::app {
 
 namespace {
 
-constexpr int kIdRole = Qt::UserRole + 1;
+constexpr int IdRole = Qt::UserRole + 1;
 
 QString qs(const std::string& text) {
   return QString::fromStdString(text);
@@ -41,7 +41,7 @@ QToolButton* toolButton(const QString& text, const QString& tip, QWidget* parent
 // shortcut-context juggling between docks.
 class DeleteKeyFilter : public QObject {
 public:
-  explicit DeleteKeyFilter(MeasurementsPanel* panel) : QObject(panel), m_panel(panel) {}
+  explicit DeleteKeyFilter(MeasurementsPanel* panel) : QObject(panel), _panel(panel) {}
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
@@ -54,7 +54,7 @@ protected:
       const bool deleteKey = key->key() == Qt::Key_Delete;
 #endif
       if (deleteKey && (key->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier) {
-        m_panel->removeSelected();
+        _panel->removeSelected();
         return true;
       }
     }
@@ -62,86 +62,86 @@ protected:
   }
 
 private:
-  MeasurementsPanel* m_panel;
+  MeasurementsPanel* _panel;
 };
 
 // Only successful results with witness geometry get a checkbox.
-bool hasWitness(const core::Measurement& m) {
-  return m.ok && !m.witness.empty();
+bool hasWitness(const core::Measurement& measurement) {
+  return measurement.ok && !measurement.witness.empty();
 }
 
 } // namespace
 
 MeasurementsPanel::MeasurementsPanel(QWidget* parent) : QWidget(parent) {
-  m_hint = new QLabel(this);
-  m_hint->setWordWrap(true);
-  m_hint->setContentsMargins(4, 2, 4, 2);
+  _hint = new QLabel(this);
+  _hint->setWordWrap(true);
+  _hint->setContentsMargins(4, 2, 4, 2);
 
-  m_tree = new QTreeWidget(this);
-  m_tree->setColumnCount(2);
-  m_tree->setHeaderLabels({tr("Measurement"), tr("Value")});
-  m_tree->setAlternatingRowColors(true);
-  m_tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
-  m_tree->setContextMenuPolicy(Qt::CustomContextMenu);
-  m_tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-  m_tree->header()->setStretchLastSection(true);
-  m_tree->installEventFilter(new DeleteKeyFilter(this));
-  connect(m_tree, &QTreeWidget::currentItemChanged, this, [this] {
-    if (m_updating) {
+  _tree = new QTreeWidget(this);
+  _tree->setColumnCount(2);
+  _tree->setHeaderLabels({tr("Measurement"), tr("Value")});
+  _tree->setAlternatingRowColors(true);
+  _tree->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  _tree->setContextMenuPolicy(Qt::CustomContextMenu);
+  _tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+  _tree->header()->setStretchLastSection(true);
+  _tree->installEventFilter(new DeleteKeyFilter(this));
+  connect(_tree, &QTreeWidget::currentItemChanged, this, [this] {
+    if (_updating) {
       return;
     }
     updateButtons();
     Q_EMIT currentChanged(currentIndex());
     Q_EMIT displayChanged();
   });
-  connect(m_tree, &QTreeWidget::itemSelectionChanged, this, &MeasurementsPanel::updateButtons);
-  connect(m_tree, &QTreeWidget::itemChanged, this, &MeasurementsPanel::onItemChanged);
-  connect(m_tree, &QWidget::customContextMenuRequested, this, &MeasurementsPanel::showContextMenu);
+  connect(_tree, &QTreeWidget::itemSelectionChanged, this, &MeasurementsPanel::updateButtons);
+  connect(_tree, &QTreeWidget::itemChanged, this, &MeasurementsPanel::onItemChanged);
+  connect(_tree, &QWidget::customContextMenuRequested, this, &MeasurementsPanel::showContextMenu);
 
-  m_copy = toolButton(tr("Copy"), tr("Copy the selected results as text"), this);
-  m_export = toolButton(tr("Export CSV\xE2\x80\xA6"), tr("Save all results as a CSV file"), this);
-  m_showAll = toolButton(tr("Hide All"), tr("Show or hide every result in the 3D view"), this);
-  m_remove = toolButton(tr("Remove"), tr("Remove the selected results (Delete)"), this);
-  m_clear = toolButton(tr("Clear"), tr("Remove all results"), this);
-  connect(m_copy, &QToolButton::clicked, this, &MeasurementsPanel::copySelected);
-  connect(m_export, &QToolButton::clicked, this, &MeasurementsPanel::exportCsv);
-  connect(m_showAll, &QToolButton::clicked, this, [this] { setAllShown(!anyShown()); });
-  connect(m_remove, &QToolButton::clicked, this, &MeasurementsPanel::removeSelected);
-  connect(m_clear, &QToolButton::clicked, this, &MeasurementsPanel::clear);
+  _copy = toolButton(tr("Copy"), tr("Copy the selected results as text"), this);
+  _export = toolButton(tr("Export CSV\xE2\x80\xA6"), tr("Save all results as a CSV file"), this);
+  _showAll = toolButton(tr("Hide All"), tr("Show or hide every result in the 3D view"), this);
+  _remove = toolButton(tr("Remove"), tr("Remove the selected results (Delete)"), this);
+  _clear = toolButton(tr("Clear"), tr("Remove all results"), this);
+  connect(_copy, &QToolButton::clicked, this, &MeasurementsPanel::copySelected);
+  connect(_export, &QToolButton::clicked, this, &MeasurementsPanel::exportCsv);
+  connect(_showAll, &QToolButton::clicked, this, [this] { setAllShown(!anyShown()); });
+  connect(_remove, &QToolButton::clicked, this, &MeasurementsPanel::removeSelected);
+  connect(_clear, &QToolButton::clicked, this, &MeasurementsPanel::clear);
 
   auto* buttons = new QHBoxLayout();
   buttons->setContentsMargins(0, 0, 0, 0);
-  buttons->addWidget(m_copy);
-  buttons->addWidget(m_export);
-  buttons->addWidget(m_showAll);
+  buttons->addWidget(_copy);
+  buttons->addWidget(_export);
+  buttons->addWidget(_showAll);
   buttons->addStretch();
-  buttons->addWidget(m_remove);
-  buttons->addWidget(m_clear);
+  buttons->addWidget(_remove);
+  buttons->addWidget(_clear);
 
   auto* layout = new QVBoxLayout(this);
   layout->setContentsMargins(0, 0, 0, 0);
   layout->setSpacing(2);
-  layout->addWidget(m_hint);
-  layout->addWidget(m_tree);
+  layout->addWidget(_hint);
+  layout->addWidget(_tree);
   layout->addLayout(buttons);
   updateButtons();
 }
 
 void MeasurementsPanel::setHint(const QString& text) {
-  m_hint->setText(text);
+  _hint->setText(text);
 }
 
-void MeasurementsPanel::addMeasurement(const core::Measurement& m) {
-  const int id = m_nextId++;
-  const bool showable = hasWitness(m);
-  m_measurements.push_back(m);
-  m_ids.push_back(id);
-  m_shown.push_back(showable);
+void MeasurementsPanel::addMeasurement(const core::Measurement& measurement) {
+  const int id = _nextId++;
+  const bool showable = hasWitness(measurement);
+  _measurements.push_back(measurement);
+  _ids.push_back(id);
+  _shown.push_back(showable);
 
   // Built before it joins the tree, so setting its check state emits nothing.
-  auto* item =
-      new QTreeWidgetItem({QString::fromUtf8(core::toString(m.mode)), qs(m.ok ? m.headline : m.error)});
-  item->setData(0, kIdRole, id);
+  auto* item = new QTreeWidgetItem({QString::fromUtf8(core::toString(measurement.mode)),
+                                    qs(measurement.ok ? measurement.headline : measurement.error)});
+  item->setData(0, IdRole, id);
   item->setToolTip(1, item->text(1));
   if (showable) {
     item->setCheckState(0, Qt::Checked);
@@ -149,54 +149,55 @@ void MeasurementsPanel::addMeasurement(const core::Measurement& m) {
   } else {
     item->setFlags(item->flags() & ~Qt::ItemIsUserCheckable);
   }
-  if (!m.ok) {
+  if (!measurement.ok) {
     item->setForeground(1, QColor(180, 40, 40));
   }
-  for (const std::string& entity : m.entities) {
+  for (const std::string& entity : measurement.entities) {
     auto* child = new QTreeWidgetItem(
-        item, {m.mode == core::MeasureMode::MassProperties ? tr("Part") : tr("Picked"), qs(entity)});
-    child->setData(0, kIdRole, id);
+        item,
+        {measurement.mode == core::MeasureMode::MassProperties ? tr("Part") : tr("Picked"), qs(entity)});
+    child->setData(0, IdRole, id);
     child->setToolTip(1, child->text(1));
   }
-  for (const auto& [key, value] : m.details) {
+  for (const auto& [key, value] : measurement.details) {
     auto* child = new QTreeWidgetItem(item, {qs(key), qs(value)});
-    child->setData(0, kIdRole, id);
+    child->setData(0, IdRole, id);
     child->setToolTip(1, child->text(1));
   }
-  m_tree->addTopLevelItem(item);
+  _tree->addTopLevelItem(item);
   // Older results keep whatever the user expanded, so several can be compared.
   item->setExpanded(true);
-  m_tree->setCurrentItem(item); // emits currentChanged and displayChanged
-  m_tree->scrollToItem(item);
+  _tree->setCurrentItem(item); // emits currentChanged and displayChanged
+  _tree->scrollToItem(item);
   updateButtons();
 }
 
 void MeasurementsPanel::clear() {
-  m_updating = true;
-  m_tree->clear();
-  m_updating = false;
-  m_measurements.clear();
-  m_ids.clear();
-  m_shown.clear();
+  _updating = true;
+  _tree->clear();
+  _updating = false;
+  _measurements.clear();
+  _ids.clear();
+  _shown.clear();
   updateButtons();
   Q_EMIT currentChanged(-1);
   Q_EMIT displayChanged();
 }
 
 int MeasurementsPanel::indexOfId(int id) const {
-  const auto it = std::find(m_ids.begin(), m_ids.end(), id);
-  return it != m_ids.end() ? static_cast<int>(it - m_ids.begin()) : -1;
+  const auto it = std::find(_ids.begin(), _ids.end(), id);
+  return it != _ids.end() ? static_cast<int>(it - _ids.begin()) : -1;
 }
 
 int MeasurementsPanel::currentIndex() const {
-  const QTreeWidgetItem* item = m_tree->currentItem();
-  return item != nullptr ? indexOfId(item->data(0, kIdRole).toInt()) : -1;
+  const QTreeWidgetItem* item = _tree->currentItem();
+  return item != nullptr ? indexOfId(item->data(0, IdRole).toInt()) : -1;
 }
 
 std::vector<int> MeasurementsPanel::selectedIndices() const {
   std::vector<int> indices;
-  for (const QTreeWidgetItem* item : m_tree->selectedItems()) {
-    const int index = indexOfId(item->data(0, kIdRole).toInt());
+  for (const QTreeWidgetItem* item : _tree->selectedItems()) {
+    const int index = indexOfId(item->data(0, IdRole).toInt());
     if (index >= 0 && std::find(indices.begin(), indices.end(), index) == indices.end()) {
       indices.push_back(index);
     }
@@ -206,18 +207,18 @@ std::vector<int> MeasurementsPanel::selectedIndices() const {
 }
 
 void MeasurementsPanel::setShown(int index, bool shown) {
-  if (index < 0 || index >= static_cast<int>(m_measurements.size())) {
+  if (index < 0 || index >= static_cast<int>(_measurements.size())) {
     return;
   }
-  if (!hasWitness(m_measurements[static_cast<size_t>(index)])) {
+  if (!hasWitness(_measurements[static_cast<size_t>(index)])) {
     return;
   }
-  QTreeWidgetItem* item = m_tree->topLevelItem(index);         // rows and results share their order
+  QTreeWidgetItem* item = _tree->topLevelItem(index);          // rows and results share their order
   item->setCheckState(0, shown ? Qt::Checked : Qt::Unchecked); // onItemChanged does the rest
 }
 
 void MeasurementsPanel::setAllShown(bool shown) {
-  std::vector<int> all(m_measurements.size());
+  std::vector<int> all(_measurements.size());
   std::iota(all.begin(), all.end(), 0);
   setShownRows(all, shown);
 }
@@ -225,20 +226,20 @@ void MeasurementsPanel::setAllShown(bool shown) {
 // Checks or unchecks several results with one displayChanged, so the 3D view syncs once.
 void MeasurementsPanel::setShownRows(const std::vector<int>& indices, bool shown) {
   bool changed = false;
-  m_updating = true;
+  _updating = true;
   for (const int i : indices) {
-    if (i < 0 || i >= static_cast<int>(m_measurements.size())) {
+    if (i < 0 || i >= static_cast<int>(_measurements.size())) {
       continue;
     }
-    QTreeWidgetItem* item = m_tree->topLevelItem(i);
-    if (!hasWitness(m_measurements[static_cast<size_t>(i)]) || m_shown[static_cast<size_t>(i)] == shown) {
+    QTreeWidgetItem* item = _tree->topLevelItem(i);
+    if (!hasWitness(_measurements[static_cast<size_t>(i)]) || _shown[static_cast<size_t>(i)] == shown) {
       continue;
     }
     item->setCheckState(0, shown ? Qt::Checked : Qt::Unchecked);
-    m_shown[static_cast<size_t>(i)] = shown;
+    _shown[static_cast<size_t>(i)] = shown;
     changed = true;
   }
-  m_updating = false;
+  _updating = false;
   updateButtons();
   if (changed) {
     Q_EMIT displayChanged();
@@ -246,16 +247,16 @@ void MeasurementsPanel::setShownRows(const std::vector<int>& indices, bool shown
 }
 
 void MeasurementsPanel::onItemChanged(QTreeWidgetItem* item, int column) {
-  if (m_updating || column != 0 || item->parent() != nullptr) {
+  if (_updating || column != 0 || item->parent() != nullptr) {
     return;
   }
-  const int index = indexOfId(item->data(0, kIdRole).toInt());
+  const int index = indexOfId(item->data(0, IdRole).toInt());
   const bool shown = item->checkState(0) == Qt::Checked;
-  if (index < 0 || !hasWitness(m_measurements[static_cast<size_t>(index)]) ||
-      m_shown[static_cast<size_t>(index)] == shown) {
+  if (index < 0 || !hasWitness(_measurements[static_cast<size_t>(index)]) ||
+      _shown[static_cast<size_t>(index)] == shown) {
     return;
   }
-  m_shown[static_cast<size_t>(index)] = shown;
+  _shown[static_cast<size_t>(index)] = shown;
   updateButtons();
   Q_EMIT displayChanged();
 }
@@ -267,7 +268,7 @@ void MeasurementsPanel::copySelected() {
   }
   std::string text;
   for (const int index : indices) {
-    text += core::toClipboardText(m_measurements[static_cast<size_t>(index)]);
+    text += core::toClipboardText(_measurements[static_cast<size_t>(index)]);
   }
   QApplication::clipboard()->setText(qs(text));
 }
@@ -286,7 +287,7 @@ void MeasurementsPanel::exportCsv() {
   }
   // UTF-8 with BOM so spreadsheet apps show units (mm², °) correctly.
   file.write("\xEF\xBB\xBF");
-  file.write(QByteArray::fromStdString(core::toCsv(m_measurements)));
+  file.write(QByteArray::fromStdString(core::toCsv(_measurements)));
 }
 
 void MeasurementsPanel::removeSelected() {
@@ -299,22 +300,22 @@ void MeasurementsPanel::removeSelected() {
   }
   // Remove just those rows, back to front, so the others keep their expansion
   // and the list keeps its scroll position.
-  m_updating = true;
+  _updating = true;
   for (auto it = remove.rbegin(); it != remove.rend(); ++it) {
     const int index = *it;
-    delete m_tree->takeTopLevelItem(index);
-    m_measurements.erase(m_measurements.begin() + index);
-    m_ids.erase(m_ids.begin() + index);
-    m_shown.erase(m_shown.begin() + index);
+    delete _tree->takeTopLevelItem(index);
+    _measurements.erase(_measurements.begin() + index);
+    _ids.erase(_ids.begin() + index);
+    _shown.erase(_shown.begin() + index);
   }
   // The row that took the first removed one's place becomes current, so
   // pressing Delete repeatedly walks down the list.
-  const int next = std::min(remove.front(), m_tree->topLevelItemCount() - 1);
-  m_tree->clearSelection();
+  const int next = std::min(remove.front(), _tree->topLevelItemCount() - 1);
+  _tree->clearSelection();
   if (next >= 0) {
-    m_tree->setCurrentItem(m_tree->topLevelItem(next));
+    _tree->setCurrentItem(_tree->topLevelItem(next));
   }
-  m_updating = false;
+  _updating = false;
   updateButtons();
   Q_EMIT currentChanged(currentIndex());
   Q_EMIT displayChanged();
@@ -322,9 +323,9 @@ void MeasurementsPanel::removeSelected() {
 
 void MeasurementsPanel::showContextMenu(const QPoint& pos) {
   // Right-clicking an unselected row acts on that row alone, as in file managers.
-  if (QTreeWidgetItem* item = m_tree->itemAt(pos); item != nullptr && !item->isSelected()) {
-    m_tree->clearSelection();
-    m_tree->setCurrentItem(item);
+  if (QTreeWidgetItem* item = _tree->itemAt(pos); item != nullptr && !item->isSelected()) {
+    _tree->clearSelection();
+    _tree->setCurrentItem(item);
   }
   std::vector<int> selected = selectedIndices();
   if (selected.empty() && currentIndex() >= 0) {
@@ -333,9 +334,9 @@ void MeasurementsPanel::showContextMenu(const QPoint& pos) {
   bool anySelectedShowable = false;
   bool allSelectedShown = true;
   for (const int index : selected) {
-    if (hasWitness(m_measurements[static_cast<size_t>(index)])) {
+    if (hasWitness(_measurements[static_cast<size_t>(index)])) {
       anySelectedShowable = true;
-      allSelectedShown = allSelectedShown && m_shown[static_cast<size_t>(index)];
+      allSelectedShown = allSelectedShown && _shown[static_cast<size_t>(index)];
     }
   }
 
@@ -354,26 +355,26 @@ void MeasurementsPanel::showContextMenu(const QPoint& pos) {
   menu.addAction(tr("Show All"), this, [this] { setAllShown(true); })->setEnabled(anyShowable());
   menu.addAction(tr("Hide All"), this, [this] { setAllShown(false); })->setEnabled(anyShown());
   menu.addSeparator();
-  menu.addAction(tr("Clear All"), this, &MeasurementsPanel::clear)->setEnabled(!m_measurements.empty());
-  menu.exec(m_tree->viewport()->mapToGlobal(pos));
+  menu.addAction(tr("Clear All"), this, &MeasurementsPanel::clear)->setEnabled(!_measurements.empty());
+  menu.exec(_tree->viewport()->mapToGlobal(pos));
 }
 
 bool MeasurementsPanel::anyShowable() const {
-  return std::any_of(m_measurements.begin(), m_measurements.end(), hasWitness);
+  return std::any_of(_measurements.begin(), _measurements.end(), hasWitness);
 }
 
 bool MeasurementsPanel::anyShown() const {
-  return std::find(m_shown.begin(), m_shown.end(), true) != m_shown.end();
+  return std::find(_shown.begin(), _shown.end(), true) != _shown.end();
 }
 
 void MeasurementsPanel::updateButtons() {
-  const bool any = !m_measurements.empty();
-  m_copy->setEnabled(any);
-  m_export->setEnabled(any);
-  m_clear->setEnabled(any);
-  m_remove->setEnabled(!m_tree->selectedItems().isEmpty() || m_tree->currentItem() != nullptr);
-  m_showAll->setEnabled(anyShowable());
-  m_showAll->setText(anyShown() ? tr("Hide All") : tr("Show All"));
+  const bool any = !_measurements.empty();
+  _copy->setEnabled(any);
+  _export->setEnabled(any);
+  _clear->setEnabled(any);
+  _remove->setEnabled(!_tree->selectedItems().isEmpty() || _tree->currentItem() != nullptr);
+  _showAll->setEnabled(anyShowable());
+  _showAll->setText(anyShown() ? tr("Hide All") : tr("Show All"));
 }
 
 } // namespace sc::app

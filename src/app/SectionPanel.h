@@ -26,7 +26,7 @@ class SectionPanel : public QWidget {
   Q_OBJECT
 
 public:
-  static constexpr int kSliderSteps = 1000;
+  static constexpr int SliderSteps = 1000;
 
   // The model is not owned and must outlive the panel.
   explicit SectionPanel(SectionModel* model, QWidget* parent = nullptr);
@@ -63,10 +63,10 @@ private:
   template <typename Fn>
   void edit(int index, Fn&& change);
 
-  SectionModel* m_model;
-  std::array<Row, 3> m_rows;
-  QCheckBox* m_handles = nullptr;
-  bool m_busy = false; // our own writes / widget updates: ignore echoes
+  SectionModel* _model;
+  std::array<Row, 3> _rows;
+  QCheckBox* _handles = nullptr;
+  bool _busy = false; // our own writes / widget updates: ignore echoes
 };
 
 } // namespace sc::app
