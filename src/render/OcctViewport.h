@@ -143,8 +143,12 @@ Q_SIGNALS:
   void selectionChanged();
   // Hover detection was updated (the entity under the cursor may have changed).
   void hoverUpdated();
+  // The widget's device pixel ratio changed (moved to a screen with other scaling).
+  // Queued: presentations sized in device pixels can be rebuilt outside painting.
+  void devicePixelRatioChanged();
 
 protected:
+  bool event(QEvent* event) override;
   void initializeGL() override;
   void paintGL() override;
 
@@ -189,6 +193,10 @@ private:
   QString m_glSummary;
   bool m_glReady = false;
   bool m_glFailed = false;
+  qreal m_lastDpr = 0.0; // 0 until the first check
+
+  // Emits devicePixelRatioChanged (queued) when the ratio differs from the last check.
+  void checkDevicePixelRatio();
   DragHandler* m_dragHandler = nullptr;
   bool m_dragging = false;
   // Small-object culling while the camera moves (see setNavigating).

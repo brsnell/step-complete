@@ -309,7 +309,29 @@ void OcctViewport::initializeGL() {
   Q_EMIT glInitialized(true, m_glSummary);
 }
 
+bool OcctViewport::event(QEvent* event) {
+  // Sent to every widget of a window that moved to another screen.
+  if (event->type() == QEvent::ScreenChangeInternal) {
+    checkDevicePixelRatio();
+  }
+  return QOpenGLWidget::event(event);
+}
+
+void OcctViewport::checkDevicePixelRatio() {
+  const qreal dpr = devicePixelRatioF();
+  if (m_lastDpr == 0.0) {
+    m_lastDpr = dpr;
+    return;
+  }
+  if (!qFuzzyCompare(dpr, m_lastDpr)) {
+    m_lastDpr = dpr;
+    QMetaObject::invokeMethod(this, &OcctViewport::devicePixelRatioChanged, Qt::QueuedConnection);
+  }
+}
+
 void OcctViewport::paintGL() {
+  // Also checked per frame: not every scale change arrives as a screen change.
+  checkDevicePixelRatio();
   if (!m_glReady || m_view->Window().IsNull()) {
     return;
   }
