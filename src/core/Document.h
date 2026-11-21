@@ -30,27 +30,27 @@ public:
   Document(const Document&) = delete;
   Document& operator=(const Document&) = delete;
 
-  const OccHandle<TDocStd_Document>& ocaf() const { return m_doc; }
+  const OccHandle<TDocStd_Document>& ocaf() const { return _doc; }
 
   // Path the document was imported from (UTF-8), empty for in-memory documents.
-  const std::string& sourcePath() const { return m_sourcePath; }
-  void setSourcePath(std::string path) { m_sourcePath = std::move(path); }
+  const std::string& sourcePath() const { return _sourcePath; }
+  void setSourcePath(std::string path) { _sourcePath = std::move(path); }
 
   // Length unit declared in the source file, e.g. "inch". Empty if unknown.
-  const std::string& fileUnitName() const { return m_fileUnitName; }
-  std::optional<LengthUnit> fileUnit() const { return m_fileUnit; }
+  const std::string& fileUnitName() const { return _fileUnitName; }
+  std::optional<LengthUnit> fileUnit() const { return _fileUnit; }
   void setFileUnit(std::string name, std::optional<LengthUnit> unit);
 
   // Saved-view cameras read from the STEP file, in file order (empty for other sources).
-  const std::vector<StepCamera>& cameras() const { return m_cameras; }
-  void setCameras(std::vector<StepCamera> cameras) { m_cameras = std::move(cameras); }
+  const std::vector<StepCamera>& cameras() const { return _cameras; }
+  void setCameras(std::vector<StepCamera> cameras) { _cameras = std::move(cameras); }
 
 private:
-  OccHandle<TDocStd_Document> m_doc;
-  std::string m_sourcePath;
-  std::string m_fileUnitName;
-  std::optional<LengthUnit> m_fileUnit;
-  std::vector<StepCamera> m_cameras;
+  OccHandle<TDocStd_Document> _doc;
+  std::string _sourcePath;
+  std::string _fileUnitName;
+  std::optional<LengthUnit> _fileUnit;
+  std::vector<StepCamera> _cameras;
 };
 
 using DocumentPtr = std::shared_ptr<Document>;

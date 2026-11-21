@@ -98,19 +98,19 @@ void configureGraphics(bool softwareGl) {
 int main(int argc, char** argv) {
   // Answer --version without needing a display (scripts, packaging checks).
   if (hasArgument(argc, argv, "--version") || hasArgument(argc, argv, "-v")) {
-    std::printf("%s %s\n", sc::core::kAppName, sc::core::kAppVersion);
+    std::printf("%s %s\n", sc::core::AppName, sc::core::AppVersion);
     return 0;
   }
   configureGraphics(hasArgument(argc, argv, "--software-gl"));
 
   StepApplication app(argc, argv);
   QApplication::setWindowIcon(loadAppIcon());
-  QApplication::setApplicationName(QString::fromUtf8(sc::core::kAppName));
-  QApplication::setApplicationVersion(QString::fromUtf8(sc::core::kAppVersion));
+  QApplication::setApplicationName(QString::fromUtf8(sc::core::AppName));
+  QApplication::setApplicationVersion(QString::fromUtf8(sc::core::AppVersion));
   QApplication::setOrganizationName(QStringLiteral("STEP Complete"));
 
   QCommandLineParser parser;
-  parser.setApplicationDescription(QString::fromUtf8(sc::core::kAppDescription));
+  parser.setApplicationDescription(QString::fromUtf8(sc::core::AppDescription));
   parser.addHelpOption();
   parser.addVersionOption();
   parser.addOption({QStringLiteral("software-gl"),

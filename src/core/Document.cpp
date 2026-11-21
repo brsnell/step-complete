@@ -12,22 +12,22 @@ namespace sc::core {
 
 Document::Document() {
   OccHandle<XCAFApp_Application> app = XCAFApp_Application::GetApplication();
-  app->NewDocument(TCollection_ExtendedString("BinXCAF"), m_doc);
+  app->NewDocument(TCollection_ExtendedString("BinXCAF"), _doc);
   // All geometry is stored in millimeters; the STEP reader converts into this unit.
-  XCAFDoc_DocumentTool::SetLengthUnit(m_doc, 0.001);
+  XCAFDoc_DocumentTool::SetLengthUnit(_doc, 0.001);
 }
 
-Document::Document(OccHandle<TDocStd_Document> adopted) : m_doc(std::move(adopted)) {}
+Document::Document(OccHandle<TDocStd_Document> adopted) : _doc(std::move(adopted)) {}
 
 Document::~Document() {
-  if (!m_doc.IsNull() && m_doc->IsOpened()) {
-    XCAFApp_Application::GetApplication()->Close(m_doc);
+  if (!_doc.IsNull() && _doc->IsOpened()) {
+    XCAFApp_Application::GetApplication()->Close(_doc);
   }
 }
 
 void Document::setFileUnit(std::string name, std::optional<LengthUnit> unit) {
-  m_fileUnitName = std::move(name);
-  m_fileUnit = unit;
+  _fileUnitName = std::move(name);
+  _fileUnit = unit;
 }
 
 std::string toUtf8(const TCollection_ExtendedString& text) {

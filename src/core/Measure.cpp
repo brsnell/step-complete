@@ -29,9 +29,9 @@ namespace sc::core::measure {
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
+constexpr double Pi = 3.14159265358979323846;
 // Directions closer than this (radians) count as parallel.
-constexpr double kParallelTolerance = 1e-6;
+constexpr double ParallelTolerance = 1e-6;
 
 double maxTolerance(const TopoDS_Shape& shape) {
   double tolerance = 0.0;
@@ -138,7 +138,7 @@ EdgeInfo edgeInfo(const TopoDS_Edge& edge) {
     const gp_Circ circle = curve.Circle();
     info.radius = circle.Radius();
     info.axis = circle.Axis();
-    info.sweepAngle = std::min(last - first, 2.0 * kPi);
+    info.sweepAngle = std::min(last - first, 2.0 * Pi);
     break;
   }
   case GeomAbs_Ellipse: {
@@ -249,8 +249,7 @@ void addCenterDistance(const EntityInfo& a, const EntityInfo& b, DistanceResult&
   } else if (ca.line && cb.point) {
     result.center1 = project(*ca.line, *cb.point);
     result.center2 = *cb.point;
-  } else if (ca.line && cb.line &&
-             ca.line->Direction().IsParallel(cb.line->Direction(), kParallelTolerance)) {
+  } else if (ca.line && cb.line && ca.line->Direction().IsParallel(cb.line->Direction(), ParallelTolerance)) {
     result.center1 = ca.line->Location();
     result.center2 = project(*cb.line, ca.line->Location());
   }
@@ -261,12 +260,12 @@ void addCenterDistance(const EntityInfo& a, const EntityInfo& b, DistanceResult&
 
 void addParallelDistance(const EntityInfo& a, const EntityInfo& b, DistanceResult& result) {
   if (a.face && b.face && a.face->normal && b.face->normal &&
-      a.face->normal->IsParallel(*b.face->normal, kParallelTolerance)) {
+      a.face->normal->IsParallel(*b.face->normal, ParallelTolerance)) {
     // Any point on each plane works; the face centroids lie on their planes.
     result.parallelDistance =
         std::abs(gp_Vec(a.face->centroid, b.face->centroid).Dot(gp_Vec(*a.face->normal)));
   } else if (a.edge && b.edge && a.edge->direction && b.edge->direction &&
-             a.edge->direction->IsParallel(*b.edge->direction, kParallelTolerance)) {
+             a.edge->direction->IsParallel(*b.edge->direction, ParallelTolerance)) {
     result.parallelDistance = gp_Lin(a.edge->start, *a.edge->direction).Distance(b.edge->start);
   }
 }
@@ -526,7 +525,7 @@ AngleResult angle(const TopoDS_Shape& a, const TopoDS_Shape& b) {
     }
     if (result.apex) {
       result.angle = result.direction1.Angle(result.direction2);
-      result.supplement = kPi - result.angle;
+      result.supplement = Pi - result.angle;
       result.ok = true;
       return result;
     }
@@ -535,12 +534,12 @@ AngleResult angle(const TopoDS_Shape& a, const TopoDS_Shape& b) {
   result.direction1 = da->dir;
   result.direction2 = db->dir;
   double theta = da->dir.Angle(db->dir);
-  if (theta > kPi / 2.0) {
-    theta = kPi - theta;
+  if (theta > Pi / 2.0) {
+    theta = Pi - theta;
     result.direction2.Reverse();
   }
   result.angle = theta;
-  result.supplement = kPi - theta;
+  result.supplement = Pi - theta;
   if (da->line && db->line) {
     result.apex = intersect(*da->line, *db->line, tolerance);
   }

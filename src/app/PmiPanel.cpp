@@ -179,7 +179,7 @@ void PmiPanel::onSelectionChanged() {
   ids.reserve(static_cast<size_t>(rows.size()));
   for (const QModelIndex& proxyIndex : rows) {
     const core::PmiId id = m_model->pmiId(m_proxy->mapToSource(proxyIndex));
-    if (id != core::kNoPmi) {
+    if (id != core::NoPmi) {
       ids.push_back(id);
     }
   }

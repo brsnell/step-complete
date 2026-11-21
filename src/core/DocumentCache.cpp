@@ -35,8 +35,8 @@ namespace fs = std::filesystem;
 namespace {
 
 // Bump when the entry layout or what is stored in it changes.
-constexpr int kCacheFormatVersion = 1;
-constexpr const char* kMetaMagic = "SCMETA";
+constexpr int CacheFormatVersion = 1;
+constexpr const char* MetaMagic = "SCMETA";
 
 // --- Hashing --------------------------------------------------------------------
 
@@ -45,7 +45,7 @@ public:
   void add(const void* data, size_t size) {
     const auto* bytes = static_cast<const unsigned char*>(data);
     for (size_t i = 0; i < size; ++i) {
-      m_state = (m_state ^ bytes[i]) * 0x100000001b3ull;
+      _state = (_state ^ bytes[i]) * 0x100000001b3ull;
     }
   }
   void add(std::string_view text) {
@@ -54,15 +54,15 @@ public:
   }
   void addU64(std::uint64_t value) { add(&value, sizeof value); }
   void addDouble(double value) { add(&value, sizeof value); }
-  std::uint64_t value() const { return m_state; }
+  std::uint64_t value() const { return _state; }
 
 private:
-  std::uint64_t m_state = 0xcbf29ce484222325ull;
+  std::uint64_t _state = 0xcbf29ce484222325ull;
 };
 
-constexpr std::uint64_t kBlock = std::uint64_t{1} << 20; // 1 MiB
-constexpr int kSampleBlocks = 6;
-constexpr size_t kSampleSize = 64 * 1024;
+constexpr std::uint64_t Block = std::uint64_t{1} << 20; // 1 MiB
+constexpr int SampleBlocks = 6;
+constexpr size_t SampleSize = 64 * 1024;
 
 fs::path pathFromUtf8(const std::string& utf8) {
 #if defined(_WIN32)
@@ -96,15 +96,15 @@ double doubleOf(std::uint64_t bits) {
 
 class MetaWriter {
 public:
-  explicit MetaWriter(std::ostream& os) : m_os(os) {}
-  void i(long long v) { m_os << v << '\n'; }
-  void d(double v) { m_os << std::hex << bitsOf(v) << std::dec << '\n'; }
+  explicit MetaWriter(std::ostream& os) : _os(os) {}
+  void i(long long v) { _os << v << '\n'; }
+  void d(double v) { _os << std::hex << bitsOf(v) << std::dec << '\n'; }
   void s(const std::string& v) {
-    m_os << v.size() << ':';
-    m_os.write(v.data(), static_cast<std::streamsize>(v.size()));
-    m_os << '\n';
+    _os << v.size() << ':';
+    _os.write(v.data(), static_cast<std::streamsize>(v.size()));
+    _os << '\n';
   }
-  void word(const char* v) { m_os << v << '\n'; }
+  void word(const char* v) { _os << v << '\n'; }
   void pnt(const gp_Pnt& p) {
     d(p.X());
     d(p.Y());
@@ -121,38 +121,38 @@ public:
   }
 
 private:
-  std::ostream& m_os;
+  std::ostream& _os;
 };
 
 class MetaReader {
 public:
-  explicit MetaReader(std::istream& is) : m_is(is) {}
-  bool ok() const { return !m_failed && !m_is.fail(); }
+  explicit MetaReader(std::istream& is) : _is(is) {}
+  bool ok() const { return !_failed && !_is.fail(); }
   long long i() {
     long long v = 0;
-    m_is >> v;
+    _is >> v;
     return v;
   }
   double d() {
     std::uint64_t bits = 0;
-    m_is >> std::hex >> bits >> std::dec;
+    _is >> std::hex >> bits >> std::dec;
     return doubleOf(bits);
   }
   std::string s() {
     size_t size = 0;
     char colon = 0;
-    m_is >> size >> colon;
-    if (!m_is || colon != ':' || size > (std::size_t{1} << 28)) {
-      m_failed = true;
+    _is >> size >> colon;
+    if (!_is || colon != ':' || size > (std::size_t{1} << 28)) {
+      _failed = true;
       return {};
     }
     std::string out(size, '\0');
-    m_is.read(out.data(), static_cast<std::streamsize>(size));
+    _is.read(out.data(), static_cast<std::streamsize>(size));
     return out;
   }
   std::string word() {
     std::string v;
-    m_is >> v;
+    _is >> v;
     return v;
   }
   gp_Pnt pnt() {
@@ -167,7 +167,7 @@ public:
     const double y = d();
     const double z = d();
     if (std::abs(x) + std::abs(y) + std::abs(z) < 1e-9) {
-      m_failed = true;
+      _failed = true;
       return gp_Dir();
     }
     return gp_Dir(x, y, z);
@@ -179,15 +179,15 @@ public:
   }
 
 private:
-  std::istream& m_is;
-  bool m_failed = false;
+  std::istream& _is;
+  bool _failed = false;
 };
 
 void writeMeta(std::ostream& os, const Document& document, const std::vector<ImportMessage>& messages,
                int rootCount, int uniqueParts) {
   MetaWriter w(os);
-  w.word(kMetaMagic);
-  w.i(kCacheFormatVersion);
+  w.word(MetaMagic);
+  w.i(CacheFormatVersion);
   w.s(document.sourcePath());
   w.s(document.fileUnitName());
   w.i(document.fileUnit() ? static_cast<int>(*document.fileUnit()) : -1);
@@ -224,7 +224,7 @@ void writeMeta(std::ostream& os, const Document& document, const std::vector<Imp
 bool readMeta(std::istream& is, Document& document, std::vector<ImportMessage>& messages, int& rootCount,
               int& uniqueParts) {
   MetaReader r(is);
-  if (r.word() != kMetaMagic || r.i() != kCacheFormatVersion) {
+  if (r.word() != MetaMagic || r.i() != CacheFormatVersion) {
     return false;
   }
   document.setSourcePath(r.s());
@@ -366,8 +366,8 @@ std::string cacheKey(const std::string& utf8Path, std::string_view variant) {
   }
 
   Fnv1a64 hash;
-  hash.addU64(kCacheFormatVersion);
-  hash.add(kAppVersion);
+  hash.addU64(CacheFormatVersion);
+  hash.add(AppVersion);
   hash.add(OCC_VERSION_COMPLETE);
   hash.add(variant);
   {
@@ -394,24 +394,24 @@ std::string cacheKey(const std::string& utf8Path, std::string_view variant) {
     hash.addU64(offset);
     hash.add(buffer.data(), got);
   };
-  hashRange(0, kBlock);
-  if (size > 2 * kBlock) {
-    hashRange(size - kBlock, kBlock);
-    const std::uint64_t middle = size - 2 * kBlock;
-    for (int n = 1; n <= kSampleBlocks; ++n) {
-      hashRange(kBlock + middle * static_cast<std::uint64_t>(n) / (kSampleBlocks + 1), kSampleSize);
+  hashRange(0, Block);
+  if (size > 2 * Block) {
+    hashRange(size - Block, Block);
+    const std::uint64_t middle = size - 2 * Block;
+    for (int n = 1; n <= SampleBlocks; ++n) {
+      hashRange(Block + middle * static_cast<std::uint64_t>(n) / (SampleBlocks + 1), SampleSize);
     }
-  } else if (size > kBlock) {
-    hashRange(kBlock, kBlock);
+  } else if (size > Block) {
+    hashRange(Block, Block);
   }
   return toHex(hash.value());
 }
 
 DocumentCache::DocumentCache(fs::path dir, std::uint64_t maxBytes)
-    : m_dir(std::move(dir)), m_maxBytes(maxBytes) {}
+    : _dir(std::move(dir)), _maxBytes(maxBytes) {}
 
 fs::path DocumentCache::entryPath(const std::string& key, const char* extension) const {
-  return m_dir / (key + extension);
+  return _dir / (key + extension);
 }
 
 bool DocumentCache::contains(const std::string& key) const {
@@ -469,7 +469,7 @@ bool DocumentCache::store(const std::string& key, const Document& document,
   std::error_code ec;
   bool ok = false;
   try {
-    fs::create_directories(m_dir, ec);
+    fs::create_directories(_dir, ec);
     ok = writeBinXCAF(document.ocaf(), cbfTmp);
     if (ok) {
       std::ofstream out(metaTmp, std::ios::binary | std::ios::trunc);
@@ -504,7 +504,7 @@ bool DocumentCache::store(const std::string& key, const Document& document,
 std::uint64_t DocumentCache::totalBytes() const {
   std::uint64_t total = 0;
   std::error_code ec;
-  for (fs::directory_iterator it(m_dir, ec), end; !ec && it != end; it.increment(ec)) {
+  for (fs::directory_iterator it(_dir, ec), end; !ec && it != end; it.increment(ec)) {
     std::error_code fileEc;
     if (it->is_regular_file(fileEc)) {
       total += it->file_size(fileEc);
@@ -520,7 +520,7 @@ void DocumentCache::prune() const {
   };
   std::map<std::string, Entry> entries; // by key
   std::error_code ec;
-  for (fs::directory_iterator it(m_dir, ec), end; !ec && it != end; it.increment(ec)) {
+  for (fs::directory_iterator it(_dir, ec), end; !ec && it != end; it.increment(ec)) {
     std::error_code fileEc;
     if (!it->is_regular_file(fileEc)) {
       continue;
@@ -542,7 +542,7 @@ void DocumentCache::prune() const {
   std::sort(ordered.begin(), ordered.end(),
             [](const auto& a, const auto& b) { return a.second.mtime < b.second.mtime; });
   for (const auto& [key, entry] : ordered) {
-    if (total <= m_maxBytes) {
+    if (total <= _maxBytes) {
       break;
     }
     remove(key);

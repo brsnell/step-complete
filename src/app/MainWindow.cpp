@@ -84,7 +84,7 @@ QString severityLabel(core::ImportMessage::Severity severity) {
 } // namespace
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
-  setWindowTitle(QString::fromUtf8(core::kAppName));
+  setWindowTitle(QString::fromUtf8(core::AppName));
   resize(1280, 800);
   setAcceptDrops(true);
 
@@ -385,7 +385,7 @@ void MainWindow::createActions() {
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
   helpMenu->addAction(tr("&Graphics Information..."), this, &MainWindow::showGraphicsInfo);
   helpMenu->addSeparator();
-  helpMenu->addAction(tr("&About %1").arg(QString::fromUtf8(core::kAppName)), this, &MainWindow::showAbout);
+  helpMenu->addAction(tr("&About %1").arg(QString::fromUtf8(core::AppName)), this, &MainWindow::showAbout);
   helpMenu->addAction(tr("About &Qt"), qApp, &QApplication::aboutQt);
 }
 
@@ -766,7 +766,7 @@ void MainWindow::onImportFinished() {
     m_unitStatus->setText(unit.isEmpty() ? QString() : tr("File unit: %1").arg(unit));
 
     m_emptyHint->hide();
-    setWindowTitle(QStringLiteral("%1 — %2").arg(fileName, QString::fromUtf8(core::kAppName)));
+    setWindowTitle(QStringLiteral("%1 — %2").arg(fileName, QString::fromUtf8(core::AppName)));
     addRecentFile(job->path());
     m_viewport->fitAll();
     m_viewport->invalidateScene();
@@ -808,7 +808,7 @@ void MainWindow::closeModel() {
   m_transparentParts.clear();
   m_unitStatus->clear();
   m_emptyHint->show();
-  setWindowTitle(QString::fromUtf8(core::kAppName));
+  setWindowTitle(QString::fromUtf8(core::AppName));
   m_viewport->invalidateScene();
   updateActions();
   core::releaseFreedMemory();
@@ -883,7 +883,7 @@ std::vector<core::NodeId> MainWindow::selectedNodes() const {
   std::vector<core::NodeId> nodes;
   for (const QModelIndex& index : m_treeView->selectionModel()->selectedRows()) {
     const core::NodeId id = m_treeModel->nodeId(index);
-    if (id != core::kNoNode) {
+    if (id != core::NoNode) {
       nodes.push_back(id);
     }
   }

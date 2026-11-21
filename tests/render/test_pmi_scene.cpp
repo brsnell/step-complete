@@ -119,11 +119,11 @@ private:
     return {xp, yp};
   }
 
-  // PMI picked at a view pixel, or kNoPmi.
+  // PMI picked at a view pixel, or NoPmi.
   PmiId pmiAt(const QPoint& p) {
     const auto& context = m_viewport->context();
     context->MoveTo(p.x(), p.y(), m_viewport->view(), false);
-    return context->HasDetected() ? m_pmiScene->pmiOf(context->DetectedInteractive()) : sc::core::kNoPmi;
+    return context->HasDetected() ? m_pmiScene->pmiOf(context->DetectedInteractive()) : sc::core::NoPmi;
   }
 
 private Q_SLOTS:
@@ -228,10 +228,10 @@ private Q_SLOTS:
     QCOMPARE(second, std::max(id(m_fixture.flatness), id(m_fixture.parallelism)));
     QVERIFY(first != second);
     // Nothing is drawn above the first row or below the second.
-    QCOMPARE(pmiAt(anchor + QPoint(8, -pitch)), sc::core::kNoPmi);
-    QCOMPARE(pmiAt(anchor + QPoint(8, 2 * pitch)), sc::core::kNoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, -pitch)), sc::core::NoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 2 * pitch)), sc::core::NoPmi);
     // Left of the anchor is empty too: the box starts at the anchor.
-    QCOMPARE(pmiAt(anchor + QPoint(-8, 0)), sc::core::kNoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(-8, 0)), sc::core::NoPmi);
 
     // The boxes are drawn apart: a gap separates the two rows of white interior.
     const int x = anchor.x() + int(sc::render::PmiLabel::rowHeight(1.0)) - 4;
@@ -258,7 +258,7 @@ private Q_SLOTS:
     const QPoint anchor = pixelOf(50, 30, 20);
     QCOMPARE(pmiAt(anchor + QPoint(8, 0)), id(m_fixture.flatness));
     const auto& context = m_viewport->context();
-    QVERIFY(m_scene->partOf(context->DetectedInteractive()) == sc::core::kNoNode);
+    QVERIFY(m_scene->partOf(context->DetectedInteractive()) == sc::core::NoNode);
     sc::test::dumpImage(render(), "pmi_label_hover");
     context->SelectDetected();
     QCOMPARE(m_pmiScene->selectedPmi(), std::vector<PmiId>{id(m_fixture.flatness)});
@@ -281,7 +281,7 @@ private Q_SLOTS:
 
     m_pmiScene->setVisible({first}, false);
     const QImage one = render();
-    QCOMPARE(pmiAt(anchor + QPoint(8, 0)), sc::core::kNoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 0)), sc::core::NoPmi);
     QCOMPARE(pmiAt(anchor + QPoint(8, pitch)), second); // the other keeps its row
     QVERIFY(sc::test::changedPixelFraction(both, one) > 0.0005);
 
@@ -289,8 +289,8 @@ private Q_SLOTS:
     QCOMPARE(pmiAt(anchor + QPoint(8, 0)), first);
     m_pmiScene->setVisible({first, second}, false);
     const QImage none = render();
-    QCOMPARE(pmiAt(anchor + QPoint(8, 0)), sc::core::kNoPmi);
-    QCOMPARE(pmiAt(anchor + QPoint(8, pitch)), sc::core::kNoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 0)), sc::core::NoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, pitch)), sc::core::NoPmi);
     QCOMPARE(countPixels(none, isLabelInk), 0);
   }
 
@@ -331,9 +331,9 @@ private Q_SLOTS:
     const QPoint anchor = pixelOf(50, 30, 20);
     const int pitch = int(sc::render::PmiLabel::stackPitch(2.0));
     QCOMPARE(sc::render::PmiLabel::rowHeight(2.0), 2.0 * sc::render::PmiLabel::rowHeight(1.0));
-    QVERIFY(pmiAt(anchor + QPoint(8, 0)) != sc::core::kNoPmi);
-    QVERIFY(pmiAt(anchor + QPoint(8, pitch)) != sc::core::kNoPmi);
-    QCOMPARE(pmiAt(anchor + QPoint(8, 2 * pitch)), sc::core::kNoPmi);
+    QVERIFY(pmiAt(anchor + QPoint(8, 0)) != sc::core::NoPmi);
+    QVERIFY(pmiAt(anchor + QPoint(8, pitch)) != sc::core::NoPmi);
+    QCOMPARE(pmiAt(anchor + QPoint(8, 2 * pitch)), sc::core::NoPmi);
     sc::test::dumpImage(render(), "pmi_labels_dpr2");
   }
 
@@ -537,7 +537,7 @@ private Q_SLOTS:
     load();
     QVERIFY(!m_fixture.label.IsNull());
     const PmiId note = id(m_fixture.label);
-    QVERIFY(note != sc::core::kNoPmi);
+    QVERIFY(note != sc::core::NoPmi);
     QVERIFY(m_pmiScene->labelsOf(note).empty());
   }
 
@@ -565,7 +565,7 @@ private Q_SLOTS:
     m_pmiScene->declutter(m_viewport->view());
     const QImage image = render();
     sc::test::dumpImage(image, "pmi_nearby_labels");
-    QVERIFY(id(a) != sc::core::kNoPmi && id(b) != sc::core::kNoPmi);
+    QVERIFY(id(a) != sc::core::NoPmi && id(b) != sc::core::NoPmi);
     std::vector<std::pair<PmiId, QRect>> boxes;
     for (const sc::core::PmiItem& item : m_pmi->items()) {
       for (const auto& label : m_pmiScene->labelsOf(item.id)) {

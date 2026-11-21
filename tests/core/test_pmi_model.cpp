@@ -49,7 +49,7 @@ namespace {
 
 const core::PmiItem* byLabel(const PmiModel& model, const TDF_Label& label) {
   const core::PmiId id = model.itemFor(label);
-  return id == core::kNoPmi ? nullptr : &model.item(id);
+  return id == core::NoPmi ? nullptr : &model.item(id);
 }
 
 } // namespace

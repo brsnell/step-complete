@@ -17,7 +17,7 @@ namespace {
 
 namespace fs = std::filesystem;
 
-constexpr std::size_t kChunk = 256 * 1024;
+constexpr std::size_t Chunk = 256 * 1024;
 
 fs::path toPath(const std::string& utf8) {
   return fs::u8path(utf8);
@@ -34,49 +34,49 @@ std::uint32_t le32(const unsigned char* p) {
 // Writes inflated data, enforcing the size cap and polling cancellation.
 class Sink {
 public:
-  Sink(std::ofstream& out, const DecompressOptions& options) : m_out(out), m_options(options) {}
+  Sink(std::ofstream& out, const DecompressOptions& options) : _out(out), _options(options) {}
 
   // False (with error set) when decompression must stop.
   bool write(const unsigned char* data, std::size_t size) {
-    m_total += size;
-    if (m_total > m_options.maxBytes) {
-      m_error = "The compressed file expands to more than " + std::to_string(m_options.maxBytes >> 20) +
-                " MB; refusing to open it.";
+    _total += size;
+    if (_total > _options.maxBytes) {
+      _error = "The compressed file expands to more than " + std::to_string(_options.maxBytes >> 20) +
+               " MB; refusing to open it.";
       return false;
     }
-    m_out.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(size));
-    if (!m_out) {
-      m_error = "Could not write the temporary decompressed file (disk full?).";
+    _out.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(size));
+    if (!_out) {
+      _error = "Could not write the temporary decompressed file (disk full?).";
       return false;
     }
-    m_crc = crc32(m_crc, data, static_cast<uInt>(size));
+    _crc = crc32(_crc, data, static_cast<uInt>(size));
     return true;
   }
 
   bool poll(double fraction) {
-    if (m_options.isCancelled && m_options.isCancelled()) {
-      m_cancelled = true;
+    if (_options.isCancelled && _options.isCancelled()) {
+      _cancelled = true;
       return false;
     }
-    if (m_options.progress) {
-      m_options.progress(std::clamp(fraction, 0.0, 1.0));
+    if (_options.progress) {
+      _options.progress(std::clamp(fraction, 0.0, 1.0));
     }
     return true;
   }
 
-  std::uint64_t total() const { return m_total; }
-  std::uint32_t crc() const { return static_cast<std::uint32_t>(m_crc); }
-  bool cancelled() const { return m_cancelled; }
-  const std::string& error() const { return m_error; }
-  void fail(std::string message) { m_error = std::move(message); }
+  std::uint64_t total() const { return _total; }
+  std::uint32_t crc() const { return static_cast<std::uint32_t>(_crc); }
+  bool cancelled() const { return _cancelled; }
+  const std::string& error() const { return _error; }
+  void fail(std::string message) { _error = std::move(message); }
 
 private:
-  std::ofstream& m_out;
-  const DecompressOptions& m_options;
-  std::uint64_t m_total = 0;
-  uLong m_crc = crc32(0L, Z_NULL, 0);
-  bool m_cancelled = false;
-  std::string m_error;
+  std::ofstream& _out;
+  const DecompressOptions& _options;
+  std::uint64_t _total = 0;
+  uLong _crc = crc32(0L, Z_NULL, 0);
+  bool _cancelled = false;
+  std::string _error;
 };
 
 // Inflates 'compressedSize' bytes starting at the stream's current position.
@@ -89,7 +89,7 @@ bool inflateStream(std::ifstream& in, std::uint64_t compressedSize, int windowBi
     sink.fail("Could not initialize the decompressor.");
     return false;
   }
-  std::vector<unsigned char> inBuf(kChunk), outBuf(kChunk);
+  std::vector<unsigned char> inBuf(Chunk), outBuf(Chunk);
   std::uint64_t remaining = compressedSize;
   const double denom = compressedSize > 0 ? static_cast<double>(compressedSize) : 1.0;
   bool ok = false;
@@ -315,7 +315,7 @@ DecompressResult extractZip(std::ifstream& in, std::uint64_t fileSize, Sink& sin
   if (entry.method == 8) {
     ok = inflateStream(in, entry.compressedSize, -15, false, sink);
   } else {
-    std::vector<unsigned char> buf(kChunk);
+    std::vector<unsigned char> buf(Chunk);
     std::uint64_t remaining = entry.compressedSize;
     ok = true;
     while (remaining > 0) {

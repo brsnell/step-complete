@@ -62,7 +62,7 @@ public:
   void setTransparency(const std::vector<core::NodeId>& nodes, double transparency);
 
   // --- Selection ------------------------------------------------------------------
-  // Part instance shown by an interactive object, or kNoNode (e.g. the view cube).
+  // Part instance shown by an interactive object, or NoNode (e.g. the view cube).
   core::NodeId partOf(const OccHandle<AIS_InteractiveObject>& object) const;
   // Currently selected part instances, from the context's selection.
   std::vector<core::NodeId> selectedParts() const;
@@ -78,7 +78,7 @@ public:
   static std::vector<int> subShapeModes(bool vertices, bool edges, bool faces);
 
   struct PickedEntity {
-    core::NodeId part = core::kNoNode;
+    core::NodeId part = core::NoNode;
     TopoDS_Shape worldShape; // picked vertex/edge/face, placed in world coordinates
   };
   // The B-rep entity behind a sub-shape selection owner, or nullopt (whole

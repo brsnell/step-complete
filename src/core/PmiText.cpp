@@ -15,21 +15,21 @@ namespace {
 
 // --- Symbols (UTF-8; MSVC builds use /utf-8) ------------------------------------------
 
-constexpr const char* kDiameter = "⌀";
-constexpr const char* kSphericalDiameter = "S⌀";
-constexpr const char* kSquare = "◻";
-constexpr const char* kDegree = "°";
-constexpr const char* kMinus = "−";
-constexpr const char* kPlusMinus = "±";
-constexpr const char* kEnDash = "–";
-constexpr const char* kMmc = "Ⓜ";
-constexpr const char* kLmc = "Ⓛ";
-constexpr const char* kFreeState = "Ⓕ";
-constexpr const char* kProjected = "Ⓟ";
-constexpr const char* kTangentPlane = "Ⓣ";
-constexpr const char* kUnequallyDisposed = "Ⓤ";
-constexpr const char* kReciprocity = "Ⓡ";
-constexpr const char* kCellSeparator = " | ";
+constexpr const char* Diameter = "⌀";
+constexpr const char* SphericalDiameter = "S⌀";
+constexpr const char* Square = "◻";
+constexpr const char* Degree = "°";
+constexpr const char* Minus = "−";
+constexpr const char* PlusMinus = "±";
+constexpr const char* EnDash = "–";
+constexpr const char* Mmc = "Ⓜ";
+constexpr const char* Lmc = "Ⓛ";
+constexpr const char* FreeState = "Ⓕ";
+constexpr const char* Projected = "Ⓟ";
+constexpr const char* TangentPlane = "Ⓣ";
+constexpr const char* UnequallyDisposed = "Ⓤ";
+constexpr const char* Reciprocity = "Ⓡ";
+constexpr const char* CellSeparator = " | ";
 
 // --- Number helpers -------------------------------------------------------------------
 
@@ -70,7 +70,7 @@ std::string signedDeviation(double value, int decimals, const char* suffix) {
   std::string text = formatNumber(value, decimals);
   std::string result;
   if (!text.empty() && text.front() == '-') {
-    result = std::string(kMinus) + text.substr(1);
+    result = std::string(Minus) + text.substr(1);
   } else if (isZeroText(text)) {
     result = text;
   } else {
@@ -122,9 +122,9 @@ std::string dimensionPrefix(XCAFDimTolObjects_DimensionType type) {
   case XCAFDimTolObjects_DimensionType_Size_ToroidalMajorDiameter:
   case XCAFDimTolObjects_DimensionType_Size_ToroidalHighMajorDiameter:
   case XCAFDimTolObjects_DimensionType_Size_ToroidalLowMajorDiameter:
-    return kDiameter;
+    return Diameter;
   case XCAFDimTolObjects_DimensionType_Size_SphericalDiameter:
-    return kSphericalDiameter;
+    return SphericalDiameter;
   case XCAFDimTolObjects_DimensionType_Size_Radius:
   case XCAFDimTolObjects_DimensionType_Size_ToroidalMinorRadius:
   case XCAFDimTolObjects_DimensionType_Size_ToroidalMajorRadius:
@@ -144,7 +144,7 @@ std::string dimensionModifierSymbol(XCAFDimTolObjects_DimensionModif modifier) {
   case XCAFDimTolObjects_DimensionModif_ControlledRadius:
     return "CR";
   case XCAFDimTolObjects_DimensionModif_Square:
-    return kSquare;
+    return Square;
   case XCAFDimTolObjects_DimensionModif_StatisticalTolerance:
     return "(ST)";
   case XCAFDimTolObjects_DimensionModif_ContinuousFeature:
@@ -186,7 +186,7 @@ std::string dimensionModifierSymbol(XCAFDimTolObjects_DimensionModif modifier) {
   case XCAFDimTolObjects_DimensionModif_CommonTolerance:
     return "(common tolerance)";
   case XCAFDimTolObjects_DimensionModif_FreeStateCondition:
-    return kFreeState;
+    return FreeState;
   case XCAFDimTolObjects_DimensionModif_Between:
     return "(between)";
   default:
@@ -460,7 +460,7 @@ DimensionView viewOf(const XCAFDimTolObjects_DimensionObject& dim, int fallbackD
   if (v.angular) {
     // OCCT's STEP reader converts angular dimension values to degrees
     // (STEPCAFControl_Reader: convertAngleValue).
-    v.suffix = kDegree;
+    v.suffix = Degree;
   }
 
   int left = 0;
@@ -520,7 +520,7 @@ std::string dimensionBody(const DimensionView& v) {
     if (modifier == XCAFDimTolObjects_DimensionModif_ControlledRadius) {
       prefix = prefix == "R" ? "CR" : "CR" + prefix;
     } else if (modifier == XCAFDimTolObjects_DimensionModif_Square) {
-      prefix = kSquare + prefix;
+      prefix = Square + prefix;
     } else {
       suffixModifiers.push_back(dimensionModifierSymbol(modifier));
     }
@@ -530,7 +530,7 @@ std::string dimensionBody(const DimensionView& v) {
 
   std::string text;
   if (v.range) {
-    text = prefix + number(v.lower) + kEnDash + number(v.upper);
+    text = prefix + number(v.lower) + EnDash + number(v.upper);
   } else {
     // A fit class is conventionally written with an unpadded nominal ("⌀12 H7").
     const bool trim = v.hasClass && !v.explicitDecimals;
@@ -542,7 +542,7 @@ std::string dimensionBody(const DimensionView& v) {
   if (v.plusMinus) {
     const bool symmetric = std::abs(v.upper + v.lower) < 1e-9 && v.upper > 0.0;
     if (symmetric) {
-      appendWord(text, std::string(kPlusMinus) + fixedNumber(v.upper, v.decimals) + v.suffix);
+      appendWord(text, std::string(PlusMinus) + fixedNumber(v.upper, v.decimals) + v.suffix);
     } else {
       appendWord(text, signedDeviation(v.upper, v.decimals, v.suffix) + "/" +
                            signedDeviation(v.lower, v.decimals, v.suffix));
@@ -573,15 +573,15 @@ std::string toleranceModifierSymbol(XCAFDimTolObjects_GeomToleranceModif modifie
   case XCAFDimTolObjects_GeomToleranceModif_Each_Radial_Element:
     return "ERE";
   case XCAFDimTolObjects_GeomToleranceModif_Free_State:
-    return kFreeState;
+    return FreeState;
   case XCAFDimTolObjects_GeomToleranceModif_Least_Material_Requirement:
-    return kLmc;
+    return Lmc;
   case XCAFDimTolObjects_GeomToleranceModif_Line_Element:
     return "LE";
   case XCAFDimTolObjects_GeomToleranceModif_Major_Diameter:
     return "MD";
   case XCAFDimTolObjects_GeomToleranceModif_Maximum_Material_Requirement:
-    return kMmc;
+    return Mmc;
   case XCAFDimTolObjects_GeomToleranceModif_Minor_Diameter:
     return "LD";
   case XCAFDimTolObjects_GeomToleranceModif_Not_Convex:
@@ -589,13 +589,13 @@ std::string toleranceModifierSymbol(XCAFDimTolObjects_GeomToleranceModif modifie
   case XCAFDimTolObjects_GeomToleranceModif_Pitch_Diameter:
     return "PD";
   case XCAFDimTolObjects_GeomToleranceModif_Reciprocity_Requirement:
-    return kReciprocity;
+    return Reciprocity;
   case XCAFDimTolObjects_GeomToleranceModif_Separate_Requirement:
     return "SEP";
   case XCAFDimTolObjects_GeomToleranceModif_Statistical_Tolerance:
     return "(ST)";
   case XCAFDimTolObjects_GeomToleranceModif_Tangent_Plane:
-    return kTangentPlane;
+    return TangentPlane;
   case XCAFDimTolObjects_GeomToleranceModif_All_Around:
     return "(all around)";
   case XCAFDimTolObjects_GeomToleranceModif_All_Over:
@@ -651,9 +651,9 @@ std::string materialRequirementSymbol(XCAFDimTolObjects_GeomToleranceMatReqModif
   case XCAFDimTolObjects_GeomToleranceMatReqModif_None:
     return {};
   case XCAFDimTolObjects_GeomToleranceMatReqModif_M:
-    return kMmc;
+    return Mmc;
   case XCAFDimTolObjects_GeomToleranceMatReqModif_L:
-    return kLmc;
+    return Lmc;
   default:
     return "(material " + std::to_string(static_cast<int>(modifier)) + ")";
   }
@@ -677,11 +677,11 @@ std::string zoneModifierSymbol(XCAFDimTolObjects_GeomToleranceZoneModif modifier
   case XCAFDimTolObjects_GeomToleranceZoneModif_None:
     return {};
   case XCAFDimTolObjects_GeomToleranceZoneModif_Projected:
-    return kProjected;
+    return Projected;
   case XCAFDimTolObjects_GeomToleranceZoneModif_Runout:
     return "(runout zone)";
   case XCAFDimTolObjects_GeomToleranceZoneModif_NonUniform:
-    return kUnequallyDisposed;
+    return UnequallyDisposed;
   default:
     return "(zone " + std::to_string(static_cast<int>(modifier)) + ")";
   }
@@ -707,9 +707,9 @@ std::string zoneShapePrefix(XCAFDimTolObjects_GeomToleranceTypeValue shape) {
   case XCAFDimTolObjects_GeomToleranceTypeValue_None:
     return {};
   case XCAFDimTolObjects_GeomToleranceTypeValue_Diameter:
-    return kDiameter;
+    return Diameter;
   case XCAFDimTolObjects_GeomToleranceTypeValue_SphericalDiameter:
-    return kSphericalDiameter;
+    return SphericalDiameter;
   default:
     return {};
   }
@@ -799,15 +799,15 @@ std::string datumSingleModifierSymbol(XCAFDimTolObjects_DatumSingleModif modifie
   case XCAFDimTolObjects_DatumSingleModif_DistanceVariable:
     return "[DV]";
   case XCAFDimTolObjects_DatumSingleModif_FreeState:
-    return kFreeState;
+    return FreeState;
   case XCAFDimTolObjects_DatumSingleModif_LeastMaterialRequirement:
-    return kLmc;
+    return Lmc;
   case XCAFDimTolObjects_DatumSingleModif_Line:
     return "[SL]";
   case XCAFDimTolObjects_DatumSingleModif_MajorDiameter:
     return "[MD]";
   case XCAFDimTolObjects_DatumSingleModif_MaximumMaterialRequirement:
-    return kMmc;
+    return Mmc;
   case XCAFDimTolObjects_DatumSingleModif_MinorDiameter:
     return "[LD]";
   case XCAFDimTolObjects_DatumSingleModif_Orientation:
@@ -890,13 +890,13 @@ std::string datumValueModifierText(const XCAFDimTolObjects_DatumObject& datum, i
   case XCAFDimTolObjects_DatumModifWithValue_None:
     return {};
   case XCAFDimTolObjects_DatumModifWithValue_CircularOrCylindrical:
-    return longForm ? "Circular or cylindrical: " + number + " mm" : kDiameter + number;
+    return longForm ? "Circular or cylindrical: " + number + " mm" : Diameter + number;
   case XCAFDimTolObjects_DatumModifWithValue_Distance:
     return longForm ? "Distance: " + number + " mm" : "(distance " + number + ")";
   case XCAFDimTolObjects_DatumModifWithValue_Projected:
-    return longForm ? "Projected: " + number + " mm" : std::string(kProjected) + " " + number;
+    return longForm ? "Projected: " + number + " mm" : std::string(Projected) + " " + number;
   case XCAFDimTolObjects_DatumModifWithValue_Spherical:
-    return longForm ? "Spherical: " + number + " mm" : kSphericalDiameter + number;
+    return longForm ? "Spherical: " + number + " mm" : SphericalDiameter + number;
   default:
     return "(modifier " + std::to_string(static_cast<int>(modifier)) + ")";
   }
@@ -1177,7 +1177,7 @@ featureControlFrame(const OccHandle<XCAFDimTolObjects_GeomToleranceObject>& tole
 
 std::string toleranceText(const OccHandle<XCAFDimTolObjects_GeomToleranceObject>& tolerance,
                           const std::vector<OccHandle<XCAFDimTolObjects_DatumObject>>& datums, int decimals) {
-  return join(featureControlFrame(tolerance, datums, decimals), kCellSeparator);
+  return join(featureControlFrame(tolerance, datums, decimals), CellSeparator);
 }
 
 std::vector<Property> toleranceProperties(const OccHandle<XCAFDimTolObjects_GeomToleranceObject>& tolerance,
@@ -1232,7 +1232,7 @@ std::vector<Property> toleranceProperties(const OccHandle<XCAFDimTolObjects_Geom
     rows.emplace_back("Modifiers", join(names, ", "));
   }
 
-  static const char* const kOrdinals[] = {"primary", "secondary", "tertiary"};
+  static const char* const Ordinals[] = {"primary", "secondary", "tertiary"};
   int index = 0;
   for (const OccHandle<XCAFDimTolObjects_DatumObject>& datum : datums) {
     if (datum.IsNull()) {
@@ -1240,7 +1240,7 @@ std::vector<Property> toleranceProperties(const OccHandle<XCAFDimTolObjects_Geom
     }
     std::string label = "Datum " + std::to_string(index + 1);
     if (index < 3) {
-      label += std::string(" (") + kOrdinals[index] + ")";
+      label += std::string(" (") + Ordinals[index] + ")";
     }
     rows.emplace_back(label, datumCell(datum, decimals));
     ++index;

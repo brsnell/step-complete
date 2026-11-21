@@ -83,7 +83,7 @@ QString AboutDialog::licenseText(const LicenseEntry& entry) {
 }
 
 AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent), m_entries(licenseEntries()) {
-  setWindowTitle(tr("About %1").arg(QString::fromUtf8(core::kAppName)));
+  setWindowTitle(tr("About %1").arg(QString::fromUtf8(core::AppName)));
   resize(720, 520);
 
   auto* tabs = new QTabWidget(this);
@@ -100,12 +100,12 @@ AboutDialog::AboutDialog(QWidget* parent) : QDialog(parent), m_entries(licenseEn
     aboutLayout->addWidget(iconLabel);
   }
   auto* title = new QLabel(QStringLiteral("<h2>%1 %2</h2>")
-                               .arg(QString::fromUtf8(core::kAppName).toHtmlEscaped(),
-                                    QString::fromUtf8(core::kAppVersion).toHtmlEscaped()),
+                               .arg(QString::fromUtf8(core::AppName).toHtmlEscaped(),
+                                    QString::fromUtf8(core::AppVersion).toHtmlEscaped()),
                            about);
   title->setAlignment(Qt::AlignCenter);
   aboutLayout->addWidget(title);
-  auto* description = new QLabel(QString::fromUtf8(core::kAppDescription), about);
+  auto* description = new QLabel(QString::fromUtf8(core::AppDescription), about);
   description->setAlignment(Qt::AlignCenter);
   description->setWordWrap(true);
   aboutLayout->addWidget(description);
@@ -182,7 +182,7 @@ void AboutDialog::setGraphicsInfo(const QString& info) {
 QString AboutDialog::systemInfo() const {
   QString text;
   text +=
-      QStringLiteral("%1 %2\n").arg(QString::fromUtf8(core::kAppName), QString::fromUtf8(core::kAppVersion));
+      QStringLiteral("%1 %2\n").arg(QString::fromUtf8(core::AppName), QString::fromUtf8(core::AppVersion));
   text += QStringLiteral("Qt (runtime): %1\n").arg(QString::fromLatin1(qVersion()));
   text += QStringLiteral("Qt (build): %1\n").arg(QStringLiteral(QT_VERSION_STR));
   text += QStringLiteral("Open CASCADE: %1\n").arg(QString::fromStdString(core::occtVersion()));

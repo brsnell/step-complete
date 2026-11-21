@@ -20,7 +20,7 @@ using measure::CurveKind;
 using measure::EntityInfo;
 using measure::SurfaceKind;
 
-constexpr double kPi = 3.14159265358979323846;
+constexpr double Pi = 3.14159265358979323846;
 
 std::string point(const gp_Pnt& p, const MeasureDisplayOptions& o) {
   return formatNumber(fromMillimeters(p.X(), o.lengthUnit), o.decimals) + ", " +
@@ -86,7 +86,7 @@ std::vector<gp_Pnt> circle(const gp_Pnt& center, const gp_Dir& normal, const gp_
   const gp_Vec w = gp_Vec(normal).Crossed(u);
   std::vector<gp_Pnt> points;
   for (int i = 0; i <= n; ++i) {
-    const double t = 2.0 * kPi * i / n;
+    const double t = 2.0 * Pi * i / n;
     points.push_back(center.Translated(u * (r * std::cos(t)) + w * (r * std::sin(t))));
   }
   return points;
@@ -306,11 +306,11 @@ void radiusReport(const Pick& pick, const MeasureDisplayOptions& o, Measurement&
 // 0.1% (STEP writers state them to a handful of digits, so real matches are far tighter) and
 // the centroid is within 0.1% of the bounding-box diagonal, but never tighter than 1e-6 mm so
 // that tiny parts do not demand sub-nanometer agreement.
-constexpr double kRelativeVolumeTolerance = 1e-3;
-constexpr double kRelativeAreaTolerance = 1e-3;
-constexpr double kCentroidDiagonalFraction = 1e-3;
-constexpr double kCentroidFloor = 1e-6; // mm
-constexpr size_t kMaxListedEntities = 10;
+constexpr double RelativeVolumeTolerance = 1e-3;
+constexpr double RelativeAreaTolerance = 1e-3;
+constexpr double CentroidDiagonalFraction = 1e-3;
+constexpr double CentroidFloor = 1e-6; // mm
+constexpr size_t MaxListedEntities = 10;
 
 // Moments of inertia are length^5 for unit density (mass = volume). They span many
 // orders of magnitude across units (mm^5 vs in^5), so use significant digits.
@@ -350,13 +350,13 @@ void validationRows(const MassItem& item, const measure::MassProperties& mass, c
 
   if (declared.volume) {
     add("Declared volume", formatVolume(*declared.volume, o.lengthUnit, o.decimals));
-    if (mass.hasVolume && relativelyDiffers(mass.volume, *declared.volume, kRelativeVolumeTolerance)) {
+    if (mass.hasVolume && relativelyDiffers(mass.volume, *declared.volume, RelativeVolumeTolerance)) {
       differences.push_back("volume " + percentText(mass.volume, *declared.volume));
     }
   }
   if (declared.area) {
     add("Declared area", formatArea(*declared.area, o.lengthUnit, o.decimals));
-    if (relativelyDiffers(mass.area, *declared.area, kRelativeAreaTolerance)) {
+    if (relativelyDiffers(mass.area, *declared.area, RelativeAreaTolerance)) {
       differences.push_back("area " + percentText(mass.area, *declared.area));
     }
   }
@@ -365,7 +365,7 @@ void validationRows(const MassItem& item, const measure::MassProperties& mass, c
     const gp_Pnt world = declared.centroid->Transformed(item.location.Transformation());
     add("Declared centroid", point(world, o));
     const double diagonal = mass.boxMin.Distance(mass.boxMax);
-    const double allowed = std::max(kCentroidDiagonalFraction * diagonal, kCentroidFloor);
+    const double allowed = std::max(CentroidDiagonalFraction * diagonal, CentroidFloor);
     const double offset = world.Distance(mass.centroid);
     if (offset > allowed) {
       differences.push_back("centroid " + length(offset, o) + " off");
@@ -568,12 +568,12 @@ Measurement computeMassProperties(const std::vector<MassItem>& items, const Meas
     if (!item.worldShape.IsNull()) {
       shapes.push_back(item.worldShape);
     }
-    if (m.entities.size() < kMaxListedEntities) {
+    if (m.entities.size() < MaxListedEntities) {
       m.entities.push_back(item.name.empty() ? "(unnamed)" : item.name);
     }
   }
-  if (items.size() > kMaxListedEntities) {
-    m.entities.push_back("and " + std::to_string(items.size() - kMaxListedEntities) + " more");
+  if (items.size() > MaxListedEntities) {
+    m.entities.push_back("and " + std::to_string(items.size() - MaxListedEntities) + " more");
   }
 
   const measure::MassProperties mass = measure::massProperties(shapes);
