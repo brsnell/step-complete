@@ -7,6 +7,7 @@ int runPmiPanelTests(int argc, char** argv);
 int runSectionPanelTests(int argc, char** argv);
 int runAboutDialogTests(int argc, char** argv);
 int runMeasurementsPanelTests(int argc, char** argv);
+int runAssemblyFilterTests(int argc, char** argv);
 
 int main(int argc, char** argv) {
   qputenv("QT_QPA_PLATFORM", "offscreen");
@@ -16,5 +17,6 @@ int main(int argc, char** argv) {
   failures += runSectionPanelTests(argc, argv);
   failures += runAboutDialogTests(argc, argv);
   failures += runMeasurementsPanelTests(argc, argv);
+  failures += runAssemblyFilterTests(argc, argv);
   return failures == 0 ? 0 : 1;
 }

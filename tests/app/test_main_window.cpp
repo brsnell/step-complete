@@ -12,10 +12,14 @@
 #include <QAction>
 #include <QApplication>
 #include <QDockWidget>
+#include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
 #include <QStandardPaths>
 #include <QTest>
+#include <QTreeView>
+
+#include <AIS_InteractiveContext.hxx>
 
 using sc::app::MainWindow;
 using sc::app::MeasurementsPanel;
@@ -196,6 +200,61 @@ private Q_SLOTS:
     auto* viewport = _window->findChild<sc::render::OcctViewport*>();
     Q_EMIT viewport->devicePixelRatioChanged();
     QCOMPARE(_tool->witnessCount(), 0);
+  }
+
+  void filteringTheTreeExpandsToMatchesAndNarrowsTheSelection() {
+    openFixture();
+    auto* filter = _window->findChild<QLineEdit*>(QStringLiteral("assemblyFilterEdit"));
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    auto* viewport = _window->findChild<sc::render::OcctViewport*>();
+    QVERIFY(filter != nullptr);
+    QVERIFY(tree != nullptr);
+    QAbstractItemModel* model = tree->model();
+    const QModelIndex fixture = model->index(0, 0);
+    QCOMPARE(model->rowCount(fixture), 3); // Base plate and two pin pairs
+
+    // Select the plate, in the tree and so in 3D.
+    QModelIndex plate;
+    for (int row = 0; row < model->rowCount(fixture); ++row) {
+      if (model->index(row, 0, fixture).data().toString() == QStringLiteral("Base plate")) {
+        plate = model->index(row, 0, fixture);
+      }
+    }
+    QVERIFY(plate.isValid());
+    tree->selectionModel()->select(plate, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    QCOMPARE(viewport->context()->NbSelected(), 1);
+
+    // View > Find Part puts the cursor in the filter box.
+    QAction* find = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("Fi&nd Part..."));
+    QVERIFY(find != nullptr);
+    _window->activateWindow();
+    find->trigger();
+    QTRY_COMPARE(QApplication::focusWidget(), filter);
+
+    // Filtering for the pins keeps both pairs, expanded to show their pins, and drops
+    // the plate: its row is gone, so it is no longer selected in 3D either.
+    // Typed, not set: "p" and "i" are also View shortcuts (perspective, isolate).
+    QTest::keyClicks(filter, QStringLiteral("pin"));
+    QCOMPARE(filter->text(), QStringLiteral("pin"));
+    QCOMPARE(model->rowCount(fixture), 2);
+    for (int row = 0; row < 2; ++row) {
+      const QModelIndex pair = model->index(row, 0, fixture);
+      QVERIFY2(tree->isExpanded(pair), qPrintable(pair.data().toString()));
+      QCOMPARE(model->rowCount(pair), 2);
+    }
+    QCOMPARE(viewport->context()->NbSelected(), 0);
+
+    // Clearing the filter brings every row back, collapsed to the first level.
+    filter->clear();
+    QCOMPARE(model->rowCount(fixture), 3);
+    QVERIFY(tree->isExpanded(fixture));
+    QVERIFY(!tree->isExpanded(model->index(1, 0, fixture)));
+
+    // Opening another file clears the filter.
+    filter->setText(QStringLiteral("pin"));
+    openFixture();
+    QVERIFY(filter->text().isEmpty());
+    QCOMPARE(tree->model()->rowCount(tree->model()->index(0, 0)), 3);
   }
 
 private:

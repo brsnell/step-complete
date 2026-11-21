@@ -60,6 +60,8 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ### Search in the assembly tree
 
+**Status:** Built on branch `feature/assembly-search` (View > Find Part..., `Ctrl+F`). Design: [docs/designs/assembly-search.md](docs/designs/assembly-search.md), drafted, awaiting approval. Remove this entry once it is approved and merged.
+
 **What:** A filter box on the Assembly panel that matches part and product names, keeps the parent rows of matches and expands to them.
 
 **Why:** Large assemblies (hundreds of parts) are hard to get around without it. The PMI panel already has **Filter PMI...**.

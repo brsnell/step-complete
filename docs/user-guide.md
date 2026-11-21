@@ -157,6 +157,11 @@ different icons.
 - **Selection sync:** clicking a row selects the part in 3D, and clicking a part in 3D selects
   and scrolls to its row, expanding collapsed parents. Ctrl or Shift extend the tree selection.
   Selecting an assembly selects every part below it.
+- **Filter parts:** type in the box above the tree (**View > Find Part...**, `Ctrl+F`) to show only
+  the parts and assemblies whose name or product name contains the text, ignoring case. The
+  assemblies on the way to each match stay, expanded to show it, and everything below a matching
+  assembly stays too. A selected row that the filter hides is deselected in 3D as well. Clear the
+  box (or open another file) to see the whole tree again.
 - **Hide, Isolate, Show All, Transparent, Fit Selection** are available from the View menu, their
   keys, and the right-click menu in the tree and the 3D view. **Isolate** hides everything except
   the selection.
@@ -355,6 +360,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `Ctrl+W` | Close model |
 | `Ctrl+Shift+E` | Export image |
 | `Ctrl+Q` | Quit |
+| `Ctrl+F` | Find part (filter the Assembly tree) |
 | `F` | Fit all |
 | `Shift+F` | Fit selection |
 | `1` `2` `3` `4` `5` `6` | Front, Back, Top, Bottom, Left, Right |

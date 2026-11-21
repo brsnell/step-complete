@@ -1,6 +1,7 @@
 #include "app/MainWindow.h"
 
 #include "app/AboutDialog.h"
+#include "app/AssemblyFilterProxy.h"
 #include "app/AssemblyTreeModel.h"
 #include "app/ExportImageDialog.h"
 #include "app/ImportJob.h"
@@ -35,6 +36,7 @@
 #include <QHeaderView>
 #include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -151,8 +153,16 @@ MainWindow::~MainWindow() {
 
 void MainWindow::createDocks() {
   _treeModel = new AssemblyTreeModel(this);
+  _treeProxy = new AssemblyFilterProxy(this);
+  _treeProxy->setSourceModel(_treeModel);
+  _treeFilter = new QLineEdit(this);
+  _treeFilter->setObjectName(QStringLiteral("assemblyFilterEdit"));
+  _treeFilter->setPlaceholderText(tr("Filter parts\xE2\x80\xA6"));
+  _treeFilter->setClearButtonEnabled(true);
+  connect(_treeFilter, &QLineEdit::textChanged, this, &MainWindow::applyTreeFilter);
   _treeView = new QTreeView(this);
-  _treeView->setModel(_treeModel);
+  _treeView->setObjectName(QStringLiteral("assemblyTreeView"));
+  _treeView->setModel(_treeProxy);
   _treeView->setHeaderHidden(true);
   _treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
   _treeView->setUniformRowHeights(true); // fast scrolling in large assemblies
@@ -165,7 +175,14 @@ void MainWindow::createDocks() {
 
   auto* treeDock = new QDockWidget(tr("Assembly"), this);
   treeDock->setObjectName(QStringLiteral("AssemblyDock"));
-  treeDock->setWidget(_treeView);
+  auto* treePanel = new QWidget(treeDock);
+  auto* treeLayout = new QVBoxLayout(treePanel);
+  treeLayout->setContentsMargins(0, 0, 0, 0);
+  treeLayout->setSpacing(2);
+  treeLayout->addWidget(_treeFilter);
+  treeLayout->addWidget(_treeView);
+  treeDock->setWidget(treePanel);
+  _treeDock = treeDock;
   addDockWidget(Qt::LeftDockWidgetArea, treeDock);
 
   _properties = new PropertiesPanel(this);
@@ -283,6 +300,8 @@ void MainWindow::createActions() {
   fit->setShortcut(Qt::Key_F);
   _fitSelectionAction = viewMenu->addAction(tr("Fit &Selection"), this, &MainWindow::fitSelection);
   _fitSelectionAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F));
+  QAction* findPart = viewMenu->addAction(tr("Fi&nd Part..."), this, &MainWindow::focusTreeFilter);
+  findPart->setShortcut(QKeySequence::Find);
 
   QMenu* standardViews = viewMenu->addMenu(tr("Standard &Views"));
   struct NamedView {
@@ -751,6 +770,7 @@ void MainWindow::onImportFinished() {
       _pmiDock->raise();
     }
     render::SceneManager* scene = _scene.get();
+    _treeFilter->clear();
     _treeModel->setModel(index, [scene](core::NodeId id) { return scene->isVisible(id); });
     _treeView->expandToDepth(0);
     _properties->setModel(index, result.stats, job->elapsedSeconds());
@@ -811,6 +831,7 @@ void MainWindow::closeModel() {
   _pmiPanel->clear();
   _pmi.reset();
   _scene->setModel(nullptr);
+  _treeFilter->clear();
   _treeModel->setModel(nullptr, {});
   _properties->clear();
   _messages->clear();
@@ -891,7 +912,7 @@ void MainWindow::dropEvent(QDropEvent* event) {
 std::vector<core::NodeId> MainWindow::selectedNodes() const {
   std::vector<core::NodeId> nodes;
   for (const QModelIndex& index : _treeView->selectionModel()->selectedRows()) {
-    const core::NodeId id = _treeModel->nodeId(index);
+    const core::NodeId id = _treeModel->nodeId(_treeProxy->mapToSource(index));
     if (id != core::NoNode) {
       nodes.push_back(id);
     }
@@ -919,6 +940,39 @@ void MainWindow::onTreeSelectionChanged() {
   _syncingSelection = false;
 }
 
+void MainWindow::applyTreeFilter() {
+  _treeProxy->setFilterText(_treeFilter->text());
+  if (_treeProxy->filtering()) {
+    expandToMatches({});
+    return;
+  }
+  // Back to the unfiltered tree: the usual first level, plus the path to the selection.
+  _treeView->collapseAll();
+  _treeView->expandToDepth(0);
+  const QModelIndexList selected = _treeView->selectionModel()->selectedRows();
+  if (!selected.isEmpty()) {
+    _treeView->scrollTo(selected.first());
+  }
+}
+
+void MainWindow::focusTreeFilter() {
+  _treeDock->show();
+  _treeDock->raise();
+  _treeFilter->setFocus(Qt::ShortcutFocusReason);
+  _treeFilter->selectAll();
+}
+
+bool MainWindow::expandToMatches(const QModelIndex& parent) {
+  bool found = false;
+  for (int row = 0; row < _treeProxy->rowCount(parent); ++row) {
+    const QModelIndex index = _treeProxy->index(row, 0, parent);
+    const bool matchBelow = expandToMatches(index);
+    _treeView->setExpanded(index, matchBelow);
+    found = found || matchBelow || _treeProxy->matches(_treeProxy->mapToSource(index));
+  }
+  return found;
+}
+
 void MainWindow::onViewportSelectionChanged() {
   if (_syncingSelection || _measureTool->isActive()) {
     return;
@@ -927,7 +981,8 @@ void MainWindow::onViewportSelectionChanged() {
   QItemSelection selection;
   QModelIndex first;
   for (const core::NodeId part : _scene->selectedParts()) {
-    const QModelIndex index = _treeModel->indexOf(part);
+    // A part the filter hides stays selected in 3D but has no row to select.
+    const QModelIndex index = _treeProxy->mapFromSource(_treeModel->indexOf(part));
     if (index.isValid()) {
       selection.select(index, index);
       if (!first.isValid()) {
