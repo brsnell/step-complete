@@ -33,8 +33,42 @@ public:
     style.SetColorCurv(_fallback.GetRGB());
   }
 
+  // Rebuilding the per-face styles from the document resets their colors, so the
+  // hidden-line look is laid over them again each time.
+  // The rebuild drops the part's transparency too, so it is put back.
+  void DispatchStyles(const Standard_Boolean toSyncStyles) override {
+    const double transparency = Transparency();
+    XCAFPrs_AISObject::DispatchStyles(toSyncStyles);
+    if (_hiddenLine) {
+      forEachDrawer([](const OccHandle<Prs3d_Drawer>& drawer) { configureHiddenLineFaces(drawer, true); });
+    }
+    if (transparency > 0.0) {
+      SetTransparency(transparency);
+    }
+  }
+
+  void setHiddenLine(bool hiddenLine) {
+    if (hiddenLine == _hiddenLine) {
+      return;
+    }
+    _hiddenLine = hiddenLine;
+    if (!hiddenLine) {
+      forEachDrawer([](const OccHandle<Prs3d_Drawer>& drawer) { configureHiddenLineFaces(drawer, false); });
+    }
+    DispatchStyles(Standard_True); // restores the file's colors, or applies hidden line over them
+  }
+
 private:
+  template <typename Function>
+  void forEachDrawer(Function function) {
+    function(myDrawer);
+    for (AIS_DataMapOfShapeDrawer::Iterator it(myShapeColors); it.More(); it.Next()) {
+      function(it.Value());
+    }
+  }
+
   Quantity_ColorRGBA _fallback;
+  bool _hiddenLine = false;
 };
 
 int aisMode(DisplayStyle style) {
@@ -42,7 +76,7 @@ int aisMode(DisplayStyle style) {
 }
 
 void configureDrawer(const OccHandle<Prs3d_Drawer>& drawer, DisplayStyle style) {
-  const bool edges = style == DisplayStyle::ShadedWithEdges;
+  const bool edges = drawsFaceEdges(style);
   drawer->SetFaceBoundaryDraw(edges);
   if (edges) {
     drawer->SetFaceBoundaryAspect(new Prs3d_LineAspect(EdgeColor, Aspect_TOL_SOLID, 1.0));
@@ -160,6 +194,9 @@ void SceneManager::detach(core::NodeId id) {
 
 void SceneManager::applyStyleTo(const OccHandle<AIS_InteractiveObject>& object) {
   configureDrawer(object->Attributes(), _style);
+  if (auto* presentation = dynamic_cast<PartPresentation*>(object.get())) {
+    presentation->setHiddenLine(_style == DisplayStyle::HiddenLine);
+  }
 }
 
 void SceneManager::applyHighlightMode() {

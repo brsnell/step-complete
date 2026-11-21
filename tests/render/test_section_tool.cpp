@@ -141,6 +141,21 @@ private Q_SLOTS:
     QVERIFY2(sc::test::changedPixelFraction(capped, hatched) > 0.001, "hatching should show on the cap");
   }
 
+  void capsFollowTheHiddenLineStyle() {
+    // Caps take the part's material, so in hidden line they are white like the faces.
+    _scene->setDisplayStyle(sc::render::DisplayStyle::HiddenLine);
+    SectionPlane plane = planeX(50);
+    plane.capping = true;
+    plane.hatch = true;
+    _section->setHandlesVisible(false);
+    _section->setPlane(0, plane);
+    _viewport->setStandardView(V3d_XposYnegZpos);
+    _viewport->fitAll();
+    const QImage image = render();
+    sc::test::dumpImage(image, "section_hidden_line");
+    QCOMPARE(countIn(image, image.rect(), isPlateRed), 0);
+  }
+
   void threePlanesKeepTheirCommonSide() {
     _section->setHandlesVisible(false);
     for (int i = 0; i < sc::render::SectionTool::MaxPlanes; ++i) {

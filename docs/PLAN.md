@@ -358,9 +358,10 @@ Collaboration (a v2 candidate in §1) was dropped on 2026-11-21.
 Feedback from v1.0 users can reorder v1.1 and v2.
 
 ### M6: v1.1 (≈5–7 weeks): 📝 drafted
-- **Hidden-line display style.** A fourth `DisplayStyle` next to Shaded, Shaded with Edges and
-  Wireframe, using OCCT's hidden-line removal. Risk: computed HLR is slow on large assemblies, so
-  it has to be checked against the §6 targets (and maybe cut back while the camera moves).
+- ✅ **Hidden-line display style** (View > Hidden Line, `L`): white unlit faces, sharp edges and a
+  GPU silhouette for outlines, so the depth buffer hides what is behind
+  ([design](designs/hidden-line.md)). OCCT's exact hidden-line removal was not used: it
+  recomputes on every camera move.
 - **Search in the assembly tree.** A filter box on the Assembly panel, like **Filter PMI...**.
   Matches part and product names and keeps their parent rows.
 - **Geometry export.** File > Export Geometry: STL (per part or merged), OBJ and glTF/GLB with

@@ -134,7 +134,10 @@ the model.
 - **Standard Views:** Front `1`, Back `2`, Top `3`, Bottom `4`, Left `5`, Right `6`,
   Isometric `0`. Z is up; Front looks along +Y.
 - **Perspective Projection** (`P`): toggles between orthographic (default) and perspective.
-- **Display style:** Shaded (`S`), Shaded with Edges (`E`), Wireframe (`W`).
+- **Display style:** Shaded (`S`), Shaded with Edges (`E`), Wireframe (`W`), Hidden Line (`L`).
+  Hidden Line draws the faces in white with the sharp edges and outlines in dark lines, like a
+  drawing; edges behind faces are hidden. Selected parts still light up in the selection color,
+  and section caps are white (hatched if Hatch is on).
 - **Hide** (`H`), **Isolate** (`I`), **Show All** (`Shift+H`), **Transparent** (`T`), applying to
   the selected parts or assemblies. Transparent toggles 60 percent transparency on or off.
 - **Antialiasing (4x MSAA)** and **Show Frame Rate** (a frames-per-second overlay).
@@ -357,7 +360,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `1` `2` `3` `4` `5` `6` | Front, Back, Top, Bottom, Left, Right |
 | `0` | Isometric |
 | `P` | Toggle perspective projection |
-| `S` / `E` / `W` | Shaded / Shaded with edges / Wireframe |
+| `S` / `E` / `W` / `L` | Shaded / Shaded with edges / Wireframe / Hidden line |
 | `H` | Hide selection |
 | `I` | Isolate selection |
 | `Shift+H` | Show all |

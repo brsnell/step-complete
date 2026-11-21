@@ -60,11 +60,13 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ### Hidden-line display style
 
-**What:** A fourth display style, Hidden Line, next to Shaded, Shaded with Edges and Wireframe: visible edges drawn solid, hidden edges dashed or left out.
+**Status:** Built on branch `feature/hidden-line` (View > Hidden Line, `L`). Design: [docs/designs/hidden-line.md](docs/designs/hidden-line.md), drafted, awaiting approval. Remove this entry once it is approved and merged.
+
+**What:** A fourth display style, Hidden Line, next to Shaded, Shaded with Edges and Wireframe: visible edges drawn solid, hidden edges left out.
 
 **Why:** It was a v1 goal (PLAN §1) and was never built. Engineers use it to read a model the way it looks on a drawing.
 
-**Context:** `DisplayStyle` in `src/render/SceneStyle.h` has only the three styles. OCCT does hidden-line removal through the view's computed mode (`V3d_View::SetComputedMode`), which recomputes on every camera change and can be slow on large assemblies. Measure it against the PLAN §6 targets on the benchmark models; it may need to fall back to plain edges while the camera moves. Needs a keyboard shortcut next to `S`/`E`/`W` and a render test.
+**Context:** It uses white unlit faces with a GPU silhouette, not OCCT's exact computed mode (see the design). It costs about 1.5× the frame time of Shaded with Edges under software rendering. Check it on the reference machine with the performance item above.
 
 **Effort:** M
 **Priority:** P1

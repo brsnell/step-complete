@@ -323,6 +323,7 @@ void MainWindow::createActions() {
       {QT_TR_NOOP("S&haded"), render::DisplayStyle::Shaded, Qt::Key_S},
       {QT_TR_NOOP("Shaded with &Edges"), render::DisplayStyle::ShadedWithEdges, Qt::Key_E},
       {QT_TR_NOOP("&Wireframe"), render::DisplayStyle::Wireframe, Qt::Key_W},
+      {QT_TR_NOOP("Hidden &Line"), render::DisplayStyle::HiddenLine, Qt::Key_L},
   };
   for (const NamedStyle& namedStyle : styles) {
     QAction* action = viewMenu->addAction(tr(namedStyle.label));
