@@ -27,10 +27,10 @@ inline double changedPixelFraction(const QImage& a, const QImage& b) {
   qint64 changed = 0;
   for (int y = 0; y < a.height(); ++y) {
     for (int x = 0; x < a.width(); ++x) {
-      const QRgb pa = a.pixel(x, y);
-      const QRgb pb = b.pixel(x, y);
-      const int diff =
-          qAbs(qRed(pa) - qRed(pb)) + qAbs(qGreen(pa) - qGreen(pb)) + qAbs(qBlue(pa) - qBlue(pb));
+      const QRgb pixelA = a.pixel(x, y);
+      const QRgb pixelB = b.pixel(x, y);
+      const int diff = qAbs(qRed(pixelA) - qRed(pixelB)) + qAbs(qGreen(pixelA) - qGreen(pixelB)) +
+                       qAbs(qBlue(pixelA) - qBlue(pixelB));
       if (diff > 24) {
         ++changed;
       }

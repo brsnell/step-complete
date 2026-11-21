@@ -37,12 +37,12 @@ double differingFraction(const QImage& a, const QImage& b) {
 }
 
 bool cornersAre(const QImage& image, QRgb expected, int tolerance) {
-  const int w = image.width() - 1;
-  const int h = image.height() - 1;
+  const int width = image.width() - 1;
+  const int height = image.height() - 1;
   return colorsClose(image.pixel(0, 0), expected, tolerance) &&
-         colorsClose(image.pixel(w, 0), expected, tolerance) &&
-         colorsClose(image.pixel(0, h), expected, tolerance) &&
-         colorsClose(image.pixel(w, h), expected, tolerance);
+         colorsClose(image.pixel(width, 0), expected, tolerance) &&
+         colorsClose(image.pixel(0, height), expected, tolerance) &&
+         colorsClose(image.pixel(width, height), expected, tolerance);
 }
 
 BackgroundStyle whiteStyle() {

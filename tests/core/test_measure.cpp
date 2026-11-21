@@ -26,11 +26,11 @@ using namespace sc::core::measure;
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
-constexpr double kTol = 1e-6;
+constexpr double Pi = 3.14159265358979323846;
+constexpr double Tol = 1e-6;
 
 double degrees(double radians) {
-  return radians * 180.0 / kPi;
+  return radians * 180.0 / Pi;
 }
 
 TopLoc_Location translation(double x, double y, double z) {
@@ -48,8 +48,8 @@ TopLoc_Location skewPlacement() {
   return TopLoc_Location(move * rotation);
 }
 
-gp_Pnt transformed(const gp_Pnt& p, const TopLoc_Location& location) {
-  return p.Transformed(location.Transformation());
+gp_Pnt transformed(const gp_Pnt& point, const TopLoc_Location& location) {
+  return point.Transformed(location.Transformation());
 }
 
 // The sub-shape of the given type whose center of mass is closest to 'near'.
@@ -63,9 +63,9 @@ TopoDS_Shape closestSubShape(const TopoDS_Shape& shape, TopAbs_ShapeEnum type, c
     } else {
       BRepGProp::LinearProperties(it.Current(), props);
     }
-    const double d = props.CentreOfMass().Distance(near);
-    if (d < bestDistance) {
-      bestDistance = d;
+    const double distance = props.CentreOfMass().Distance(near);
+    if (distance < bestDistance) {
+      bestDistance = distance;
       best = it.Current();
     }
   }
@@ -111,7 +111,7 @@ TEST(Measure, VertexPosition) {
   const auto vertex = BRepBuilderAPI_MakeVertex(gp_Pnt(1, 2, 3)).Shape();
   const EntityInfo info = entityInfo(vertex);
   EXPECT_EQ(info.kind, EntityKind::Vertex);
-  EXPECT_TRUE(info.point.IsEqual(gp_Pnt(1, 2, 3), kTol));
+  EXPECT_TRUE(info.point.IsEqual(gp_Pnt(1, 2, 3), Tol));
 }
 
 TEST(Measure, StraightEdge) {
@@ -119,10 +119,10 @@ TEST(Measure, StraightEdge) {
   ASSERT_EQ(info.kind, EntityKind::Edge);
   ASSERT_TRUE(info.edge);
   EXPECT_EQ(info.edge->curve, CurveKind::Line);
-  EXPECT_NEAR(info.edge->length, 5.0, kTol);
-  EXPECT_TRUE(info.edge->midpoint.IsEqual(gp_Pnt(1.5, 2, 0), kTol));
+  EXPECT_NEAR(info.edge->length, 5.0, Tol);
+  EXPECT_TRUE(info.edge->midpoint.IsEqual(gp_Pnt(1.5, 2, 0), Tol));
   ASSERT_TRUE(info.edge->direction);
-  EXPECT_TRUE(info.edge->direction->IsEqual(gp_Dir(3, 4, 0), kTol));
+  EXPECT_TRUE(info.edge->direction->IsEqual(gp_Dir(3, 4, 0), Tol));
   EXPECT_FALSE(info.edge->closed);
   EXPECT_GT(info.tolerance, 0.0) << "B-rep tolerance must be reported";
 }
@@ -132,16 +132,16 @@ TEST(Measure, CircularEdgeAndCylinderFace) {
 
   const EntityInfo circle = entityInfo(edgeOfType(cylinder, CurveKind::Circle));
   ASSERT_TRUE(circle.edge);
-  EXPECT_NEAR(*circle.edge->radius, 5.0, kTol);
-  EXPECT_NEAR(circle.edge->length, 2 * kPi * 5.0, 1e-6);
-  EXPECT_NEAR(*circle.edge->sweepAngle, 2 * kPi, 1e-9);
+  EXPECT_NEAR(*circle.edge->radius, 5.0, Tol);
+  EXPECT_NEAR(circle.edge->length, 2 * Pi * 5.0, 1e-6);
+  EXPECT_NEAR(*circle.edge->sweepAngle, 2 * Pi, 1e-9);
   EXPECT_TRUE(circle.edge->closed);
   EXPECT_TRUE(circle.edge->axis->Direction().IsParallel(gp_Dir(0, 0, 1), 1e-9));
 
   const EntityInfo side = entityInfo(faceOfType(cylinder, SurfaceKind::Cylinder));
   ASSERT_TRUE(side.face);
-  EXPECT_NEAR(side.face->area, 2 * kPi * 5.0 * 10.0, 1e-6);
-  EXPECT_NEAR(*side.face->radius, 5.0, kTol);
+  EXPECT_NEAR(side.face->area, 2 * Pi * 5.0 * 10.0, 1e-6);
+  EXPECT_NEAR(*side.face->radius, 5.0, Tol);
   EXPECT_TRUE(side.face->axis->Direction().IsParallel(gp_Dir(0, 0, 1), 1e-9));
 }
 
@@ -150,18 +150,18 @@ TEST(Measure, PlanarFaceNormalIsOutward) {
   const EntityInfo top = entityInfo(face(solid, gp_Pnt(5, 10, 30)));
   ASSERT_TRUE(top.face);
   EXPECT_EQ(top.face->surface, SurfaceKind::Plane);
-  EXPECT_NEAR(top.face->area, 200.0, kTol);
+  EXPECT_NEAR(top.face->area, 200.0, Tol);
   EXPECT_TRUE(top.face->normal->IsEqual(gp_Dir(0, 0, 1), 1e-9));
   const EntityInfo bottom = entityInfo(face(solid, gp_Pnt(5, 10, 0)));
   EXPECT_TRUE(bottom.face->normal->IsEqual(gp_Dir(0, 0, -1), 1e-9));
-  EXPECT_TRUE(top.face->centroid.IsEqual(gp_Pnt(5, 10, 30), kTol));
+  EXPECT_TRUE(top.face->centroid.IsEqual(gp_Pnt(5, 10, 30), Tol));
 }
 
 TEST(Measure, SphereConeAndTorusFaces) {
   const EntityInfo sphere = entityInfo(faceOfType(BRepPrimAPI_MakeSphere(4.0).Shape(), SurfaceKind::Sphere));
   ASSERT_TRUE(sphere.face);
-  EXPECT_NEAR(sphere.face->area, 4 * kPi * 16.0, 1e-6);
-  EXPECT_NEAR(*sphere.face->radius, 4.0, kTol);
+  EXPECT_NEAR(sphere.face->area, 4 * Pi * 16.0, 1e-6);
+  EXPECT_NEAR(*sphere.face->radius, 4.0, Tol);
 
   // Cone r1=10 -> r2=5 over h=5: semi-angle 45 degrees.
   const EntityInfo cone =
@@ -172,9 +172,9 @@ TEST(Measure, SphereConeAndTorusFaces) {
   const EntityInfo torus =
       entityInfo(faceOfType(BRepPrimAPI_MakeTorus(10.0, 2.0).Shape(), SurfaceKind::Torus));
   ASSERT_TRUE(torus.face);
-  EXPECT_NEAR(torus.face->area, 4 * kPi * kPi * 10.0 * 2.0, 1e-5);
-  EXPECT_NEAR(*torus.face->radius, 10.0, kTol);
-  EXPECT_NEAR(*torus.face->minorRadius, 2.0, kTol);
+  EXPECT_NEAR(torus.face->area, 4 * Pi * Pi * 10.0 * 2.0, 1e-5);
+  EXPECT_NEAR(*torus.face->radius, 10.0, Tol);
+  EXPECT_NEAR(*torus.face->minorRadius, 2.0, Tol);
 }
 
 TEST(Measure, SolidInfo) {
@@ -188,69 +188,70 @@ TEST(Measure, SolidInfo) {
 // --- Distance ----------------------------------------------------------------------
 
 TEST(Measure, PointToPointDistance) {
-  const DistanceResult d = distance(gp_Pnt(1, 1, 1), gp_Pnt(4, 5, 1));
-  ASSERT_TRUE(d.ok);
-  EXPECT_NEAR(d.minimum, 5.0, kTol);
-  EXPECT_NEAR(d.delta.X(), 3.0, kTol);
-  EXPECT_NEAR(d.delta.Y(), 4.0, kTol);
-  EXPECT_NEAR(d.delta.Z(), 0.0, kTol);
+  const DistanceResult result = distance(gp_Pnt(1, 1, 1), gp_Pnt(4, 5, 1));
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.minimum, 5.0, Tol);
+  EXPECT_NEAR(result.delta.X(), 3.0, Tol);
+  EXPECT_NEAR(result.delta.Y(), 4.0, Tol);
+  EXPECT_NEAR(result.delta.Z(), 0.0, Tol);
 }
 
 TEST(Measure, MinimumDistanceBetweenSolidsWithWitnessPoints) {
   const TopoDS_Shape a = box(10, 10, 10);
   const TopoDS_Shape b = toWorld(box(10, 10, 10), translation(15, 3, 0));
-  const DistanceResult d = distance(a, b);
-  ASSERT_TRUE(d.ok) << d.error;
-  EXPECT_NEAR(d.minimum, 5.0, kTol);
-  EXPECT_NEAR(d.point1.X(), 10.0, kTol);
-  EXPECT_NEAR(d.point2.X(), 15.0, kTol);
-  EXPECT_NEAR(d.delta.Magnitude(), 5.0, kTol);
+  const DistanceResult result = distance(a, b);
+  ASSERT_TRUE(result.ok) << result.error;
+  EXPECT_NEAR(result.minimum, 5.0, Tol);
+  EXPECT_NEAR(result.point1.X(), 10.0, Tol);
+  EXPECT_NEAR(result.point2.X(), 15.0, Tol);
+  EXPECT_NEAR(result.delta.Magnitude(), 5.0, Tol);
 }
 
 TEST(Measure, ParallelPlanarFaces) {
   const TopoDS_Shape a = box(10, 10, 10);
   const TopoDS_Shape b = toWorld(box(10, 10, 10), translation(17, 40, 0)); // faces don't overlap
-  const DistanceResult d = distance(face(a, gp_Pnt(10, 5, 5)), face(b, gp_Pnt(17, 45, 5)));
-  ASSERT_TRUE(d.ok) << d.error;
-  ASSERT_TRUE(d.parallelDistance);
-  EXPECT_NEAR(*d.parallelDistance, 7.0, kTol);
-  EXPECT_GT(d.minimum, *d.parallelDistance) << "minimum distance differs from plane separation here";
+  const DistanceResult result = distance(face(a, gp_Pnt(10, 5, 5)), face(b, gp_Pnt(17, 45, 5)));
+  ASSERT_TRUE(result.ok) << result.error;
+  ASSERT_TRUE(result.parallelDistance);
+  EXPECT_NEAR(*result.parallelDistance, 7.0, Tol);
+  EXPECT_GT(result.minimum, *result.parallelDistance)
+      << "minimum distance differs from plane separation here";
 }
 
 TEST(Measure, ParallelStraightEdges) {
-  const DistanceResult d =
+  const DistanceResult result =
       distance(segment(gp_Pnt(0, 0, 0), gp_Pnt(10, 0, 0)), segment(gp_Pnt(20, 3, 4), gp_Pnt(30, 3, 4)));
-  ASSERT_TRUE(d.ok);
-  ASSERT_TRUE(d.parallelDistance);
-  EXPECT_NEAR(*d.parallelDistance, 5.0, kTol);
+  ASSERT_TRUE(result.ok);
+  ASSERT_TRUE(result.parallelDistance);
+  EXPECT_NEAR(*result.parallelDistance, 5.0, Tol);
 }
 
 TEST(Measure, CenterToCenterBetweenCylindersAndSpheres) {
   const TopoDS_Shape cylinder = BRepPrimAPI_MakeCylinder(5.0, 10.0).Shape();
-  const TopoDS_Shape c1 = faceOfType(cylinder, SurfaceKind::Cylinder);
-  const TopoDS_Shape c2 = toWorld(c1, translation(30, 40, 2));
-  const DistanceResult axes = distance(c1, c2);
+  const TopoDS_Shape cylinder1 = faceOfType(cylinder, SurfaceKind::Cylinder);
+  const TopoDS_Shape cylinder2 = toWorld(cylinder1, translation(30, 40, 2));
+  const DistanceResult axes = distance(cylinder1, cylinder2);
   ASSERT_TRUE(axes.ok);
   ASSERT_TRUE(axes.centerDistance);
-  EXPECT_NEAR(*axes.centerDistance, 50.0, kTol) << "parallel axes: distance between the axes";
+  EXPECT_NEAR(*axes.centerDistance, 50.0, Tol) << "parallel axes: distance between the axes";
   EXPECT_NEAR(axes.minimum, 40.0, 1e-6);
 
   const TopoDS_Shape sphere = faceOfType(BRepPrimAPI_MakeSphere(2.0).Shape(), SurfaceKind::Sphere);
   const DistanceResult spheres = distance(sphere, toWorld(sphere, translation(2, 3, 6)));
   ASSERT_TRUE(spheres.centerDistance);
-  EXPECT_NEAR(*spheres.centerDistance, 7.0, kTol);
+  EXPECT_NEAR(*spheres.centerDistance, 7.0, Tol);
 
   // Circular edge center to a cylinder axis: point-to-line.
   const TopoDS_Shape circle = toWorld(edgeOfType(cylinder, CurveKind::Circle), translation(0, 8, 0));
-  const DistanceResult mixed = distance(circle, c1);
+  const DistanceResult mixed = distance(circle, cylinder1);
   ASSERT_TRUE(mixed.centerDistance);
-  EXPECT_NEAR(*mixed.centerDistance, 8.0, kTol);
+  EXPECT_NEAR(*mixed.centerDistance, 8.0, Tol);
 }
 
 TEST(Measure, DistanceFailsCleanlyOnNullInput) {
-  const DistanceResult d = distance(TopoDS_Shape(), box(1, 1, 1));
-  EXPECT_FALSE(d.ok);
-  EXPECT_FALSE(d.error.empty());
+  const DistanceResult result = distance(TopoDS_Shape(), box(1, 1, 1));
+  EXPECT_FALSE(result.ok);
+  EXPECT_FALSE(result.error.empty());
 }
 
 // --- Angle -------------------------------------------------------------------------
@@ -263,7 +264,7 @@ TEST(Measure, AngleBetweenEdgesSharingAVertexIsInterior) {
   EXPECT_NEAR(degrees(a.angle), 135.0, 1e-9);
   EXPECT_NEAR(degrees(a.supplement), 45.0, 1e-9);
   ASSERT_TRUE(a.apex);
-  EXPECT_TRUE(a.apex->IsEqual(apex, kTol));
+  EXPECT_TRUE(a.apex->IsEqual(apex, Tol));
 }
 
 TEST(Measure, AngleBetweenSeparateLinesIsUndirected) {
@@ -284,7 +285,7 @@ TEST(Measure, AngleBetweenFacesAndAxes) {
   EXPECT_NEAR(degrees(opposite.angle), 0.0, 1e-9);
 
   // Cylinder axis tilted 30 degrees from Z against the box's top face normal.
-  const gp_Ax2 tilted(gp_Pnt(0, 0, 0), gp_Dir(std::sin(kPi / 6), 0, std::cos(kPi / 6)));
+  const gp_Ax2 tilted(gp_Pnt(0, 0, 0), gp_Dir(std::sin(Pi / 6), 0, std::cos(Pi / 6)));
   const TopoDS_Shape cylinder =
       faceOfType(BRepPrimAPI_MakeCylinder(tilted, 2.0, 5.0).Shape(), SurfaceKind::Cylinder);
   const AngleResult axis = angle(cylinder, face(solid, gp_Pnt(5, 5, 10)));
@@ -304,12 +305,12 @@ TEST(Measure, RadiusOfCirclesCylindersAndSpheres) {
   const TopoDS_Shape cylinder = BRepPrimAPI_MakeCylinder(6.0, 10.0).Shape();
   const auto edge = radius(edgeOfType(cylinder, CurveKind::Circle));
   ASSERT_TRUE(edge);
-  EXPECT_NEAR(edge->radius, 6.0, kTol);
-  EXPECT_NEAR(edge->diameter, 12.0, kTol);
+  EXPECT_NEAR(edge->radius, 6.0, Tol);
+  EXPECT_NEAR(edge->diameter, 12.0, Tol);
 
   const auto side = radius(faceOfType(cylinder, SurfaceKind::Cylinder));
   ASSERT_TRUE(side);
-  EXPECT_NEAR(side->diameter, 12.0, kTol);
+  EXPECT_NEAR(side->diameter, 12.0, Tol);
   EXPECT_NEAR(side->center.Z(), 5.0, 1e-6) << "center is level with the face";
   EXPECT_FALSE(side->isSphere);
 
@@ -317,7 +318,7 @@ TEST(Measure, RadiusOfCirclesCylindersAndSpheres) {
       radius(faceOfType(BRepPrimAPI_MakeSphere(gp_Pnt(1, 2, 3), 3.0).Shape(), SurfaceKind::Sphere));
   ASSERT_TRUE(sphere);
   EXPECT_TRUE(sphere->isSphere);
-  EXPECT_TRUE(sphere->center.IsEqual(gp_Pnt(1, 2, 3), kTol));
+  EXPECT_TRUE(sphere->center.IsEqual(gp_Pnt(1, 2, 3), Tol));
 
   EXPECT_FALSE(radius(face(box(1, 1, 1), gp_Pnt(0.5, 0.5, 1))));
   EXPECT_FALSE(radius(segment(gp_Pnt(0, 0, 0), gp_Pnt(1, 0, 0))));
@@ -326,50 +327,51 @@ TEST(Measure, RadiusOfCirclesCylindersAndSpheres) {
 // --- Mass properties ---------------------------------------------------------------
 
 TEST(Measure, MassPropertiesOfABox) {
-  const MassProperties m = massProperties({box(10, 20, 30)});
-  ASSERT_TRUE(m.ok);
-  EXPECT_TRUE(m.hasVolume);
-  EXPECT_EQ(m.solidCount, 1);
-  EXPECT_NEAR(m.volume, 6000.0, 1e-6);
-  EXPECT_NEAR(m.area, 2200.0, 1e-6);
-  EXPECT_TRUE(m.centroid.IsEqual(gp_Pnt(5, 10, 15), 1e-9));
+  const MassProperties mass = massProperties({box(10, 20, 30)});
+  ASSERT_TRUE(mass.ok);
+  EXPECT_TRUE(mass.hasVolume);
+  EXPECT_EQ(mass.solidCount, 1);
+  EXPECT_NEAR(mass.volume, 6000.0, 1e-6);
+  EXPECT_NEAR(mass.area, 2200.0, 1e-6);
+  EXPECT_TRUE(mass.centroid.IsEqual(gp_Pnt(5, 10, 15), 1e-9));
   // Unit density: Ixx = m (b^2 + c^2) / 12 about the centroid.
-  EXPECT_NEAR(m.inertia(1, 1), 6000.0 * (400 + 900) / 12.0, 1e-3);
-  EXPECT_NEAR(m.inertia(2, 2), 6000.0 * (100 + 900) / 12.0, 1e-3);
-  EXPECT_NEAR(m.inertia(3, 3), 6000.0 * (100 + 400) / 12.0, 1e-3);
-  EXPECT_NEAR(m.inertia(1, 2), 0.0, 1e-6);
-  EXPECT_TRUE(m.boxMin.IsEqual(gp_Pnt(0, 0, 0), 1e-6));
-  EXPECT_TRUE(m.boxMax.IsEqual(gp_Pnt(10, 20, 30), 1e-6));
+  EXPECT_NEAR(mass.inertia(1, 1), 6000.0 * (400 + 900) / 12.0, 1e-3);
+  EXPECT_NEAR(mass.inertia(2, 2), 6000.0 * (100 + 900) / 12.0, 1e-3);
+  EXPECT_NEAR(mass.inertia(3, 3), 6000.0 * (100 + 400) / 12.0, 1e-3);
+  EXPECT_NEAR(mass.inertia(1, 2), 0.0, 1e-6);
+  EXPECT_TRUE(mass.boxMin.IsEqual(gp_Pnt(0, 0, 0), 1e-6));
+  EXPECT_TRUE(mass.boxMax.IsEqual(gp_Pnt(10, 20, 30), 1e-6));
 }
 
 TEST(Measure, MassPropertiesOfSeveralSolidsCombine) {
-  const MassProperties m = massProperties({box(10, 10, 10), toWorld(box(10, 10, 10), translation(20, 0, 0))});
-  ASSERT_TRUE(m.ok);
-  EXPECT_EQ(m.solidCount, 2);
-  EXPECT_NEAR(m.volume, 2000.0, 1e-6);
-  EXPECT_TRUE(m.centroid.IsEqual(gp_Pnt(15, 5, 5), 1e-9));
+  const MassProperties mass =
+      massProperties({box(10, 10, 10), toWorld(box(10, 10, 10), translation(20, 0, 0))});
+  ASSERT_TRUE(mass.ok);
+  EXPECT_EQ(mass.solidCount, 2);
+  EXPECT_NEAR(mass.volume, 2000.0, 1e-6);
+  EXPECT_TRUE(mass.centroid.IsEqual(gp_Pnt(15, 5, 5), 1e-9));
 }
 
 TEST(Measure, SurfaceOnlySelectionHasNoVolume) {
-  const MassProperties m = massProperties({face(box(10, 20, 30), gp_Pnt(5, 10, 30))});
-  ASSERT_TRUE(m.ok);
-  EXPECT_FALSE(m.hasVolume);
-  EXPECT_NEAR(m.area, 200.0, 1e-6);
-  EXPECT_TRUE(m.centroid.IsEqual(gp_Pnt(5, 10, 30), 1e-9));
+  const MassProperties mass = massProperties({face(box(10, 20, 30), gp_Pnt(5, 10, 30))});
+  ASSERT_TRUE(mass.ok);
+  EXPECT_FALSE(mass.hasVolume);
+  EXPECT_NEAR(mass.area, 200.0, 1e-6);
+  EXPECT_TRUE(mass.centroid.IsEqual(gp_Pnt(5, 10, 30), 1e-9));
 }
 
 TEST(Measure, OrientedBoxFollowsARotatedPart) {
   gp_Trsf rotation;
-  rotation.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), kPi / 6);
-  const MassProperties m = massProperties({toWorld(box(10, 20, 30), TopLoc_Location(rotation))});
-  ASSERT_TRUE(m.ok);
-  std::array<double, 3> half = m.orientedBox.halfSizes;
+  rotation.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), Pi / 6);
+  const MassProperties mass = massProperties({toWorld(box(10, 20, 30), TopLoc_Location(rotation))});
+  ASSERT_TRUE(mass.ok);
+  std::array<double, 3> half = mass.orientedBox.halfSizes;
   std::sort(half.begin(), half.end());
   EXPECT_NEAR(half[0], 5.0, 1e-3);
   EXPECT_NEAR(half[1], 10.0, 1e-3);
   EXPECT_NEAR(half[2], 15.0, 1e-3);
   // The axis-aligned box of a rotated part is larger.
-  EXPECT_GT(m.boxMax.X() - m.boxMin.X(), 10.0 + 1e-3);
+  EXPECT_GT(mass.boxMax.X() - mass.boxMin.X(), 10.0 + 1e-3);
 }
 
 // --- Transformed instances: every mode must work in world coordinates --------------
@@ -391,11 +393,11 @@ TEST(Measure, AllModesRespectInstancePlacement) {
   EXPECT_NEAR(topInfo.face->area, 200.0, 1e-6);
 
   // Distance: invariant under rigid motion.
-  const DistanceResult d = distance(top, bottom);
-  ASSERT_TRUE(d.ok);
-  EXPECT_NEAR(d.minimum, 30.0, 1e-6);
-  ASSERT_TRUE(d.parallelDistance);
-  EXPECT_NEAR(*d.parallelDistance, 30.0, 1e-6);
+  const DistanceResult result = distance(top, bottom);
+  ASSERT_TRUE(result.ok);
+  EXPECT_NEAR(result.minimum, 30.0, 1e-6);
+  ASSERT_TRUE(result.parallelDistance);
+  EXPECT_NEAR(*result.parallelDistance, 30.0, 1e-6);
 
   // Angle between faces.
   const AngleResult a = angle(top, side);
@@ -403,27 +405,27 @@ TEST(Measure, AllModesRespectInstancePlacement) {
   EXPECT_NEAR(degrees(a.angle), 90.0, 1e-9);
 
   // Radius and its center in world coordinates.
-  const auto r = radius(toWorld(faceOfType(cylinderPrototype, SurfaceKind::Cylinder), placement));
-  ASSERT_TRUE(r);
-  EXPECT_NEAR(r->radius, 4.0, kTol);
-  EXPECT_TRUE(r->center.IsEqual(transformed(gp_Pnt(0, 0, 6), placement), 1e-6));
+  const auto radiusResult = radius(toWorld(faceOfType(cylinderPrototype, SurfaceKind::Cylinder), placement));
+  ASSERT_TRUE(radiusResult);
+  EXPECT_NEAR(radiusResult->radius, 4.0, Tol);
+  EXPECT_TRUE(radiusResult->center.IsEqual(transformed(gp_Pnt(0, 0, 6), placement), 1e-6));
 
   // Mass properties: the centroid moves, volume and principal moments don't.
-  const MassProperties m = massProperties({toWorld(prototype, placement)});
-  ASSERT_TRUE(m.ok);
-  EXPECT_NEAR(m.volume, 6000.0, 1e-6);
-  EXPECT_TRUE(m.centroid.IsEqual(transformed(gp_Pnt(5, 10, 15), placement), 1e-6));
-  std::array<double, 3> moments = m.principalMoments;
+  const MassProperties mass = massProperties({toWorld(prototype, placement)});
+  ASSERT_TRUE(mass.ok);
+  EXPECT_NEAR(mass.volume, 6000.0, 1e-6);
+  EXPECT_TRUE(mass.centroid.IsEqual(transformed(gp_Pnt(5, 10, 15), placement), 1e-6));
+  std::array<double, 3> moments = mass.principalMoments;
   std::sort(moments.begin(), moments.end());
   EXPECT_NEAR(moments[0], 6000.0 * (100 + 400) / 12.0, 1e-2);
   EXPECT_NEAR(moments[1], 6000.0 * (100 + 900) / 12.0, 1e-2);
   EXPECT_NEAR(moments[2], 6000.0 * (400 + 900) / 12.0, 1e-2);
 
   // Two instances of the same part: center-to-center between their cylinder axes.
-  const TopoDS_Shape c1 = toWorld(faceOfType(cylinderPrototype, SurfaceKind::Cylinder), placement);
-  const TopoDS_Shape c2 =
+  const TopoDS_Shape cylinder1 = toWorld(faceOfType(cylinderPrototype, SurfaceKind::Cylinder), placement);
+  const TopoDS_Shape cylinder2 =
       toWorld(faceOfType(cylinderPrototype, SurfaceKind::Cylinder), placement * translation(6, 8, 0));
-  const DistanceResult axes = distance(c1, c2);
+  const DistanceResult axes = distance(cylinder1, cylinder2);
   ASSERT_TRUE(axes.centerDistance);
   EXPECT_NEAR(*axes.centerDistance, 10.0, 1e-6);
 }

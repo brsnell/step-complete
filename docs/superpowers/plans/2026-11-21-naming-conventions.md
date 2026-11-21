@@ -1,6 +1,6 @@
 # Adopt Task Complete's naming conventions (adapted for C++)
 
-Status: approved 2026-11-21. Landing as one PR per module.
+Status: done 2026-11-21 (PRs #8–#13). CI's naming check now fails on a violation.
 
 ## Goal
 

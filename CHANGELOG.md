@@ -19,6 +19,10 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 - Removing a result keeps the other rows as they were; older rows no longer fold up when a
   new result arrives.
 
+### Internal
+- The code follows the naming conventions in `CLAUDE.md` (adapted from Task Complete), checked
+  by a clang-tidy job in CI. Renames only: no behavior changes.
+
 ### Fixed
 - Measurement markers redraw at the right size after the window moves to a screen with
   different scaling.

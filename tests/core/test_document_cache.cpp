@@ -110,15 +110,15 @@ void expectSameModel(const core::ImportResult& fresh, const core::ImportResult& 
   EXPECT_EQ(countUntriangulatedFaces(a), 0);
   EXPECT_EQ(countUntriangulatedFaces(b), 0) << "triangulation must come from the cache";
 
-  const core::PmiModel pa(fresh.document);
-  const core::PmiModel pb(cached.document);
-  ASSERT_EQ(pa.items().size(), pb.items().size());
-  for (size_t i = 0; i < pa.items().size(); ++i) {
-    EXPECT_EQ(pa.items()[i].text, pb.items()[i].text);
-    EXPECT_EQ(pa.items()[i].typeName, pb.items()[i].typeName);
-    EXPECT_EQ(pa.items()[i].frame, pb.items()[i].frame);
+  const core::PmiModel freshModel(fresh.document);
+  const core::PmiModel cachedModel(cached.document);
+  ASSERT_EQ(freshModel.items().size(), cachedModel.items().size());
+  for (size_t i = 0; i < freshModel.items().size(); ++i) {
+    EXPECT_EQ(freshModel.items()[i].text, cachedModel.items()[i].text);
+    EXPECT_EQ(freshModel.items()[i].typeName, cachedModel.items()[i].typeName);
+    EXPECT_EQ(freshModel.items()[i].frame, cachedModel.items()[i].frame);
   }
-  EXPECT_EQ(pa.views().size(), pb.views().size());
+  EXPECT_EQ(freshModel.views().size(), cachedModel.views().size());
 
   EXPECT_EQ(fresh.document->fileUnit(), cached.document->fileUnit());
   EXPECT_EQ(fresh.document->fileUnitName(), cached.document->fileUnitName());
@@ -273,11 +273,11 @@ TEST(DocumentCache, KeyChangesWithContentAndVariant) {
   const auto mtime = fs::last_write_time(step);
   {
     std::fstream file(step, std::ios::in | std::ios::out | std::ios::binary);
-    char c = 0;
+    char character = 0;
     file.seekg(100);
-    file.get(c);
+    file.get(character);
     file.seekp(100);
-    file.put(static_cast<char>(c ^ 0x01));
+    file.put(static_cast<char>(character ^ 0x01));
   }
   fs::last_write_time(step, mtime);
   EXPECT_NE(key, core::cacheKey(step));

@@ -33,7 +33,7 @@ class PreferencesDialogTest : public QObject {
   Q_OBJECT
 
 private:
-  QTemporaryDir m_settingsDir;
+  QTemporaryDir _settingsDir;
 
 private Q_SLOTS:
   void initTestCase() {
@@ -41,7 +41,7 @@ private Q_SLOTS:
     QCoreApplication::setOrganizationName(QStringLiteral("StepCompleteTest"));
     QCoreApplication::setApplicationName(QStringLiteral("preferences-test"));
     QSettings::setDefaultFormat(QSettings::IniFormat);
-    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, m_settingsDir.path());
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, _settingsDir.path());
   }
 
   void init() { QSettings().clear(); }

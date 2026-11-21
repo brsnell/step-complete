@@ -2,6 +2,7 @@
 # Run: cmake --build --preset dev --target tidy
 ---
 Checks: '-*,readability-identifier-naming'
+WarningsAsErrors: 'readability-identifier-naming'
 HeaderFilterRegex: '/(src|tests|tools)/([^/]+/)?[^/]+\.h$'
 CheckOptions:
   # Types and enum values: PascalCase. OCCT class names (AIS_ViewCube, V3d_View) are not ours.

@@ -106,9 +106,9 @@ private Q_SLOTS:
     dumpImage(shot, "main_window");
 
     const qreal dpr = shot.devicePixelRatio();
-    auto toImageRect = [dpr](const QRect& r) {
-      return QRect(qRound(r.x() * dpr), qRound(r.y() * dpr), qRound(r.width() * dpr),
-                   qRound(r.height() * dpr));
+    auto toImageRect = [dpr](const QRect& rect) {
+      return QRect(qRound(rect.x() * dpr), qRound(rect.y() * dpr), qRound(rect.width() * dpr),
+                   qRound(rect.height() * dpr));
     };
     const QRect menuArea = toImageRect(window.menuBar()->geometry()).intersected(shot.rect());
     const QRect statusArea = toImageRect(window.statusBar()->geometry()).intersected(shot.rect());

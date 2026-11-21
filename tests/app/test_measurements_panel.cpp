@@ -18,27 +18,27 @@ using sc::core::MeasureMode;
 namespace {
 
 Measurement result(const std::string& headline) {
-  Measurement m;
-  m.mode = MeasureMode::Distance;
-  m.ok = true;
-  m.headline = headline;
-  m.details = {{"Distance", headline}};
-  m.witness.markers = {gp_Pnt(0, 0, 0)};
-  m.witness.label = headline;
-  return m;
+  Measurement measurement;
+  measurement.mode = MeasureMode::Distance;
+  measurement.ok = true;
+  measurement.headline = headline;
+  measurement.details = {{"Distance", headline}};
+  measurement.witness.markers = {gp_Pnt(0, 0, 0)};
+  measurement.witness.label = headline;
+  return measurement;
 }
 
 Measurement failure() {
-  Measurement m;
-  m.mode = MeasureMode::Angle;
-  m.error = "Pick two edges or faces";
-  return m;
+  Measurement measurement;
+  measurement.mode = MeasureMode::Angle;
+  measurement.error = "Pick two edges or faces";
+  return measurement;
 }
 
 std::vector<std::string> headlines(const MeasurementsPanel& panel) {
   std::vector<std::string> out;
-  for (const Measurement& m : panel.measurements()) {
-    out.push_back(m.ok ? m.headline : m.error);
+  for (const Measurement& measurement : panel.measurements()) {
+    out.push_back(measurement.ok ? measurement.headline : measurement.error);
   }
   return out;
 }
