@@ -247,7 +247,8 @@ jobs:
     needs: [check-version, build]
     # The macOS builds are not published (see below), so their outcome must not block the
     # release. The "Check packages" step fails the job unless every published package is there.
-    if: ${{ always() && startsWith(github.ref, 'refs/tags/v') && needs.check-version.result == 'success' }}
+    # !cancelled() rather than always(): a failed build still reaches this job, a cancelled run does not.
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.check-version.result == 'success' }}
     runs-on: ubuntu-22.04
     permissions:
       contents: write
