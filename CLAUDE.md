@@ -51,8 +51,7 @@ OCCT name methods in `camelCase` and virtual overrides must keep the framework's
 methods stay `camelCase`; everything else C++ allows follows Task Complete. Decisions and
 rationale: `docs/superpowers/plans/2026-11-21-naming-conventions.md`. clang-tidy
 (`readability-identifier-naming`, configured in `.clang-tidy`) checks these rules: run the
-`tidy` target locally; CI's `Naming (clang-tidy)` job reports them (report-only until the rename
-PRs land, then it fails on a violation).
+`tidy` target locally; CI's `Naming (clang-tidy)` job fails on a violation.
 
 | Element | Rule | Example |
 |---|---|---|

@@ -31,8 +31,8 @@ using IdList = std::vector<PmiId>;
 namespace {
 
 std::shared_ptr<const sc::core::PmiModel> fixtureModel() {
-  const sc::test::PmiFixture f = sc::test::buildPmiFixture();
-  return std::make_shared<const sc::core::PmiModel>(f.document);
+  const sc::test::PmiFixture fixture = sc::test::buildPmiFixture();
+  return std::make_shared<const sc::core::PmiModel>(fixture.document);
 }
 
 IdList sorted(IdList ids) {

@@ -20,34 +20,34 @@ class MeasureToolTest : public QObject {
   Q_OBJECT
 
 private:
-  std::unique_ptr<sc::render::OcctViewport> m_viewport;
-  std::unique_ptr<sc::render::SceneManager> m_scene;
-  std::unique_ptr<sc::render::MeasureTool> m_tool;
-  std::vector<Measurement> m_results;
+  std::unique_ptr<sc::render::OcctViewport> _viewport;
+  std::unique_ptr<sc::render::SceneManager> _scene;
+  std::unique_ptr<sc::render::MeasureTool> _tool;
+  std::vector<Measurement> _results;
 
   QImage render() {
-    m_viewport->invalidateScene();
-    return m_viewport->grabFramebuffer();
+    _viewport->invalidateScene();
+    return _viewport->grabFramebuffer();
   }
 
   // Hovers and clicks the model at a world point, like a user would.
-  bool clickAt(const gp_Pnt& p) {
-    const auto& view = m_viewport->view();
-    const auto& context = m_viewport->context();
-    int xp = 0;
-    int yp = 0;
-    view->Convert(p.X(), p.Y(), p.Z(), xp, yp);
-    context->MoveTo(xp, yp, view, false);
+  bool clickAt(const gp_Pnt& point) {
+    const auto& view = _viewport->view();
+    const auto& context = _viewport->context();
+    int pixelX = 0;
+    int pixelY = 0;
+    view->Convert(point.X(), point.Y(), point.Z(), pixelX, pixelY);
+    context->MoveTo(pixelX, pixelY, view, false);
     if (!context->HasDetected()) {
       return false;
     }
     context->SelectDetected(AIS_SelectionScheme_XOR);
-    m_tool->onSelectionChanged();
+    _tool->onSelectionChanged();
     return true;
   }
 
-  static std::string detail(const Measurement& m, const std::string& key) {
-    for (const auto& [k, v] : m.details) {
+  static std::string detail(const Measurement& measurement, const std::string& key) {
+    for (const auto& [k, v] : measurement.details) {
       if (k == key) {
         return v;
       }
@@ -57,87 +57,87 @@ private:
 
 private Q_SLOTS:
   void init() {
-    m_viewport = std::make_unique<sc::render::OcctViewport>();
-    m_viewport->resize(500, 400);
-    m_viewport->show();
-    QVERIFY(QTest::qWaitForWindowExposed(m_viewport.get()));
-    m_viewport->grabFramebuffer();
-    QVERIFY(m_viewport->isGlReady());
+    _viewport = std::make_unique<sc::render::OcctViewport>();
+    _viewport->resize(500, 400);
+    _viewport->show();
+    QVERIFY(QTest::qWaitForWindowExposed(_viewport.get()));
+    _viewport->grabFramebuffer();
+    QVERIFY(_viewport->isGlReady());
 
     auto index = std::make_shared<sc::core::AssemblyIndex>(sc::test::buildFixtureAssembly(false));
-    m_scene = std::make_unique<sc::render::SceneManager>(m_viewport->context());
-    m_scene->setModel(index);
-    m_tool = std::make_unique<sc::render::MeasureTool>(m_viewport.get(), m_scene.get());
-    m_results.clear();
-    connect(m_tool.get(), &sc::render::MeasureTool::measured, this,
-            [this](const Measurement& m) { m_results.push_back(m); });
-    m_viewport->setStandardView(V3d_Zpos);
-    m_viewport->fitAll();
+    _scene = std::make_unique<sc::render::SceneManager>(_viewport->context());
+    _scene->setModel(index);
+    _tool = std::make_unique<sc::render::MeasureTool>(_viewport.get(), _scene.get());
+    _results.clear();
+    connect(_tool.get(), &sc::render::MeasureTool::measured, this,
+            [this](const Measurement& m) { _results.push_back(m); });
+    _viewport->setStandardView(V3d_Zpos);
+    _viewport->fitAll();
     render();
   }
 
   void cleanup() {
-    m_tool.reset();
-    m_scene.reset();
-    m_viewport.reset();
+    _tool.reset();
+    _scene.reset();
+    _viewport.reset();
   }
 
   void distanceBetweenFacesOfDifferentInstances() {
-    m_tool->setMode(MeasureMode::Distance);
+    _tool->setMode(MeasureMode::Distance);
     // Top face of the base plate (z = 10), away from the pins, then the top face of
     // the first pin (pin pair at (10,10,10), pin height 20: top at z = 30).
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
-    QCOMPARE(m_tool->pickCount(), 1);
-    QVERIFY(m_results.empty());
+    QCOMPARE(_tool->pickCount(), 1);
+    QVERIFY(_results.empty());
     QVERIFY(clickAt(gp_Pnt(10, 10, 30)));
 
-    QCOMPARE(m_results.size(), size_t(1));
-    const Measurement& m = m_results.front();
-    QVERIFY2(m.ok, m.error.c_str());
-    QCOMPARE(m.headline, std::string("20.000 mm"));
-    QCOMPARE(detail(m, "Parallel distance"), std::string("20.000 mm"));
-    QCOMPARE(m.entities.size(), size_t(2));
-    QCOMPARE(m.entities[0], std::string("Face (Plane) on Fixture / Base plate"));
-    QCOMPARE(m_tool->pickCount(), 0);
-    QVERIFY(!m.witness.empty());
+    QCOMPARE(_results.size(), size_t(1));
+    const Measurement& measurement = _results.front();
+    QVERIFY2(measurement.ok, measurement.error.c_str());
+    QCOMPARE(measurement.headline, std::string("20.000 mm"));
+    QCOMPARE(detail(measurement, "Parallel distance"), std::string("20.000 mm"));
+    QCOMPARE(measurement.entities.size(), size_t(2));
+    QCOMPARE(measurement.entities[0], std::string("Face (Plane) on Fixture / Base plate"));
+    QCOMPARE(_tool->pickCount(), 0);
+    QVERIFY(!measurement.witness.empty());
   }
 
   void radiusOfAPlacedInstance() {
     // The second pin of the second pair sits at (50,10,10) + (20,0,0): only correct
     // if the instance placement is applied to the picked prototype edge.
-    m_tool->setMode(MeasureMode::Radius);
+    _tool->setMode(MeasureMode::Radius);
     QVERIFY(clickAt(gp_Pnt(73, 10, 30))); // on the top circle, radius 3 around (70,10)
-    QCOMPARE(m_results.size(), size_t(1));
-    const Measurement& m = m_results.front();
-    QVERIFY2(m.ok, m.error.c_str());
-    QCOMPARE(detail(m, "Radius"), std::string("3.000 mm"));
-    QCOMPARE(detail(m, "Center"), std::string("70.000, 10.000, 30.000 mm"));
+    QCOMPARE(_results.size(), size_t(1));
+    const Measurement& measurement = _results.front();
+    QVERIFY2(measurement.ok, measurement.error.c_str());
+    QCOMPARE(detail(measurement, "Radius"), std::string("3.000 mm"));
+    QCOMPARE(detail(measurement, "Center"), std::string("70.000, 10.000, 30.000 mm"));
   }
 
   void clickingAPickAgainUnpicksIt() {
-    m_tool->setMode(MeasureMode::Angle);
+    _tool->setMode(MeasureMode::Angle);
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
-    QCOMPARE(m_tool->pickCount(), 1);
+    QCOMPARE(_tool->pickCount(), 1);
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
-    QCOMPARE(m_tool->pickCount(), 0);
-    QVERIFY(m_results.empty());
+    QCOMPARE(_tool->pickCount(), 0);
+    QVERIFY(_results.empty());
   }
 
   void witnessIsDrawnOnTop() {
     const QImage before = render();
-    m_tool->setMode(MeasureMode::Distance);
+    _tool->setMode(MeasureMode::Distance);
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
     QVERIFY(clickAt(gp_Pnt(10, 10, 30)));
-    QCOMPARE(m_results.size(), size_t(1));
-    m_tool->setWitnesses({{1, m_results.front().witness, true}});
+    QCOMPARE(_results.size(), size_t(1));
+    _tool->setWitnesses({{1, _results.front().witness, true}});
     const QImage after = render();
     sc::test::dumpImage(after, "measure_witness");
 
     int orange = 0;
     for (int y = 0; y < after.height(); ++y) {
       for (int x = 0; x < after.width(); ++x) {
-        const QColor c = after.pixelColor(x, y);
-        if (c.red() > 200 && c.green() > 70 && c.green() < 170 && c.blue() < 80) {
+        const QColor color = after.pixelColor(x, y);
+        if (color.red() > 200 && color.green() > 70 && color.green() < 170 && color.blue() < 80) {
           ++orange;
         }
       }
@@ -145,48 +145,48 @@ private Q_SLOTS:
     QVERIFY2(orange > 10, "witness geometry is not visible");
     QVERIFY(sc::test::changedPixelFraction(before, after) > 0.0005);
 
-    m_tool->clearWitnesses();
+    _tool->clearWitnesses();
     QVERIFY2(sc::test::changedPixelFraction(before, render()) < 0.0005, "witness was not removed");
   }
 
   void severalWitnessesAtOnce() {
-    m_tool->setMode(MeasureMode::Distance);
+    _tool->setMode(MeasureMode::Distance);
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
     QVERIFY(clickAt(gp_Pnt(10, 10, 30)));
-    m_tool->setMode(MeasureMode::Radius);
+    _tool->setMode(MeasureMode::Radius);
     QVERIFY(clickAt(gp_Pnt(73, 10, 30)));
-    QCOMPARE(m_results.size(), size_t(2));
-    QCOMPARE(m_tool->witnessCount(), 0); // the tool draws only what it is told to
+    QCOMPARE(_results.size(), size_t(2));
+    QCOMPARE(_tool->witnessCount(), 0); // the tool draws only what it is told to
 
     const QImage before = render();
-    m_tool->setWitnesses({{7, m_results[0].witness, false}, {9, m_results[1].witness, true}});
-    QCOMPARE(m_tool->witnessCount(), 2);
-    QVERIFY(!m_tool->isEmphasized(7));
-    QVERIFY(m_tool->isEmphasized(9));
+    _tool->setWitnesses({{7, _results[0].witness, false}, {9, _results[1].witness, true}});
+    QCOMPARE(_tool->witnessCount(), 2);
+    QVERIFY(!_tool->isEmphasized(7));
+    QVERIFY(_tool->isEmphasized(9));
     const QImage both = render();
     sc::test::dumpImage(both, "measure_two_witnesses");
 
     // Moving the emphasis restyles in place; dropping an id removes just that one.
-    m_tool->setWitnesses({{7, m_results[0].witness, true}, {9, m_results[1].witness, false}});
-    QVERIFY(m_tool->isEmphasized(7));
-    QVERIFY(!m_tool->isEmphasized(9));
-    m_tool->setWitnesses({{9, m_results[1].witness, true}});
-    QCOMPARE(m_tool->witnessCount(), 1);
-    QVERIFY(!m_tool->hasWitness(7));
+    _tool->setWitnesses({{7, _results[0].witness, true}, {9, _results[1].witness, false}});
+    QVERIFY(_tool->isEmphasized(7));
+    QVERIFY(!_tool->isEmphasized(9));
+    _tool->setWitnesses({{9, _results[1].witness, true}});
+    QCOMPARE(_tool->witnessCount(), 1);
+    QVERIFY(!_tool->hasWitness(7));
     const QImage one = render();
     QVERIFY2(sc::test::changedPixelFraction(one, both) > 0.0002, "removed witness is still drawn");
 
-    m_tool->setWitnesses({});
-    QCOMPARE(m_tool->witnessCount(), 0);
+    _tool->setWitnesses({});
+    QCOMPARE(_tool->witnessCount(), 0);
     QVERIFY2(sc::test::changedPixelFraction(before, render()) < 0.0005, "witnesses were not removed");
   }
 
   void resetDropsWitnesses() {
-    m_tool->setMode(MeasureMode::EntityInfo);
+    _tool->setMode(MeasureMode::EntityInfo);
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
-    m_tool->setWitnesses({{1, m_results.front().witness, true}});
-    m_tool->reset();
-    QCOMPARE(m_tool->witnessCount(), 0);
+    _tool->setWitnesses({{1, _results.front().witness, true}});
+    _tool->reset();
+    QCOMPARE(_tool->witnessCount(), 0);
   }
 
   // Generated by /ship test coverage audit.
@@ -194,49 +194,49 @@ private Q_SLOTS:
   // fails_when=the empty-witness skip or the wanted() emptiness check is removed; why_new=no test
   // passes an empty witness to setWitnesses; seam=none; no_claim=pixel styling of what is drawn
   void emptyWitnessesAreNotDrawn() {
-    m_tool->setMode(MeasureMode::EntityInfo);
+    _tool->setMode(MeasureMode::EntityInfo);
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
-    QVERIFY(!m_results.front().witness.empty());
-    m_tool->setWitnesses({{1, sc::core::Witness{}, true}});
-    QCOMPARE(m_tool->witnessCount(), 0);
-    m_tool->setWitnesses({{1, m_results.front().witness, true}, {2, sc::core::Witness{}, false}});
-    QCOMPARE(m_tool->witnessCount(), 1);
-    QVERIFY(!m_tool->hasWitness(2));
-    m_tool->setWitnesses({{1, sc::core::Witness{}, true}});
-    QVERIFY2(!m_tool->hasWitness(1), "a result whose witness became empty is still drawn");
+    QVERIFY(!_results.front().witness.empty());
+    _tool->setWitnesses({{1, sc::core::Witness{}, true}});
+    QCOMPARE(_tool->witnessCount(), 0);
+    _tool->setWitnesses({{1, _results.front().witness, true}, {2, sc::core::Witness{}, false}});
+    QCOMPARE(_tool->witnessCount(), 1);
+    QVERIFY(!_tool->hasWitness(2));
+    _tool->setWitnesses({{1, sc::core::Witness{}, true}});
+    QVERIFY2(!_tool->hasWitness(1), "a result whose witness became empty is still drawn");
   }
 
   void pointToPointShowsWhereAClickSnaps() {
-    m_tool->setMode(MeasureMode::PointToPoint);
-    const auto hover = [this](const gp_Pnt& p) {
-      int xp = 0;
-      int yp = 0;
-      m_viewport->view()->Convert(p.X(), p.Y(), p.Z(), xp, yp);
-      m_viewport->context()->MoveTo(xp, yp, m_viewport->view(), false);
-      m_tool->onHoverUpdated();
+    _tool->setMode(MeasureMode::PointToPoint);
+    const auto hover = [this](const gp_Pnt& point) {
+      int pixelX = 0;
+      int pixelY = 0;
+      _viewport->view()->Convert(point.X(), point.Y(), point.Z(), pixelX, pixelY);
+      _viewport->context()->MoveTo(pixelX, pixelY, _viewport->view(), false);
+      _tool->onHoverUpdated();
     };
 
     // On the rim of the first pin's top circle (away from its seam vertex at
     // (13,10,30)): snaps to the circle's center.
     hover(gp_Pnt(10, 13, 30));
-    QVERIFY(m_viewport->overlayMarker().has_value());
-    QCOMPARE(m_viewport->overlayMarker()->caption, QStringLiteral("Center"));
-    QVERIFY(m_viewport->overlayMarker()->point.IsEqual(gp_Pnt(10, 10, 30), 1e-6));
+    QVERIFY(_viewport->overlayMarker().has_value());
+    QCOMPARE(_viewport->overlayMarker()->caption, QStringLiteral("Center"));
+    QVERIFY(_viewport->overlayMarker()->point.IsEqual(gp_Pnt(10, 10, 30), 1e-6));
 
     // On the plate's top face, away from edges: the point under the cursor.
     hover(gp_Pnt(60, 40, 10));
-    QCOMPARE(m_viewport->overlayMarker()->caption, QStringLiteral("On face"));
-    QVERIFY(m_viewport->overlayMarker()->point.Distance(gp_Pnt(60, 40, 10)) < 1.0);
+    QCOMPARE(_viewport->overlayMarker()->caption, QStringLiteral("On face"));
+    QVERIFY(_viewport->overlayMarker()->point.Distance(gp_Pnt(60, 40, 10)) < 1.0);
 
     // The marker is drawn over the 3D view (composited: grab the widget, not the GL framebuffer).
     render();
-    const QImage image = m_viewport->grab().toImage().convertToFormat(QImage::Format_RGB32);
+    const QImage image = _viewport->grab().toImage().convertToFormat(QImage::Format_RGB32);
     sc::test::dumpImage(image, "measure_snap_marker");
     int orange = 0;
     for (int y = 0; y < image.height(); ++y) {
       for (int x = 0; x < image.width(); ++x) {
-        const QColor c = image.pixelColor(x, y);
-        if (c.red() > 200 && c.green() > 80 && c.green() < 160 && c.blue() < 60) {
+        const QColor color = image.pixelColor(x, y);
+        if (color.red() > 200 && color.green() > 80 && color.green() < 160 && color.blue() < 60) {
           ++orange;
         }
       }
@@ -244,32 +244,32 @@ private Q_SLOTS:
     QVERIFY2(orange > 20, "snap marker is not drawn");
     // With the cursor off the model (no hover highlight), the scene renders in
     // its own colors: the overlay does not disturb OCCT's OpenGL state.
-    m_viewport->context()->MoveTo(2, 2, m_viewport->view(), false);
+    _viewport->context()->MoveTo(2, 2, _viewport->view(), false);
     render();
-    const QColor plate = m_viewport->grab().toImage().pixelColor(20, image.height() / 2);
+    const QColor plate = _viewport->grab().toImage().pixelColor(20, image.height() / 2);
     QVERIFY2(plate.red() > 120 && plate.green() < 80,
              "model must still render in its colors under the overlay");
 
     // Other modes don't show it, and leaving Point to Point clears it.
-    m_tool->setMode(MeasureMode::Distance);
-    QVERIFY(!m_viewport->overlayMarker().has_value());
+    _tool->setMode(MeasureMode::Distance);
+    QVERIFY(!_viewport->overlayMarker().has_value());
     hover(gp_Pnt(10, 13, 30));
-    QVERIFY(!m_viewport->overlayMarker().has_value());
+    QVERIFY(!_viewport->overlayMarker().has_value());
   }
 
   void turningOffRestoresWholePartSelection() {
-    m_tool->setMode(MeasureMode::EntityInfo);
+    _tool->setMode(MeasureMode::EntityInfo);
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
-    QCOMPARE(m_results.size(), size_t(1));
-    QCOMPARE(m_results.front().headline, std::string("6000.000 mm\xC2\xB2"));
+    QCOMPARE(_results.size(), size_t(1));
+    QCOMPARE(_results.front().headline, std::string("6000.000 mm\xC2\xB2"));
 
-    m_tool->setWitnesses({{1, m_results.front().witness, true}});
-    m_tool->setMode(std::nullopt);
-    QVERIFY(m_scene->selectionModes().empty());
-    QVERIFY2(m_tool->hasWitness(1), "stopping measuring keeps shown results on screen");
+    _tool->setWitnesses({{1, _results.front().witness, true}});
+    _tool->setMode(std::nullopt);
+    QVERIFY(_scene->selectionModes().empty());
+    QVERIFY2(_tool->hasWitness(1), "stopping measuring keeps shown results on screen");
     QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
-    QCOMPARE(m_scene->selectedParts().size(), size_t(1));
-    QVERIFY2(m_results.size() == 1, "no measurement when off");
+    QCOMPARE(_scene->selectedParts().size(), size_t(1));
+    QVERIFY2(_results.size() == 1, "no measurement when off");
   }
 };
 

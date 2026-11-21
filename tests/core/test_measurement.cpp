@@ -16,10 +16,10 @@ using namespace sc::core;
 
 namespace {
 
-constexpr double kPi = 3.14159265358979323846;
+constexpr double Pi = 3.14159265358979323846;
 
-std::string detail(const Measurement& m, const std::string& key) {
-  for (const auto& [k, v] : m.details) {
+std::string detail(const Measurement& measurement, const std::string& key) {
+  for (const auto& [k, v] : measurement.details) {
     if (k == key) {
       return v;
     }
@@ -33,9 +33,9 @@ TopoDS_Shape boxFace(const gp_Pnt& near) {
   double bestDistance = 1e100;
   for (TopExp_Explorer it(box, TopAbs_FACE); it.More(); it.Next()) {
     const auto info = measure::entityInfo(it.Current());
-    const double d = info.face->centroid.Distance(near);
-    if (d < bestDistance) {
-      bestDistance = d;
+    const double distance = info.face->centroid.Distance(near);
+    if (distance < bestDistance) {
+      bestDistance = distance;
       best = it.Current();
     }
   }
@@ -67,29 +67,29 @@ TEST(Measurement, PicksRequiredPerMode) {
 }
 
 TEST(Measurement, RejectsWrongPickCount) {
-  const Measurement m =
+  const Measurement measurement =
       computeMeasurement(MeasureMode::Distance, {pick(boxFace({5, 10, 30}), {5, 10, 30})}, {});
-  EXPECT_FALSE(m.ok);
-  EXPECT_FALSE(m.error.empty());
+  EXPECT_FALSE(measurement.ok);
+  EXPECT_FALSE(measurement.error.empty());
 }
 
 TEST(Measurement, DistanceBetweenFacesInInches) {
   MeasureDisplayOptions options;
   options.lengthUnit = LengthUnit::Inch;
   options.decimals = 4;
-  const Measurement m = computeMeasurement(
+  const Measurement measurement = computeMeasurement(
       MeasureMode::Distance,
       {pick(boxFace({5, 10, 0}), {5, 10, 0}, "Box"), pick(boxFace({5, 10, 30}), {5, 10, 30})}, options);
-  ASSERT_TRUE(m.ok) << m.error;
-  EXPECT_EQ(m.headline, "1.1811 in"); // 30 mm
-  EXPECT_EQ(detail(m, "Parallel distance"), "1.1811 in");
-  ASSERT_EQ(m.entities.size(), 2u);
-  EXPECT_EQ(m.entities[0], "Face (Plane) on Box");
-  EXPECT_EQ(m.entities[1], "Face (Plane)");
+  ASSERT_TRUE(measurement.ok) << measurement.error;
+  EXPECT_EQ(measurement.headline, "1.1811 in"); // 30 mm
+  EXPECT_EQ(detail(measurement, "Parallel distance"), "1.1811 in");
+  ASSERT_EQ(measurement.entities.size(), 2u);
+  EXPECT_EQ(measurement.entities[0], "Face (Plane) on Box");
+  EXPECT_EQ(measurement.entities[1], "Face (Plane)");
   // Witness: a segment between the closest points, labeled with the value.
-  ASSERT_FALSE(m.witness.polylines.empty());
-  EXPECT_NEAR(m.witness.polylines[0][0].Distance(m.witness.polylines[0][1]), 30.0, 1e-6);
-  EXPECT_EQ(m.witness.label, m.headline);
+  ASSERT_FALSE(measurement.witness.polylines.empty());
+  EXPECT_NEAR(measurement.witness.polylines[0][0].Distance(measurement.witness.polylines[0][1]), 30.0, 1e-6);
+  EXPECT_EQ(measurement.witness.label, measurement.headline);
 }
 
 TEST(Measurement, PointToPointSnapsToVerticesMidpointsAndCenters) {
@@ -115,95 +115,97 @@ TEST(Measurement, PointToPointSnapsToVerticesMidpointsAndCenters) {
   // A click slightly off a face (mesh vs exact surface) lands on the exact face.
   EXPECT_NEAR(snapPoint(boxFace({5, 10, 30}), gp_Pnt(4, 8, 30.05), 0.5).Z(), 30.0, 1e-9);
 
-  const Measurement m = computeMeasurement(
+  const Measurement measurement = computeMeasurement(
       MeasureMode::PointToPoint, {pick(edge, gp_Pnt(0.1, 0, 0)), pick(circle, gp_Pnt(5, 2, 3))}, {}, 0.5);
-  ASSERT_TRUE(m.ok);
-  EXPECT_EQ(m.headline, "3.742 mm"); // |(1,2,3)|
-  EXPECT_EQ(detail(m, "\xCE\x94Z"), "3.000 mm");
+  ASSERT_TRUE(measurement.ok);
+  EXPECT_EQ(measurement.headline, "3.742 mm"); // |(1,2,3)|
+  EXPECT_EQ(detail(measurement, "\xCE\x94Z"), "3.000 mm");
 }
 
 TEST(Measurement, AngleBetweenEdgesDrawsAnArcAtTheApex) {
   const gp_Pnt apex(0, 0, 0);
-  const TopoDS_Shape e1 = BRepBuilderAPI_MakeEdge(apex, gp_Pnt(10, 0, 0)).Edge();
-  const TopoDS_Shape e2 = BRepBuilderAPI_MakeEdge(apex, gp_Pnt(0, 10, 0)).Edge();
-  const Measurement m =
-      computeMeasurement(MeasureMode::Angle, {pick(e1, gp_Pnt(8, 0, 0)), pick(e2, gp_Pnt(0, 5, 0))}, {});
-  ASSERT_TRUE(m.ok) << m.error;
-  EXPECT_EQ(m.headline, "90.00\xC2\xB0");
-  EXPECT_EQ(detail(m, "Supplement"), "90.00\xC2\xB0");
-  ASSERT_EQ(m.witness.polylines.size(), 2u);
-  const auto& arc = m.witness.polylines[1];
+  const TopoDS_Shape edge1 = BRepBuilderAPI_MakeEdge(apex, gp_Pnt(10, 0, 0)).Edge();
+  const TopoDS_Shape edge2 = BRepBuilderAPI_MakeEdge(apex, gp_Pnt(0, 10, 0)).Edge();
+  const Measurement measurement = computeMeasurement(
+      MeasureMode::Angle, {pick(edge1, gp_Pnt(8, 0, 0)), pick(edge2, gp_Pnt(0, 5, 0))}, {});
+  ASSERT_TRUE(measurement.ok) << measurement.error;
+  EXPECT_EQ(measurement.headline, "90.00\xC2\xB0");
+  EXPECT_EQ(detail(measurement, "Supplement"), "90.00\xC2\xB0");
+  ASSERT_EQ(measurement.witness.polylines.size(), 2u);
+  const auto& arc = measurement.witness.polylines[1];
   EXPECT_NEAR(arc.front().Distance(apex), 3.0, 1e-9) << "arc radius is 60% of the nearer pick";
   EXPECT_NEAR(arc.back().Distance(apex), 3.0, 1e-9);
-  EXPECT_NEAR(m.witness.labelAnchor.Distance(apex), 3.0, 1e-9);
+  EXPECT_NEAR(measurement.witness.labelAnchor.Distance(apex), 3.0, 1e-9);
 }
 
 TEST(Measurement, AngleInRadians) {
   MeasureDisplayOptions options;
   options.angleUnit = AngleUnit::Radian;
   options.angleDecimals = 4;
-  const Measurement m = computeMeasurement(
+  const Measurement measurement = computeMeasurement(
       MeasureMode::Angle,
       {pick(boxFace({10, 10, 15}), {10, 10, 15}), pick(boxFace({5, 10, 30}), {5, 10, 30})}, options);
-  ASSERT_TRUE(m.ok);
-  EXPECT_EQ(m.headline, "1.5708 rad");
+  ASSERT_TRUE(measurement.ok);
+  EXPECT_EQ(measurement.headline, "1.5708 rad");
 }
 
 TEST(Measurement, RadiusOfCylinderWithCircleWitness) {
-  const Measurement m = computeMeasurement(MeasureMode::Radius, {pick(cylinderFace(), gp_Pnt(5, 0, 7))}, {});
-  ASSERT_TRUE(m.ok) << m.error;
-  EXPECT_EQ(detail(m, "Radius"), "5.000 mm");
-  EXPECT_EQ(detail(m, "Diameter"), "10.000 mm");
-  EXPECT_EQ(m.witness.label, "R 5.000 mm");
-  ASSERT_EQ(m.witness.polylines.size(), 2u);
+  const Measurement measurement =
+      computeMeasurement(MeasureMode::Radius, {pick(cylinderFace(), gp_Pnt(5, 0, 7))}, {});
+  ASSERT_TRUE(measurement.ok) << measurement.error;
+  EXPECT_EQ(detail(measurement, "Radius"), "5.000 mm");
+  EXPECT_EQ(detail(measurement, "Diameter"), "10.000 mm");
+  EXPECT_EQ(measurement.witness.label, "R 5.000 mm");
+  ASSERT_EQ(measurement.witness.polylines.size(), 2u);
   // The radius line points from the axis toward the click.
-  const auto& radiusLine = m.witness.polylines[0];
+  const auto& radiusLine = measurement.witness.polylines[0];
   EXPECT_TRUE(radiusLine[1].IsEqual(gp_Pnt(5, 0, 5), 1e-6));
-  for (const gp_Pnt& p : m.witness.polylines[1]) {
-    EXPECT_NEAR(std::hypot(p.X(), p.Y()), 5.0, 1e-9);
+  for (const gp_Pnt& point : measurement.witness.polylines[1]) {
+    EXPECT_NEAR(std::hypot(point.X(), point.Y()), 5.0, 1e-9);
   }
 }
 
 TEST(Measurement, RadiusRejectsPlanarFaces) {
-  const Measurement m =
+  const Measurement measurement =
       computeMeasurement(MeasureMode::Radius, {pick(boxFace({5, 10, 30}), {5, 10, 30})}, {});
-  EXPECT_FALSE(m.ok);
-  EXPECT_FALSE(m.error.empty());
+  EXPECT_FALSE(measurement.ok);
+  EXPECT_FALSE(measurement.error.empty());
 }
 
 TEST(Measurement, EntityInfoOfCircularEdge) {
   const TopoDS_Shape arc =
-      BRepBuilderAPI_MakeEdge(gp_Circ(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), 10), 0.0, kPi / 2).Edge();
-  const Measurement m = computeMeasurement(MeasureMode::EntityInfo, {pick(arc, gp_Pnt(7, 7, 0))}, {});
-  ASSERT_TRUE(m.ok);
-  EXPECT_EQ(m.headline, "15.708 mm");
-  EXPECT_EQ(detail(m, "Type"), "Circle");
-  EXPECT_EQ(detail(m, "Radius"), "10.000 mm");
-  EXPECT_EQ(detail(m, "Arc angle"), "90.00\xC2\xB0");
-  EXPECT_EQ(detail(m, "Center"), "0.000, 0.000, 0.000 mm");
-  EXPECT_EQ(m.witness.markers.size(), 2u) << "open edges mark their ends";
+      BRepBuilderAPI_MakeEdge(gp_Circ(gp_Ax2(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), 10), 0.0, Pi / 2).Edge();
+  const Measurement measurement =
+      computeMeasurement(MeasureMode::EntityInfo, {pick(arc, gp_Pnt(7, 7, 0))}, {});
+  ASSERT_TRUE(measurement.ok);
+  EXPECT_EQ(measurement.headline, "15.708 mm");
+  EXPECT_EQ(detail(measurement, "Type"), "Circle");
+  EXPECT_EQ(detail(measurement, "Radius"), "10.000 mm");
+  EXPECT_EQ(detail(measurement, "Arc angle"), "90.00\xC2\xB0");
+  EXPECT_EQ(detail(measurement, "Center"), "0.000, 0.000, 0.000 mm");
+  EXPECT_EQ(measurement.witness.markers.size(), 2u) << "open edges mark their ends";
 }
 
 TEST(Measurement, EntityInfoOfFace) {
-  const Measurement m =
+  const Measurement measurement =
       computeMeasurement(MeasureMode::EntityInfo, {pick(boxFace({5, 10, 30}), {5, 10, 30})}, {});
-  ASSERT_TRUE(m.ok);
-  EXPECT_EQ(m.headline, "200.000 mm\xC2\xB2");
-  EXPECT_EQ(detail(m, "Normal"), "0.0000, 0.0000, 1.0000");
+  ASSERT_TRUE(measurement.ok);
+  EXPECT_EQ(measurement.headline, "200.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(measurement, "Normal"), "0.0000, 0.0000, 1.0000");
   // OCCT's default tolerance (1e-7 mm) is below the display precision.
-  EXPECT_EQ(detail(m, "Tolerance"), "< 0.001 mm");
+  EXPECT_EQ(detail(measurement, "Tolerance"), "< 0.001 mm");
 }
 
 TEST(Measurement, ClipboardAndCsvExport) {
-  const Measurement m = computeMeasurement(
+  const Measurement measurement = computeMeasurement(
       MeasureMode::Distance,
       {pick(boxFace({5, 10, 0}), {5, 10, 0}, "Plate, top"), pick(boxFace({5, 10, 30}), {5, 10, 30})}, {});
-  ASSERT_TRUE(m.ok);
-  const std::string text = toClipboardText(m);
+  ASSERT_TRUE(measurement.ok);
+  const std::string text = toClipboardText(measurement);
   EXPECT_EQ(text.rfind("Distance: 30.000 mm\n", 0), 0u) << text;
   EXPECT_NE(text.find("  Face (Plane) on Plate, top\n"), std::string::npos);
 
-  const std::string csv = toCsv({m, m});
+  const std::string csv = toCsv({measurement, measurement});
   EXPECT_EQ(csv.rfind("Mode,Value,Entities,Details\n", 0), 0u);
   // Fields containing commas are quoted.
   EXPECT_NE(csv.find("Distance,30.000 mm,\"Face (Plane) on Plate, top; Face (Plane)\","), std::string::npos)
@@ -248,32 +250,32 @@ TEST(MassProperties, ModeMetadata) {
 }
 
 TEST(MassProperties, SingleBox) {
-  const Measurement m = computeMassProperties({boxItem("Plate")}, {});
-  ASSERT_TRUE(m.ok) << m.error;
-  EXPECT_EQ(m.mode, MeasureMode::MassProperties);
-  EXPECT_EQ(m.headline, "6000.000 mm\xC2\xB3");
-  EXPECT_EQ(detail(m, "Solids"), "1");
-  EXPECT_EQ(detail(m, "Volume"), "6000.000 mm\xC2\xB3");
-  EXPECT_EQ(detail(m, "Surface area"), "2200.000 mm\xC2\xB2");
-  EXPECT_EQ(detail(m, "Centroid"), "5.000, 10.000, 15.000 mm");
-  EXPECT_EQ(detail(m, "Bounding box size"), "10.000 \xC3\x97 20.000 \xC3\x97 30.000 mm");
-  EXPECT_EQ(detail(m, "Bounding box min"), "0.000, 0.000, 0.000 mm");
-  EXPECT_EQ(detail(m, "Bounding box max"), "10.000, 20.000, 30.000 mm");
-  EXPECT_EQ(detail(m, "Oriented box size"), "30.000 \xC3\x97 20.000 \xC3\x97 10.000 mm");
+  const Measurement measurement = computeMassProperties({boxItem("Plate")}, {});
+  ASSERT_TRUE(measurement.ok) << measurement.error;
+  EXPECT_EQ(measurement.mode, MeasureMode::MassProperties);
+  EXPECT_EQ(measurement.headline, "6000.000 mm\xC2\xB3");
+  EXPECT_EQ(detail(measurement, "Solids"), "1");
+  EXPECT_EQ(detail(measurement, "Volume"), "6000.000 mm\xC2\xB3");
+  EXPECT_EQ(detail(measurement, "Surface area"), "2200.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(measurement, "Centroid"), "5.000, 10.000, 15.000 mm");
+  EXPECT_EQ(detail(measurement, "Bounding box size"), "10.000 \xC3\x97 20.000 \xC3\x97 30.000 mm");
+  EXPECT_EQ(detail(measurement, "Bounding box min"), "0.000, 0.000, 0.000 mm");
+  EXPECT_EQ(detail(measurement, "Bounding box max"), "10.000, 20.000, 30.000 mm");
+  EXPECT_EQ(detail(measurement, "Oriented box size"), "30.000 \xC3\x97 20.000 \xC3\x97 10.000 mm");
 
   // Unit density: m/12 (b^2 + c^2) for each axis, in mm^5.
-  const std::string moments = detail(m, "Principal moments (unit density)");
+  const std::string moments = detail(measurement, "Principal moments (unit density)");
   for (const char* expected : {"250000 mm\xE2\x81\xB5", "500000 mm\xE2\x81\xB5", "650000 mm\xE2\x81\xB5"}) {
     EXPECT_TRUE(contains(moments, expected)) << moments;
   }
-  EXPECT_EQ(m.entities, std::vector<std::string>{"Plate"});
+  EXPECT_EQ(measurement.entities, std::vector<std::string>{"Plate"});
 }
 
 TEST(MassProperties, WitnessIsTheBoundingBoxWithCentroidMarker) {
-  const Measurement m = computeMassProperties({boxItem("Plate")}, {});
-  ASSERT_TRUE(m.ok);
-  EXPECT_EQ(m.witness.polylines.size(), 12u);
-  for (const auto& edge : m.witness.polylines) {
+  const Measurement measurement = computeMassProperties({boxItem("Plate")}, {});
+  ASSERT_TRUE(measurement.ok);
+  EXPECT_EQ(measurement.witness.polylines.size(), 12u);
+  for (const auto& edge : measurement.witness.polylines) {
     ASSERT_EQ(edge.size(), 2u);
     // Each edge of an axis-aligned box changes exactly one coordinate.
     const int changed = (std::abs(edge[0].X() - edge[1].X()) > 1e-9) +
@@ -281,21 +283,21 @@ TEST(MassProperties, WitnessIsTheBoundingBoxWithCentroidMarker) {
                         (std::abs(edge[0].Z() - edge[1].Z()) > 1e-9);
     EXPECT_EQ(changed, 1);
   }
-  ASSERT_EQ(m.witness.markers.size(), 1u);
-  EXPECT_NEAR(m.witness.markers[0].Distance(gp_Pnt(5, 10, 15)), 0.0, 1e-9);
-  EXPECT_NEAR(m.witness.labelAnchor.Distance(gp_Pnt(5, 10, 15)), 0.0, 1e-9);
-  EXPECT_EQ(m.witness.label, m.headline);
+  ASSERT_EQ(measurement.witness.markers.size(), 1u);
+  EXPECT_NEAR(measurement.witness.markers[0].Distance(gp_Pnt(5, 10, 15)), 0.0, 1e-9);
+  EXPECT_NEAR(measurement.witness.labelAnchor.Distance(gp_Pnt(5, 10, 15)), 0.0, 1e-9);
+  EXPECT_EQ(measurement.witness.label, measurement.headline);
 }
 
 TEST(MassProperties, TwoBoxesAreCombined) {
-  const Measurement m = computeMassProperties({boxItem("A"), boxItem("B", gp_Vec(100, 0, 0))}, {});
-  ASSERT_TRUE(m.ok) << m.error;
-  EXPECT_EQ(m.headline, "12000.000 mm\xC2\xB3");
-  EXPECT_EQ(detail(m, "Solids"), "2");
-  EXPECT_EQ(detail(m, "Surface area"), "4400.000 mm\xC2\xB2");
-  EXPECT_EQ(detail(m, "Centroid"), "55.000, 10.000, 15.000 mm");
-  EXPECT_EQ(detail(m, "Bounding box size"), "110.000 \xC3\x97 20.000 \xC3\x97 30.000 mm");
-  EXPECT_EQ(m.entities.size(), 2u);
+  const Measurement measurement = computeMassProperties({boxItem("A"), boxItem("B", gp_Vec(100, 0, 0))}, {});
+  ASSERT_TRUE(measurement.ok) << measurement.error;
+  EXPECT_EQ(measurement.headline, "12000.000 mm\xC2\xB3");
+  EXPECT_EQ(detail(measurement, "Solids"), "2");
+  EXPECT_EQ(detail(measurement, "Surface area"), "4400.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(measurement, "Centroid"), "55.000, 10.000, 15.000 mm");
+  EXPECT_EQ(detail(measurement, "Bounding box size"), "110.000 \xC3\x97 20.000 \xC3\x97 30.000 mm");
+  EXPECT_EQ(measurement.entities.size(), 2u);
 }
 
 TEST(MassProperties, EntityListIsCapped) {
@@ -303,31 +305,31 @@ TEST(MassProperties, EntityListIsCapped) {
   for (int i = 0; i < 13; ++i) {
     items.push_back(boxItem("Box " + std::to_string(i), gp_Vec(100.0 * i, 0, 0)));
   }
-  const Measurement m = computeMassProperties(items, {});
-  ASSERT_TRUE(m.ok);
-  ASSERT_EQ(m.entities.size(), 11u);
-  EXPECT_EQ(m.entities.front(), "Box 0");
-  EXPECT_EQ(m.entities.back(), "and 3 more");
+  const Measurement measurement = computeMassProperties(items, {});
+  ASSERT_TRUE(measurement.ok);
+  ASSERT_EQ(measurement.entities.size(), 11u);
+  EXPECT_EQ(measurement.entities.front(), "Box 0");
+  EXPECT_EQ(measurement.entities.back(), "and 3 more");
 }
 
 TEST(MassProperties, MatchingDeclaredPropertiesValidate) {
   MassItem item = boxItem("Plate", gp_Vec(100, 0, 0)); // placed: the declared centroid must move too
   item.declared = exactBoxProperties();
-  const Measurement m = computeMassProperties({item}, {});
-  ASSERT_TRUE(m.ok) << m.error;
-  EXPECT_EQ(detail(m, "Declared volume"), "6000.000 mm\xC2\xB3");
-  EXPECT_EQ(detail(m, "Declared area"), "2200.000 mm\xC2\xB2");
-  EXPECT_EQ(detail(m, "Declared centroid"), "105.000, 10.000, 15.000 mm");
-  EXPECT_EQ(detail(m, "Validation"), "Matches");
+  const Measurement measurement = computeMassProperties({item}, {});
+  ASSERT_TRUE(measurement.ok) << measurement.error;
+  EXPECT_EQ(detail(measurement, "Declared volume"), "6000.000 mm\xC2\xB3");
+  EXPECT_EQ(detail(measurement, "Declared area"), "2200.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(measurement, "Declared centroid"), "105.000, 10.000, 15.000 mm");
+  EXPECT_EQ(detail(measurement, "Validation"), "Matches");
 }
 
 TEST(MassProperties, DeclaredVolumeOffByOnePercentDiffers) {
   MassItem item = boxItem("Plate");
   item.declared = exactBoxProperties();
   item.declared->volume = 6000.0 / 1.01; // the computed volume is 1% above the claim
-  const Measurement m = computeMassProperties({item}, {});
-  ASSERT_TRUE(m.ok);
-  const std::string verdict = detail(m, "Validation");
+  const Measurement measurement = computeMassProperties({item}, {});
+  ASSERT_TRUE(measurement.ok);
+  const std::string verdict = detail(measurement, "Validation");
   EXPECT_EQ(verdict.rfind("Differs: ", 0), 0u) << verdict;
   EXPECT_TRUE(contains(verdict, "volume +1.00%")) << verdict;
   EXPECT_FALSE(contains(verdict, "area")) << verdict;
@@ -339,19 +341,20 @@ TEST(MassProperties, DeclaredCentroidInWrongSpaceDiffers) {
   MassItem item = boxItem("Plate", gp_Vec(100, 0, 0));
   item.declared = exactBoxProperties();
   item.location = TopLoc_Location();
-  const Measurement m = computeMassProperties({item}, {});
-  ASSERT_TRUE(m.ok);
-  EXPECT_TRUE(contains(detail(m, "Validation"), "centroid 100.000 mm off")) << detail(m, "Validation");
+  const Measurement measurement = computeMassProperties({item}, {});
+  ASSERT_TRUE(measurement.ok);
+  EXPECT_TRUE(contains(detail(measurement, "Validation"), "centroid 100.000 mm off"))
+      << detail(measurement, "Validation");
 }
 
 TEST(MassProperties, ValidationOnlyForASingleInstance) {
   MassItem a = boxItem("A");
   MassItem b = boxItem("B", gp_Vec(100, 0, 0));
   a.declared = exactBoxProperties();
-  const Measurement m = computeMassProperties({a, b}, {});
-  ASSERT_TRUE(m.ok);
-  EXPECT_EQ(detail(m, "Validation"), "<missing Validation>");
-  EXPECT_EQ(detail(m, "Declared volume"), "<missing Declared volume>");
+  const Measurement measurement = computeMassProperties({a, b}, {});
+  ASSERT_TRUE(measurement.ok);
+  EXPECT_EQ(detail(measurement, "Validation"), "<missing Validation>");
+  EXPECT_EQ(detail(measurement, "Declared volume"), "<missing Declared volume>");
 
   // A single item without claims has nothing to compare either.
   const Measurement none = computeMassProperties({boxItem("C")}, {});
@@ -362,33 +365,34 @@ TEST(MassProperties, SurfaceOnlySelectionReportsArea) {
   MassItem item;
   item.name = "Sheet";
   item.worldShape = boxFace({5, 10, 30});
-  const Measurement m = computeMassProperties({item}, {});
-  ASSERT_TRUE(m.ok) << m.error;
-  EXPECT_EQ(m.headline, "200.000 mm\xC2\xB2");
-  EXPECT_EQ(detail(m, "Solids"), "0");
-  EXPECT_EQ(detail(m, "Volume"), "<missing Volume>");
-  EXPECT_EQ(detail(m, "Principal moments (unit density)"), "<missing Principal moments (unit density)>");
-  EXPECT_EQ(detail(m, "Centroid (surface)"), "5.000, 10.000, 30.000 mm");
+  const Measurement measurement = computeMassProperties({item}, {});
+  ASSERT_TRUE(measurement.ok) << measurement.error;
+  EXPECT_EQ(measurement.headline, "200.000 mm\xC2\xB2");
+  EXPECT_EQ(detail(measurement, "Solids"), "0");
+  EXPECT_EQ(detail(measurement, "Volume"), "<missing Volume>");
+  EXPECT_EQ(detail(measurement, "Principal moments (unit density)"),
+            "<missing Principal moments (unit density)>");
+  EXPECT_EQ(detail(measurement, "Centroid (surface)"), "5.000, 10.000, 30.000 mm");
 }
 
 TEST(MassProperties, NothingToMeasureIsAnError) {
   EXPECT_FALSE(computeMassProperties({}, {}).ok);
   MassItem empty;
   empty.name = "Empty";
-  const Measurement m = computeMassProperties({empty}, {});
-  EXPECT_FALSE(m.ok);
-  EXPECT_FALSE(m.error.empty());
+  const Measurement measurement = computeMassProperties({empty}, {});
+  EXPECT_FALSE(measurement.ok);
+  EXPECT_FALSE(measurement.error.empty());
 }
 
 TEST(MassProperties, InchDisplayOptions) {
   MeasureDisplayOptions inches;
   inches.lengthUnit = LengthUnit::Inch;
-  const Measurement m = computeMassProperties({boxItem("Plate")}, inches);
-  ASSERT_TRUE(m.ok);
-  EXPECT_EQ(m.headline, "0.366 in\xC2\xB3"); // 6000 / 25.4^3
-  EXPECT_EQ(detail(m, "Surface area"), "3.410 in\xC2\xB2");
-  EXPECT_EQ(detail(m, "Bounding box size"), "0.394 \xC3\x97 0.787 \xC3\x97 1.181 in");
+  const Measurement measurement = computeMassProperties({boxItem("Plate")}, inches);
+  ASSERT_TRUE(measurement.ok);
+  EXPECT_EQ(measurement.headline, "0.366 in\xC2\xB3"); // 6000 / 25.4^3
+  EXPECT_EQ(detail(measurement, "Surface area"), "3.410 in\xC2\xB2");
+  EXPECT_EQ(detail(measurement, "Bounding box size"), "0.394 \xC3\x97 0.787 \xC3\x97 1.181 in");
   // 250000 mm^5 / 25.4^5: keeps its precision instead of rounding to 0.024 (= 0.0236467).
-  EXPECT_TRUE(contains(detail(m, "Principal moments (unit density)"), "0.0236467 in\xE2\x81\xB5"))
-      << detail(m, "Principal moments (unit density)");
+  EXPECT_TRUE(contains(detail(measurement, "Principal moments (unit density)"), "0.0236467 in\xE2\x81\xB5"))
+      << detail(measurement, "Principal moments (unit density)");
 }

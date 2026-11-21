@@ -24,16 +24,16 @@
 
 namespace {
 
-const char* const kModels[] = {
+const char* const Models[] = {
     "nist_ctc_01_asme1_ap242-e1.stp", "nist_ctc_02_asme1_ap242-e2.stp", "nist_ctc_03_asme1_ap242-e2.stp",
     "nist_ctc_04_asme1_ap242-e1.stp", "nist_ctc_05_asme1_ap242-e1.stp", "nist_ftc_06_asme1_ap242-e2.stp",
     "nist_ftc_07_asme1_ap242-e2.stp", "nist_ftc_10_asme1_ap242-e2.stp",
 };
 
 QString safeName(QString name) {
-  for (QChar& c : name) {
-    if (!c.isLetterOrNumber()) {
-      c = QLatin1Char('_');
+  for (QChar& character : name) {
+    if (!character.isLetterOrNumber()) {
+      character = QLatin1Char('_');
     }
   }
   return name;
@@ -47,7 +47,7 @@ class PmiSnapshots : public QObject {
 private Q_SLOTS:
   void renderModels_data() {
     QTest::addColumn<QString>("file");
-    for (const char* model : kModels) {
+    for (const char* model : Models) {
       QTest::newRow(model) << QString::fromLatin1(model);
     }
   }

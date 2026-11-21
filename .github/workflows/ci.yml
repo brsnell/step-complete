@@ -28,8 +28,7 @@ jobs:
         run: |
           find src tests -name '*.cpp' -o -name '*.h' | xargs clang-format-18 --dry-run --Werror
 
-  # Naming conventions (.clang-tidy, CLAUDE.md). Report-only until the rename PRs land
-  # (docs/superpowers/plans/2026-11-21-naming-conventions.md); the last one makes it fail.
+  # Naming conventions (.clang-tidy, CLAUDE.md). Fails on any violation.
   naming:
     name: Naming (clang-tidy)
     runs-on: ubuntu-24.04
@@ -55,7 +54,7 @@ jobs:
           {
             echo "### Naming conventions (clang-tidy)"
             echo
-            echo "$count names to change (report-only for now)."
+            echo "$count names to change."
             echo
             echo '```'
             grep -oE 'invalid case style for [a-z ]+' naming.txt | sort | uniq -c | sort -rn || true

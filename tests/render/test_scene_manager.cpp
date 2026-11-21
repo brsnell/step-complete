@@ -29,8 +29,8 @@ NodeId findNode(const AssemblyIndex& index, const std::string& name, int occurre
   return sc::core::NoNode;
 }
 
-const std::string kPin = "Pin \xC3\x98"
-                         "6";
+const std::string Pin = "Pin \xC3\x98"
+                        "6";
 
 // Visible part objects currently displayed by the context.
 int displayedParts(const SceneManager& scene, const OccHandle<AIS_InteractiveContext>& context) {
@@ -51,78 +51,78 @@ class SceneManagerTest : public QObject {
   Q_OBJECT
 
 private:
-  std::unique_ptr<sc::render::OcctViewport> m_viewport;
-  std::unique_ptr<SceneManager> m_scene;
-  std::shared_ptr<AssemblyIndex> m_index;
+  std::unique_ptr<sc::render::OcctViewport> _viewport;
+  std::unique_ptr<SceneManager> _scene;
+  std::shared_ptr<AssemblyIndex> _index;
 
   QImage render() {
-    m_viewport->invalidateScene();
-    return m_viewport->grabFramebuffer();
+    _viewport->invalidateScene();
+    return _viewport->grabFramebuffer();
   }
 
 private Q_SLOTS:
   void init() {
-    m_viewport = std::make_unique<sc::render::OcctViewport>();
-    m_viewport->resize(400, 300);
-    m_viewport->show();
-    QVERIFY(QTest::qWaitForWindowExposed(m_viewport.get()));
-    m_viewport->grabFramebuffer();
-    QVERIFY(m_viewport->isGlReady());
+    _viewport = std::make_unique<sc::render::OcctViewport>();
+    _viewport->resize(400, 300);
+    _viewport->show();
+    QVERIFY(QTest::qWaitForWindowExposed(_viewport.get()));
+    _viewport->grabFramebuffer();
+    QVERIFY(_viewport->isGlReady());
 
-    m_index = std::make_shared<AssemblyIndex>(sc::test::buildFixtureAssembly());
-    m_scene = std::make_unique<SceneManager>(m_viewport->context());
-    m_scene->setModel(m_index);
-    m_viewport->fitAll();
+    _index = std::make_shared<AssemblyIndex>(sc::test::buildFixtureAssembly());
+    _scene = std::make_unique<SceneManager>(_viewport->context());
+    _scene->setModel(_index);
+    _viewport->fitAll();
   }
 
   void cleanup() {
-    m_scene.reset(); // removes presentations while the context is alive
-    m_viewport.reset();
-    m_index.reset();
+    _scene.reset(); // removes presentations while the context is alive
+    _viewport.reset();
+    _index.reset();
   }
 
   void sharesPrototypesBetweenInstances() {
     // Plate, plain pin, green pin: 5 instances share 3 presentations.
-    QCOMPARE(m_scene->prototypeCount(), 3);
-    QCOMPARE(m_scene->detachedCount(), 0);
+    QCOMPARE(_scene->prototypeCount(), 3);
+    QCOMPARE(_scene->detachedCount(), 0);
   }
 
   void respectsVisibilityFromFile() {
     // The second pin pair is hidden in the document.
-    QCOMPARE(displayedParts(*m_scene, m_viewport->context()), 3);
-    QVERIFY(!m_scene->isVisible(findNode(*m_index, "Pin pair", 1)));
-    QVERIFY(m_scene->isVisible(m_index->roots().front()));
+    QCOMPARE(displayedParts(*_scene, _viewport->context()), 3);
+    QVERIFY(!_scene->isVisible(findNode(*_index, "Pin pair", 1)));
+    QVERIFY(_scene->isVisible(_index->roots().front()));
   }
 
   void hidesIsolatesAndShowsAll() {
-    const NodeId plate = findNode(*m_index, "Base plate");
-    m_scene->isolate({plate});
-    QCOMPARE(displayedParts(*m_scene, m_viewport->context()), 1);
-    QVERIFY(m_scene->isVisible(plate));
+    const NodeId plate = findNode(*_index, "Base plate");
+    _scene->isolate({plate});
+    QCOMPARE(displayedParts(*_scene, _viewport->context()), 1);
+    QVERIFY(_scene->isVisible(plate));
 
-    m_scene->setVisible({plate}, false);
-    QCOMPARE(displayedParts(*m_scene, m_viewport->context()), 0);
+    _scene->setVisible({plate}, false);
+    QCOMPARE(displayedParts(*_scene, _viewport->context()), 0);
 
-    m_scene->showAll();
-    QCOMPARE(displayedParts(*m_scene, m_viewport->context()), 5);
+    _scene->showAll();
+    QCOMPARE(displayedParts(*_scene, _viewport->context()), 5);
   }
 
   void mapsSelectionBothWays() {
-    const NodeId pair = findNode(*m_index, "Pin pair", 0);
-    m_scene->select({pair});
-    const auto selected = m_scene->selectedParts();
+    const NodeId pair = findNode(*_index, "Pin pair", 0);
+    _scene->select({pair});
+    const auto selected = _scene->selectedParts();
     QCOMPARE(int(selected.size()), 2);
     for (const NodeId id : selected) {
-      QCOMPARE(m_index->node(id).name, kPin);
-      QCOMPARE(m_index->node(id).parent, pair);
+      QCOMPARE(_index->node(id).name, Pin);
+      QCOMPARE(_index->node(id).parent, pair);
     }
-    m_scene->select({});
-    QVERIFY(m_scene->selectedParts().empty());
+    _scene->select({});
+    QVERIFY(_scene->selectedParts().empty());
   }
 
   void computesWorldBoundingBoxes() {
-    const NodeId pin = findNode(*m_index, kPin, 1); // (10,10,10) + (20,0,0), r = 3
-    const Bnd_Box box = m_scene->boundingBox({pin});
+    const NodeId pin = findNode(*_index, Pin, 1); // (10,10,10) + (20,0,0), r = 3
+    const Bnd_Box box = _scene->boundingBox({pin});
     QVERIFY(!box.IsVoid());
     double xmin, ymin, zmin, xmax, ymax, zmax;
     box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
@@ -131,19 +131,19 @@ private Q_SLOTS:
   }
 
   void detachesInstancesForTransparency() {
-    const NodeId pin = findNode(*m_index, kPin, 0);
-    m_scene->select({pin});
-    m_scene->setTransparency({pin}, 0.6);
-    QCOMPARE(m_scene->detachedCount(), 1);
-    QVERIFY(m_scene->isVisible(pin));
-    QCOMPARE(displayedParts(*m_scene, m_viewport->context()), 3);
-    QCOMPARE(m_scene->selectedParts(), std::vector<NodeId>{pin}); // selection survives detaching
+    const NodeId pin = findNode(*_index, Pin, 0);
+    _scene->select({pin});
+    _scene->setTransparency({pin}, 0.6);
+    QCOMPARE(_scene->detachedCount(), 1);
+    QVERIFY(_scene->isVisible(pin));
+    QCOMPARE(displayedParts(*_scene, _viewport->context()), 3);
+    QCOMPARE(_scene->selectedParts(), std::vector<NodeId>{pin}); // selection survives detaching
   }
 
   void highlightsSelectedInstances() {
-    const NodeId plate = findNode(*m_index, "Base plate");
+    const NodeId plate = findNode(*_index, "Base plate");
     const QImage before = render();
-    m_scene->select({plate});
+    _scene->select({plate});
     const QImage after = render();
     sc::test::dumpImage(after, "scene_selected_plate");
     const double changed = sc::test::changedPixelFraction(before, after);
@@ -163,20 +163,20 @@ private Q_SLOTS:
     int green = 0;
     for (int y = 0; y < shadedEdges.height(); ++y) {
       for (int x = 0; x < shadedEdges.width(); ++x) {
-        const QColor c = shadedEdges.pixelColor(x, y);
-        if (c.green() > 120 && c.green() > c.red() + 60 && c.green() > c.blue() + 60) {
+        const QColor color = shadedEdges.pixelColor(x, y);
+        if (color.green() > 120 && color.green() > color.red() + 60 && color.green() > color.blue() + 60) {
           ++green;
         }
       }
     }
     QVERIFY2(green > 20, "instance color (green pin) is not rendered");
 
-    m_scene->setDisplayStyle(sc::render::DisplayStyle::Wireframe);
+    _scene->setDisplayStyle(sc::render::DisplayStyle::Wireframe);
     const QImage wireframe = render();
     sc::test::dumpImage(wireframe, "scene_wireframe");
     QVERIFY2(sc::test::changedPixelFraction(shadedEdges, wireframe) > 0.05, "wireframe looks like shaded");
 
-    m_scene->setDisplayStyle(sc::render::DisplayStyle::Shaded);
+    _scene->setDisplayStyle(sc::render::DisplayStyle::Shaded);
     const QImage shaded = render();
     QVERIFY2(sc::test::changedPixelFraction(shadedEdges, shaded) > 0.002,
              "edges are not toggled on instances");

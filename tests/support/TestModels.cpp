@@ -93,8 +93,8 @@ std::string tempPath(const std::string& fileName) {
   const auto dir = std::filesystem::temp_directory_path() / "step-complete-tests";
   std::filesystem::create_directories(dir);
   // ctest runs test cases as separate processes in parallel: include a per-process tag.
-  static const std::string tag = std::to_string(std::random_device{}() % 1000000U);
-  return (dir / (tag + "-" + std::to_string(counter++) + "-" + fileName)).string();
+  static const std::string Tag = std::to_string(std::random_device{}() % 1000000U);
+  return (dir / (Tag + "-" + std::to_string(counter++) + "-" + fileName)).string();
 }
 
 } // namespace sc::test

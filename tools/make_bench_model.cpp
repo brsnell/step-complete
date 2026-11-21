@@ -24,10 +24,10 @@
 namespace {
 
 TopoDS_Shape makePart(int index) {
-  const double w = 20.0 + (index % 17);
-  const double d = 15.0 + (index % 11);
-  const double h = 4.0 + (index % 5);
-  TopoDS_Shape shape = BRepPrimAPI_MakeBox(w, d, h).Shape();
+  const double width = 20.0 + (index % 17);
+  const double depth = 15.0 + (index % 11);
+  const double height = 4.0 + (index % 5);
+  TopoDS_Shape shape = BRepPrimAPI_MakeBox(width, depth, height).Shape();
 
   BRepFilletAPI_MakeFillet fillet(shape);
   for (TopExp_Explorer it(shape, TopAbs_EDGE); it.More(); it.Next()) {
@@ -40,11 +40,11 @@ TopoDS_Shape makePart(int index) {
 
   const int holes = 2 + index % 5;
   for (int k = 0; k < holes; ++k) {
-    const double x = w * (k + 1) / (holes + 1);
-    const double y = d * (0.3 + 0.4 * ((k + index) % 2));
-    const double r = 0.8 + 0.3 * ((index + k) % 4);
+    const double x = width * (k + 1) / (holes + 1);
+    const double y = depth * (0.3 + 0.4 * ((k + index) % 2));
+    const double radius = 0.8 + 0.3 * ((index + k) % 4);
     const TopoDS_Shape hole =
-        BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(x, y, -1.0), gp::DZ()), r, h + 2.0).Shape();
+        BRepPrimAPI_MakeCylinder(gp_Ax2(gp_Pnt(x, y, -1.0), gp::DZ()), radius, height + 2.0).Shape();
     BRepAlgoAPI_Cut cut(shape, hole);
     if (cut.IsDone()) {
       shape = cut.Shape();
@@ -76,9 +76,9 @@ int main(int argc, char** argv) {
     colors->SetColor(
         part, Quantity_Color(0.3 + 0.6 * (i % 7) / 6.0, 0.5, 0.8 - 0.5 * (i % 5) / 4.0, Quantity_TOC_RGB),
         XCAFDoc_ColorSurf);
-    for (int c = 0; c < instances; ++c) {
+    for (int copy = 0; copy < instances; ++copy) {
       gp_Trsf placement;
-      placement.SetTranslation(gp_Vec(40.0 * (i % columns), 30.0 * (i / columns), 15.0 * c));
+      placement.SetTranslation(gp_Vec(40.0 * (i % columns), 30.0 * (i / columns), 15.0 * copy));
       shapes->AddComponent(root, part, TopLoc_Location(placement));
     }
     if (i % 100 == 99) {

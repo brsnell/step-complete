@@ -60,8 +60,8 @@ TEST(PmiModel, EmptyForNullOrPlainDocuments) {
 }
 
 TEST(PmiModel, ReadsDimensionsTolerancesAndDatums) {
-  const test::PmiFixture f = test::buildPmiFixture();
-  const PmiModel model(f.document);
+  const test::PmiFixture fixture = test::buildPmiFixture();
+  const PmiModel model(fixture.document);
 
   EXPECT_EQ(model.count(PmiKind::Dimension), 2);
   EXPECT_EQ(model.count(PmiKind::GeometricTolerance), 2);
@@ -72,16 +72,16 @@ TEST(PmiModel, ReadsDimensionsTolerancesAndDatums) {
     EXPECT_EQ(model.items()[i].id, static_cast<core::PmiId>(i));
   }
 
-  const core::PmiItem* datum = byLabel(model, f.datumA);
+  const core::PmiItem* datum = byLabel(model, fixture.datumA);
   ASSERT_NE(datum, nullptr);
   EXPECT_EQ(datum->text, "A");
   EXPECT_EQ(datum->name, "Datum A");
-  EXPECT_EQ(model.itemFor(f.datumARef), datum->id) << "the reference copy maps to the same datum";
+  EXPECT_EQ(model.itemFor(fixture.datumARef), datum->id) << "the reference copy maps to the same datum";
   ASSERT_EQ(datum->targetLabels.size(), 1u);
-  EXPECT_TRUE(datum->targetLabels.front() == f.bottom);
-  EXPECT_TRUE(datum->ownerPart == f.part);
+  EXPECT_TRUE(datum->targetLabels.front() == fixture.bottom);
+  EXPECT_TRUE(datum->ownerPart == fixture.part);
 
-  const core::PmiItem* flatness = byLabel(model, f.flatness);
+  const core::PmiItem* flatness = byLabel(model, fixture.flatness);
   ASSERT_NE(flatness, nullptr);
   EXPECT_EQ(flatness->kind, PmiKind::GeometricTolerance);
   EXPECT_TRUE(flatness->semantic);
@@ -89,19 +89,19 @@ TEST(PmiModel, ReadsDimensionsTolerancesAndDatums) {
   EXPECT_FALSE(flatness->frame.empty());
   ASSERT_EQ(flatness->targets.size(), 1u);
   EXPECT_EQ(flatness->targets.front().ShapeType(), TopAbs_FACE);
-  EXPECT_TRUE(flatness->ownerPart == f.part);
+  EXPECT_TRUE(flatness->ownerPart == fixture.part);
 
-  const core::PmiItem* parallelism = byLabel(model, f.parallelism);
+  const core::PmiItem* parallelism = byLabel(model, fixture.parallelism);
   ASSERT_NE(parallelism, nullptr);
   ASSERT_EQ(parallelism->datums.size(), 1u);
   EXPECT_EQ(parallelism->datums.front(), datum->id);
   ASSERT_GE(parallelism->frame.size(), 3u) << "symbol, zone and datum cells";
   EXPECT_EQ(parallelism->frame.back(), "A");
 
-  const core::PmiItem* height = byLabel(model, f.height);
+  const core::PmiItem* height = byLabel(model, fixture.height);
   ASSERT_NE(height, nullptr);
   EXPECT_EQ(height->name, "Height") << "the presentation name from the file is the display name";
-  EXPECT_EQ(model.itemFor(f.heightCopy), height->id)
+  EXPECT_EQ(model.itemFor(fixture.heightCopy), height->id)
       << "a duplicate presentation folds into its semantic item";
   EXPECT_FALSE(height->presentation.IsNull());
   ASSERT_TRUE(height->textPosition && height->plane && height->point1 && height->point2);
@@ -109,11 +109,11 @@ TEST(PmiModel, ReadsDimensionsTolerancesAndDatums) {
   EXPECT_TRUE(height->point2->IsEqual(gp_Pnt(100, 0, 20), 1e-9));
   ASSERT_EQ(height->targets.size(), 1u);
   ASSERT_EQ(height->secondTargets.size(), 1u);
-  EXPECT_TRUE(height->targetLabels.front() == f.top);
-  EXPECT_TRUE(height->secondTargetLabels.front() == f.bottom);
+  EXPECT_TRUE(height->targetLabels.front() == fixture.top);
+  EXPECT_TRUE(height->secondTargetLabels.front() == fixture.bottom);
   EXPECT_NE(height->text.find("20"), std::string::npos) << height->text;
 
-  const core::PmiItem* note = byLabel(model, f.label);
+  const core::PmiItem* note = byLabel(model, fixture.label);
   ASSERT_NE(note, nullptr);
   EXPECT_FALSE(note->semantic) << "graphical-only annotations are present but not interpreted";
   EXPECT_EQ(note->typeName, "Annotation");
@@ -123,8 +123,8 @@ TEST(PmiModel, ReadsDimensionsTolerancesAndDatums) {
 // match. When exactly one semantic item without graphics applies to the same
 // geometry, the graphics fold into it; when it is ambiguous, nothing is folded.
 TEST(PmiModel, FoldsUnnamedGraphicsIntoTheSemanticItemOnTheSameGeometry) {
-  const test::PmiFixture f = test::buildPmiFixture();
-  auto gdt = XCAFDoc_DocumentTool::DimTolTool(f.document->ocaf()->Main());
+  const test::PmiFixture fixture = test::buildPmiFixture();
+  auto gdt = XCAFDoc_DocumentTool::DimTolTool(fixture.document->ocaf()->Main());
   TopoDS_Compound lines;
   BRep_Builder builder;
   builder.MakeCompound(lines);
@@ -139,12 +139,12 @@ TEST(PmiModel, FoldsUnnamedGraphicsIntoTheSemanticItemOnTheSameGeometry) {
     return label;
   };
   // Datum A is the only semantic item on the bottom face alone: unambiguous.
-  const TDF_Label datumGraphics = addGraphics(f.bottom, "Datum Feature Symbol 7");
+  const TDF_Label datumGraphics = addGraphics(fixture.bottom, "Datum Feature Symbol 7");
   // Flatness and parallelism both apply to the top face only: ambiguous.
-  const TDF_Label topGraphics = addGraphics(f.top, "Feature Control Frame 9");
+  const TDF_Label topGraphics = addGraphics(fixture.top, "Feature Control Frame 9");
 
-  const PmiModel model(f.document);
-  const core::PmiItem* datum = byLabel(model, f.datumA);
+  const PmiModel model(fixture.document);
+  const core::PmiItem* datum = byLabel(model, fixture.datumA);
   ASSERT_NE(datum, nullptr);
   EXPECT_EQ(model.itemFor(datumGraphics), datum->id);
   EXPECT_FALSE(datum->presentation.IsNull());
@@ -152,22 +152,22 @@ TEST(PmiModel, FoldsUnnamedGraphicsIntoTheSemanticItemOnTheSameGeometry) {
   const core::PmiItem* orphan = byLabel(model, topGraphics);
   ASSERT_NE(orphan, nullptr);
   EXPECT_FALSE(orphan->semantic) << "ambiguous graphics stay visible as not interpreted";
-  EXPECT_TRUE(byLabel(model, f.flatness)->presentation.IsNull());
+  EXPECT_TRUE(byLabel(model, fixture.flatness)->presentation.IsNull());
 }
 
 TEST(PmiModel, FindsPmiForAShapeOrItsSubShapes) {
-  const test::PmiFixture f = test::buildPmiFixture();
-  const PmiModel model(f.document);
+  const test::PmiFixture fixture = test::buildPmiFixture();
+  const PmiModel model(fixture.document);
   // The top face: flatness, parallelism and the height dimension.
-  EXPECT_EQ(model.itemsTargeting(f.top).size(), 3u);
-  EXPECT_EQ(model.itemsTargeting(f.bottom).size(), 2u); // datum A, height
+  EXPECT_EQ(model.itemsTargeting(fixture.top).size(), 3u);
+  EXPECT_EQ(model.itemsTargeting(fixture.bottom).size(), 2u); // datum A, height
   // The part label covers all its sub-shapes.
-  EXPECT_EQ(model.itemsTargeting(f.part).size(), model.items().size());
+  EXPECT_EQ(model.itemsTargeting(fixture.part).size(), model.items().size());
 }
 
 TEST(PmiModel, ReadsSavedViews) {
-  const test::PmiFixture f = test::buildPmiFixture();
-  const PmiModel model(f.document);
+  const test::PmiFixture fixture = test::buildPmiFixture();
+  const PmiModel model(fixture.document);
   ASSERT_EQ(model.views().size(), 1u);
   const core::PmiSavedView& view = model.views().front();
   EXPECT_EQ(view.name, "Front");
@@ -186,10 +186,10 @@ TEST(PmiModel, ReadsSavedViews) {
   ASSERT_EQ(view.clippingPlanes.size(), 1u);
   EXPECT_TRUE(view.clippingPlanes.front().Axis().Direction().IsEqual(gp_Dir(1, 0, 0), 1e-9));
   ASSERT_EQ(view.shapes.size(), 1u);
-  EXPECT_TRUE(view.shapes.front() == f.part);
+  EXPECT_TRUE(view.shapes.front() == fixture.part);
   ASSERT_EQ(view.pmi.size(), 2u);
-  EXPECT_EQ(view.pmi[0], model.itemFor(f.flatness));
-  EXPECT_EQ(view.pmi[1], model.itemFor(f.height));
+  EXPECT_EQ(view.pmi[0], model.itemFor(fixture.flatness));
+  EXPECT_EQ(view.pmi[1], model.itemFor(fixture.height));
 }
 
 // --- NIST MBE PMI models (optional) ----------------------------------------------
@@ -210,25 +210,26 @@ struct NistSummary {
 };
 
 NistSummary summarize(const char* file, const PmiModel& model) {
-  NistSummary s{model.count(PmiKind::Dimension),
-                model.count(PmiKind::GeometricTolerance),
-                model.count(PmiKind::Datum),
-                model.count(PmiKind::DatumTarget),
-                model.uninterpretedCount(),
-                static_cast<int>(model.views().size()),
-                0,
-                0,
-                static_cast<int>(model.items().size())};
+  NistSummary summary{model.count(PmiKind::Dimension),
+                      model.count(PmiKind::GeometricTolerance),
+                      model.count(PmiKind::Datum),
+                      model.count(PmiKind::DatumTarget),
+                      model.uninterpretedCount(),
+                      static_cast<int>(model.views().size()),
+                      0,
+                      0,
+                      static_cast<int>(model.items().size())};
   for (const core::PmiItem& item : model.items()) {
-    s.presentations += item.presentation.IsNull() ? 0 : 1;
-    s.targeted += item.targets.empty() ? 0 : 1;
+    summary.presentations += item.presentation.IsNull() ? 0 : 1;
+    summary.targeted += item.targets.empty() ? 0 : 1;
   }
   // Documents what this OCCT version extracts (see docs/pmi-coverage.md).
   std::printf("[PMI] %s OCCT %s: dimensions=%d tolerances=%d datums=%d targets=%d uninterpreted=%d "
               "views=%d presentations=%d targeted=%d/%d\n",
-              file, OCC_VERSION_COMPLETE, s.dimensions, s.tolerances, s.datums, s.datumTargets,
-              s.uninterpreted, s.views, s.presentations, s.targeted, s.items);
-  return s;
+              file, OCC_VERSION_COMPLETE, summary.dimensions, summary.tolerances, summary.datums,
+              summary.datumTargets, summary.uninterpreted, summary.views, summary.presentations,
+              summary.targeted, summary.items);
+  return summary;
 }
 
 } // namespace
@@ -243,14 +244,14 @@ TEST_P(NistPmi, ExtractsAnnotations) {
   const core::ImportResult result = core::importStep(path);
   ASSERT_TRUE(result.ok) << result.error;
   const PmiModel model(result.document);
-  const NistSummary s = summarize(GetParam(), model);
+  const NistSummary summary = summarize(GetParam(), model);
 
   // Every NIST AP242 test model has dimensions, tolerances and datums.
-  EXPECT_GT(s.dimensions, 0);
-  EXPECT_GT(s.tolerances, 0);
-  EXPECT_GT(s.datums + s.datumTargets, 0);
+  EXPECT_GT(summary.dimensions, 0);
+  EXPECT_GT(summary.tolerances, 0);
+  EXPECT_GT(summary.datums + summary.datumTargets, 0);
   // Most annotations must resolve to the geometry they apply to.
-  EXPECT_GT(s.targeted * 2, s.items);
+  EXPECT_GT(summary.targeted * 2, summary.items);
   for (const core::PmiItem& item : model.items()) {
     EXPECT_FALSE(item.name.empty());
     if (item.semantic) {
@@ -274,8 +275,8 @@ INSTANTIATE_TEST_SUITE_P(Models, NistPmi,
                          [](const auto& info) {
                            std::string name = info.param;
                            name = name.substr(0, name.find('_', 9)); // "nist_ctc_01"
-                           for (char& c : name) {
-                             c = c == '_' ? 'x' : c;
+                           for (char& character : name) {
+                             character = character == '_' ? 'x' : character;
                            }
                            return name;
                          });

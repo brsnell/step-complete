@@ -358,10 +358,10 @@ TEST(StepImport, ValidationPropertiesFollowTheFileUnit) {
   ASSERT_TRUE(props.centroid);
   // OCCT's reader scales validation properties to the document unit (mm): the plate
   // is 100 x 60 x 10 inch, so lengths scale by 25.4, areas by 25.4^2, volumes by 25.4^3.
-  constexpr double kInch = 25.4;
-  EXPECT_NEAR(*props.volume / (60000.0 * kInch * kInch * kInch), 1.0, 1e-6);
-  EXPECT_NEAR(*props.area / (15200.0 * kInch * kInch), 1.0, 1e-6);
-  EXPECT_TRUE(props.centroid->IsEqual(gp_Pnt(50 * kInch, 30 * kInch, 5 * kInch), 1e-3));
+  constexpr double Inch = 25.4;
+  EXPECT_NEAR(*props.volume / (60000.0 * Inch * Inch * Inch), 1.0, 1e-6);
+  EXPECT_NEAR(*props.area / (15200.0 * Inch * Inch), 1.0, 1e-6);
+  EXPECT_TRUE(props.centroid->IsEqual(gp_Pnt(50 * Inch, 30 * Inch, 5 * Inch), 1e-3));
 }
 
 TEST(StepImport, ReportsProgressUpToCompletion) {
@@ -415,9 +415,9 @@ TEST(StepImport, SkipsFacesWhoseSplineSurfaceHasInvalidControlPoints) {
     }
   }
   EXPECT_EQ(faces, 6);
-  const bool reported = std::any_of(result.messages.begin(), result.messages.end(), [](const auto& m) {
-    return m.severity == core::ImportMessage::Severity::Warning &&
-           m.text.find("invalid control points") != std::string::npos;
+  const bool reported = std::any_of(result.messages.begin(), result.messages.end(), [](const auto& message) {
+    return message.severity == core::ImportMessage::Severity::Warning &&
+           message.text.find("invalid control points") != std::string::npos;
   });
   EXPECT_TRUE(reported);
 }

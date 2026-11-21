@@ -58,49 +58,49 @@ OccHandle<TCollection_HAsciiString> hs(const char* text) {
 } // namespace
 
 PmiFixture buildPmiFixture() {
-  PmiFixture f;
-  f.document = std::make_shared<core::Document>();
-  const TDF_Label main = f.document->ocaf()->Main();
+  PmiFixture fixture;
+  fixture.document = std::make_shared<core::Document>();
+  const TDF_Label main = fixture.document->ocaf()->Main();
   auto shapes = XCAFDoc_DocumentTool::ShapeTool(main);
   auto gdt = XCAFDoc_DocumentTool::DimTolTool(main);
 
-  f.part = shapes->AddShape(BRepPrimAPI_MakeBox(100.0, 60.0, 20.0).Shape(), false);
-  TDataStd_Name::Set(f.part, "Block");
-  f.top = faceLabel(shapes, f.part, gp_Pnt(50, 30, 20));
-  f.bottom = faceLabel(shapes, f.part, gp_Pnt(50, 30, 0));
-  f.side = faceLabel(shapes, f.part, gp_Pnt(100, 30, 10));
+  fixture.part = shapes->AddShape(BRepPrimAPI_MakeBox(100.0, 60.0, 20.0).Shape(), false);
+  TDataStd_Name::Set(fixture.part, "Block");
+  fixture.top = faceLabel(shapes, fixture.part, gp_Pnt(50, 30, 20));
+  fixture.bottom = faceLabel(shapes, fixture.part, gp_Pnt(50, 30, 0));
+  fixture.side = faceLabel(shapes, fixture.part, gp_Pnt(100, 30, 10));
 
   // Datum A on the bottom face.
-  f.datumA = gdt->AddDatum();
+  fixture.datumA = gdt->AddDatum();
   OccHandle<XCAFDimTolObjects_DatumObject> datum = new XCAFDimTolObjects_DatumObject();
   datum->SetName(hs("A"));
-  XCAFDoc_Datum::Set(f.datumA)->SetObject(datum);
-  gdt->SetDatum(labels({f.bottom}), f.datumA);
+  XCAFDoc_Datum::Set(fixture.datumA)->SetObject(datum);
+  gdt->SetDatum(labels({fixture.bottom}), fixture.datumA);
 
   // Flatness on the top face.
-  f.flatness = gdt->AddGeomTolerance();
+  fixture.flatness = gdt->AddGeomTolerance();
   OccHandle<XCAFDimTolObjects_GeomToleranceObject> flat = new XCAFDimTolObjects_GeomToleranceObject();
   flat->SetType(XCAFDimTolObjects_GeomToleranceType_Flatness);
   flat->SetValue(0.05);
-  XCAFDoc_GeomTolerance::Set(f.flatness)->SetObject(flat);
-  gdt->SetGeomTolerance(f.top, f.flatness);
+  XCAFDoc_GeomTolerance::Set(fixture.flatness)->SetObject(flat);
+  gdt->SetGeomTolerance(fixture.top, fixture.flatness);
 
   // Parallelism to A, referencing a second datum label "A" like the STEP reader does.
-  f.parallelism = gdt->AddGeomTolerance();
+  fixture.parallelism = gdt->AddGeomTolerance();
   OccHandle<XCAFDimTolObjects_GeomToleranceObject> parallel = new XCAFDimTolObjects_GeomToleranceObject();
   parallel->SetType(XCAFDimTolObjects_GeomToleranceType_Parallelism);
   parallel->SetValue(0.1);
-  XCAFDoc_GeomTolerance::Set(f.parallelism)->SetObject(parallel);
-  gdt->SetGeomTolerance(f.top, f.parallelism);
-  f.datumARef = gdt->AddDatum();
+  XCAFDoc_GeomTolerance::Set(fixture.parallelism)->SetObject(parallel);
+  gdt->SetGeomTolerance(fixture.top, fixture.parallelism);
+  fixture.datumARef = gdt->AddDatum();
   OccHandle<XCAFDimTolObjects_DatumObject> reference = new XCAFDimTolObjects_DatumObject();
   reference->SetName(hs("A"));
   reference->SetPosition(1);
-  XCAFDoc_Datum::Set(f.datumARef)->SetObject(reference);
-  gdt->SetDatumToGeomTol(f.datumARef, f.parallelism);
+  XCAFDoc_Datum::Set(fixture.datumARef)->SetObject(reference);
+  gdt->SetDatumToGeomTol(fixture.datumARef, fixture.parallelism);
 
   // Height between top and bottom, with plane, text point and presentation.
-  f.height = gdt->AddDimension();
+  fixture.height = gdt->AddDimension();
   OccHandle<XCAFDimTolObjects_DimensionObject> dim = new XCAFDimTolObjects_DimensionObject();
   dim->SetType(XCAFDimTolObjects_DimensionType_Location_LinearDistance);
   dim->SetValue(20.0);
@@ -115,29 +115,29 @@ PmiFixture buildPmiFixture() {
   builder.MakeCompound(lines);
   builder.Add(lines, BRepBuilderAPI_MakeEdge(gp_Pnt(105, 0, 0), gp_Pnt(105, 0, 20)).Edge());
   dim->SetPresentation(lines, hs("Height"));
-  XCAFDoc_Dimension::Set(f.height)->SetObject(dim);
-  gdt->SetDimension(f.top, f.bottom, f.height);
+  XCAFDoc_Dimension::Set(fixture.height)->SetObject(dim);
+  gdt->SetDimension(fixture.top, fixture.bottom, fixture.height);
 
   // The same presentation stored a second time as a "dimension presentation",
   // as OCCT's reader does for some files: must fold into the semantic item.
-  f.heightCopy = gdt->AddDimension();
+  fixture.heightCopy = gdt->AddDimension();
   OccHandle<XCAFDimTolObjects_DimensionObject> copy = new XCAFDimTolObjects_DimensionObject();
   copy->SetType(XCAFDimTolObjects_DimensionType_DimensionPresentation);
   copy->SetPresentation(lines, hs("Height"));
-  XCAFDoc_Dimension::Set(f.heightCopy)->SetObject(copy);
-  gdt->SetDimension(f.top, f.heightCopy);
+  XCAFDoc_Dimension::Set(fixture.heightCopy)->SetObject(copy);
+  gdt->SetDimension(fixture.top, fixture.heightCopy);
 
   // A note OCCT keeps only graphically.
-  f.label = gdt->AddDimension();
+  fixture.label = gdt->AddDimension();
   OccHandle<XCAFDimTolObjects_DimensionObject> note = new XCAFDimTolObjects_DimensionObject();
   note->SetType(XCAFDimTolObjects_DimensionType_CommonLabel);
-  XCAFDoc_Dimension::Set(f.label)->SetObject(note);
-  gdt->SetDimension(f.side, f.label);
+  XCAFDoc_Dimension::Set(fixture.label)->SetObject(note);
+  gdt->SetDimension(fixture.side, fixture.label);
 
   // Saved view.
   auto views = XCAFDoc_DocumentTool::ViewTool(main);
   auto clipping = XCAFDoc_DocumentTool::ClippingPlaneTool(main);
-  f.view = views->AddView();
+  fixture.view = views->AddView();
   OccHandle<XCAFView_Object> camera = new XCAFView_Object();
   camera->SetName(hs("Front"));
   camera->SetType(XCAFView_ProjectionType_Parallel);
@@ -148,10 +148,11 @@ PmiFixture buildPmiFixture() {
   camera->SetWindowHorizontalSize(120.0);
   camera->SetWindowVerticalSize(80.0);
   camera->SetFrontPlaneDistance(5.0);
-  XCAFDoc_View::Set(f.view)->SetObject(camera);
+  XCAFDoc_View::Set(fixture.view)->SetObject(camera);
   const TDF_Label plane = clipping->AddClippingPlane(gp_Pln(gp_Pnt(50, 0, 0), gp_Dir(1, 0, 0)), "Cut", false);
-  views->SetView(labels({f.part}), labels({f.flatness, f.height}), labels({plane}), f.view);
-  return f;
+  views->SetView(labels({fixture.part}), labels({fixture.flatness, fixture.height}), labels({plane}),
+                 fixture.view);
+  return fixture;
 }
 
 } // namespace sc::test

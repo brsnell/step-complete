@@ -72,8 +72,8 @@ PositionFrame makePositionFrame() {
   Datum a = makeDatum("A");
   Datum b = makeDatum("B");
   b->AddModifier(XCAFDimTolObjects_DatumSingleModif_MaximumMaterialRequirement);
-  Datum c = makeDatum("C");
-  frame.datums = {a, b, c};
+  Datum datumC = makeDatum("C");
+  frame.datums = {a, b, datumC};
   return frame;
 }
 
@@ -191,9 +191,9 @@ TEST(PmiText, QualifiersAndModifiers) {
   square->AddModifier(XCAFDimTolObjects_DimensionModif_Square);
   EXPECT_EQ(dimensionText(square), "◻10.00");
 
-  Dim cf = makeDimension(XCAFDimTolObjects_DimensionType_Size_Diameter, 6.0);
-  cf->AddModifier(XCAFDimTolObjects_DimensionModif_ContinuousFeature);
-  EXPECT_EQ(dimensionText(cf), "⌀6.00 CF");
+  Dim diameter = makeDimension(XCAFDimTolObjects_DimensionType_Size_Diameter, 6.0);
+  diameter->AddModifier(XCAFDimTolObjects_DimensionModif_ContinuousFeature);
+  EXPECT_EQ(dimensionText(diameter), "⌀6.00 CF");
 }
 
 TEST(PmiText, DimensionProperties) {
