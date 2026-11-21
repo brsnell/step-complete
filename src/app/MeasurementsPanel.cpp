@@ -305,7 +305,9 @@ void MeasurementsPanel::removeSelected() {
 }
 
 void MeasurementsPanel::showContextMenu(const QPoint& pos) {
+  // Right-clicking an unselected row acts on that row alone, as in file managers.
   if (QTreeWidgetItem* item = m_tree->itemAt(pos); item != nullptr && !item->isSelected()) {
+    m_tree->clearSelection();
     m_tree->setCurrentItem(item);
   }
   std::vector<int> selected = selectedIndices();

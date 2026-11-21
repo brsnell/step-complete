@@ -6,7 +6,6 @@
 
 #include <vector>
 
-class QAction;
 class QLabel;
 class QToolButton;
 class QTreeWidget;
@@ -73,7 +72,6 @@ private:
   QToolButton* m_showAll = nullptr;
   QToolButton* m_remove = nullptr;
   QToolButton* m_clear = nullptr;
-  QAction* m_removeAction = nullptr;
   std::vector<core::Measurement> m_measurements;
   std::vector<int> m_ids;
   std::vector<bool> m_shown;

@@ -134,8 +134,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {
-  delete m_import;      // cancels and waits for a running import
-  delete m_measureTool; // removes its witness while the viewer exists
+  delete m_import; // cancels and waits for a running import
+  // The panel and its dock still emit while child widgets are torn down; nothing may reach
+  // syncMeasurementWitnesses once the tool is gone.
+  disconnect(m_measurements, nullptr, this, nullptr);
+  disconnect(m_measurementsDock->toggleViewAction(), nullptr, this, nullptr);
+  delete m_measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
   delete m_sectionTool; // removes its handles and the parts' clip planes
   m_pmiScene.reset();
@@ -219,14 +223,19 @@ void MainWindow::createDocks() {
   resizeDocks({m_pmiDock}, {340}, Qt::Horizontal);
   m_measurementsDock->hide();
   connect(m_measurements, &MeasurementsPanel::displayChanged, this, &MainWindow::syncMeasurementWitnesses);
+  // Closing the panel hides the results' witnesses; reopening it shows them again.
+  connect(m_measurementsDock->toggleViewAction(), &QAction::toggled, this,
+          &MainWindow::syncMeasurementWitnesses);
 }
 
-// Draws every checked result's witness; the one the user is looking at is emphasized.
+// Draws every checked result's witness while the Measurements panel is open; the one the
+// user is looking at is emphasized.
 void MainWindow::syncMeasurementWitnesses() {
   const auto& results = m_measurements->measurements();
   const int current = m_measurements->currentIndex();
+  const bool panelOpen = m_measurementsDock->toggleViewAction()->isChecked(); // open, even if tabbed behind
   std::vector<render::MeasureTool::ShownWitness> shown;
-  for (int i = 0; i < static_cast<int>(results.size()); ++i) {
+  for (int i = 0; i < static_cast<int>(results.size()) && panelOpen; ++i) {
     if (m_measurements->isShown(i)) {
       shown.push_back({m_measurements->idAt(i), results[static_cast<size_t>(i)].witness, i == current});
     }

@@ -11,6 +11,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QDockWidget>
 #include <QMenu>
 #include <QMenuBar>
 #include <QStandardPaths>
@@ -122,6 +123,47 @@ private Q_SLOTS:
     QCOMPARE(m_tool->witnessCount(), 1);
     QVERIFY(m_tool->hasWitness(second));
     QVERIFY(m_tool->isEmphasized(second));
+  }
+
+  // Value: protects=removing a result in the window also removes its witness from the 3D view and moves
+  // the emphasis to the result that becomes current; fails_when=removeSelected stops emitting displayChanged
+  // or the sync keys witnesses by row instead of id; why_new=removal and drawing were tested apart;
+  // seam=none; no_claim=pixels on screen (checks MeasureTool state)
+  void removingAResultDropsItsWitness() {
+    openFixture();
+    m_mass->trigger();
+    m_mass->trigger();
+    const int first = m_panel->idAt(0);
+    const int second = m_panel->idAt(1); // current
+    m_panel->removeSelected();
+    QCOMPARE(m_panel->measurements().size(), size_t(1));
+    QCOMPARE(m_tool->witnessCount(), 1);
+    QVERIFY(!m_tool->hasWitness(second));
+    QVERIFY2(m_tool->isEmphasized(first), "the remaining result became current and is emphasized");
+  }
+
+  // Value: protects=closing the Measurements panel hides every witness and reopening it restores exactly
+  // the checked ones; fails_when=the sync ignores the panel's open state or the toggle is not wired;
+  // why_new=new behavior (review finding: witnesses stuck on screen with the panel closed); seam=none;
+  // no_claim=tabbed-behind docks (counted as open by design)
+  void closingThePanelHidesWitnesses() {
+    openFixture();
+    m_mass->trigger();
+    m_mass->trigger();
+    m_panel->setShown(0, false);
+    QCOMPARE(m_tool->witnessCount(), 1);
+    auto* dock = qobject_cast<QDockWidget*>(m_panel->parentWidget());
+    QVERIFY(dock != nullptr);
+
+    dock->toggleViewAction()->trigger(); // close, as Measure > Measurements or the dock's X does
+    QVERIFY(dock->isHidden());
+    QCOMPARE(m_tool->witnessCount(), 0);
+    QCOMPARE(m_panel->measurements().size(), size_t(2)); // results are kept
+
+    dock->toggleViewAction()->trigger(); // reopen
+    QCOMPARE(m_tool->witnessCount(), 1);
+    QVERIFY(m_tool->hasWitness(m_panel->idAt(1)));
+    QVERIFY(!m_tool->hasWitness(m_panel->idAt(0)));
   }
 
 private:
