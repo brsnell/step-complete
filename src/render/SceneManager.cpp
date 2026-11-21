@@ -13,6 +13,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <type_traits>
 
 namespace sc::render {
 
@@ -36,7 +37,7 @@ public:
   // Rebuilding the per-face styles from the document resets their colors, so the
   // hidden-line look is laid over them again each time.
   // The rebuild drops the part's transparency too, so it is put back.
-  void DispatchStyles(const Standard_Boolean toSyncStyles) override {
+  void DispatchStyles(const bool toSyncStyles) override {
     const double transparency = Transparency();
     XCAFPrs_AISObject::DispatchStyles(toSyncStyles);
     if (_hiddenLine) {
@@ -55,14 +56,16 @@ public:
     if (!hiddenLine) {
       forEachDrawer([](const OccHandle<Prs3d_Drawer>& drawer) { configureHiddenLineFaces(drawer, false); });
     }
-    DispatchStyles(Standard_True); // restores the file's colors, or applies hidden line over them
+    DispatchStyles(true); // restores the file's colors, or applies hidden line over them
   }
 
 private:
   template <typename Function>
   void forEachDrawer(Function function) {
     function(myDrawer);
-    for (AIS_DataMapOfShapeDrawer::Iterator it(myShapeColors); it.More(); it.Next()) {
+    // The map's typedef is gone in OCCT 8, so take the type from the member.
+    using ShapeDrawerMap = std::decay_t<decltype(myShapeColors)>;
+    for (ShapeDrawerMap::Iterator it(myShapeColors); it.More(); it.Next()) {
       function(it.Value());
     }
   }
