@@ -56,13 +56,13 @@ namespace sc::app {
 
 namespace {
 
-constexpr int kMaxRecentFiles = 10;
-constexpr double kTransparency = 0.6;
-const char* const kRecentFilesKey = "recentFiles";
-const char* const kLastDirKey = "lastOpenDir";
-const char* const kMeasureUnitKey = "measure/lengthUnit";
-const char* const kMeasureDecimalsKey = "measure/decimals";
-const char* const kMeasureAngleUnitKey = "measure/angleUnit";
+constexpr int MaxRecentFiles = 10;
+constexpr double Transparency = 0.6;
+const char* const RecentFilesKey = "recentFiles";
+const char* const LastDirKey = "lastOpenDir";
+const char* const MeasureUnitKey = "measure/lengthUnit";
+const char* const MeasureDecimalsKey = "measure/decimals";
+const char* const MeasureAngleUnitKey = "measure/angleUnit";
 
 bool isStepFile(const QString& path) {
   const QString suffix = QFileInfo(path).suffix().toLower();
@@ -88,48 +88,48 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   resize(1280, 800);
   setAcceptDrops(true);
 
-  m_viewport = new render::OcctViewport(this);
-  setCentralWidget(m_viewport);
-  m_scene = std::make_unique<render::SceneManager>(m_viewport->context());
-  m_pmiScene = std::make_unique<render::PmiScene>(m_viewport->context());
-  m_sectionTool = new render::SectionTool(m_viewport, m_scene.get(), this);
+  _viewport = new render::OcctViewport(this);
+  setCentralWidget(_viewport);
+  _scene = std::make_unique<render::SceneManager>(_viewport->context());
+  _pmiScene = std::make_unique<render::PmiScene>(_viewport->context());
+  _sectionTool = new render::SectionTool(_viewport, _scene.get(), this);
   // PMI labels are screen-space boxes: re-separate them once the camera stops moving.
-  m_declutterTimer = new QTimer(this);
-  m_declutterTimer->setSingleShot(true);
-  m_declutterTimer->setInterval(150);
-  connect(m_declutterTimer, &QTimer::timeout, this, [this] {
-    if (m_pmi && !m_pmi->isEmpty() && m_pmiScene->semanticLabelsVisible()) {
-      m_pmiScene->declutter(m_viewport->view());
-      m_viewport->invalidateScene();
+  _declutterTimer = new QTimer(this);
+  _declutterTimer->setSingleShot(true);
+  _declutterTimer->setInterval(150);
+  connect(_declutterTimer, &QTimer::timeout, this, [this] {
+    if (_pmi && !_pmi->isEmpty() && _pmiScene->semanticLabelsVisible()) {
+      _pmiScene->declutter(_viewport->view());
+      _viewport->invalidateScene();
     }
   });
-  m_viewport->installEventFilter(this);
-  m_measureTool = new render::MeasureTool(m_viewport, m_scene.get(), this);
-  connect(m_measureTool, &render::MeasureTool::measured, this, &MainWindow::onMeasured);
-  connect(m_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
-  connect(m_viewport, &render::OcctViewport::glInitialized, this, &MainWindow::onGlInitialized);
-  connect(m_viewport, &render::OcctViewport::selectionChanged, this, &MainWindow::onViewportSelectionChanged);
+  _viewport->installEventFilter(this);
+  _measureTool = new render::MeasureTool(_viewport, _scene.get(), this);
+  connect(_measureTool, &render::MeasureTool::measured, this, &MainWindow::onMeasured);
+  connect(_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
+  connect(_viewport, &render::OcctViewport::glInitialized, this, &MainWindow::onGlInitialized);
+  connect(_viewport, &render::OcctViewport::selectionChanged, this, &MainWindow::onViewportSelectionChanged);
   // Witnesses are sized in device pixels: rebuild them on a screen with other scaling.
-  connect(m_viewport, &render::OcctViewport::devicePixelRatioChanged, this,
+  connect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this,
           &MainWindow::syncMeasurementWitnesses);
-  m_viewport->setContextMenuPolicy(Qt::CustomContextMenu);
-  connect(m_viewport, &QWidget::customContextMenuRequested, this,
-          [this](const QPoint& pos) { showContextMenu(m_viewport, pos); });
+  _viewport->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(_viewport, &QWidget::customContextMenuRequested, this,
+          [this](const QPoint& pos) { showContextMenu(_viewport, pos); });
 
   // Centered hint shown while no model is loaded.
-  m_emptyHint = new QLabel(tr("Open a STEP file (%1) or drop one here")
-                               .arg(QKeySequence(QKeySequence::Open).toString(QKeySequence::NativeText)),
-                           m_viewport);
-  m_emptyHint->setAlignment(Qt::AlignCenter);
-  m_emptyHint->setAttribute(Qt::WA_TransparentForMouseEvents);
-  m_emptyHint->setStyleSheet(QStringLiteral("color: #3c4450; font-size: 15px; background: transparent;"));
-  auto* hintLayout = new QVBoxLayout(m_viewport);
-  hintLayout->addWidget(m_emptyHint);
+  _emptyHint = new QLabel(tr("Open a STEP file (%1) or drop one here")
+                              .arg(QKeySequence(QKeySequence::Open).toString(QKeySequence::NativeText)),
+                          _viewport);
+  _emptyHint->setAlignment(Qt::AlignCenter);
+  _emptyHint->setAttribute(Qt::WA_TransparentForMouseEvents);
+  _emptyHint->setStyleSheet(QStringLiteral("color: #3c4450; font-size: 15px; background: transparent;"));
+  auto* hintLayout = new QVBoxLayout(_viewport);
+  hintLayout->addWidget(_emptyHint);
 
-  m_glStatus = new QLabel(this);
-  m_unitStatus = new QLabel(this);
-  statusBar()->addPermanentWidget(m_unitStatus);
-  statusBar()->addPermanentWidget(m_glStatus);
+  _glStatus = new QLabel(this);
+  _unitStatus = new QLabel(this);
+  statusBar()->addPermanentWidget(_unitStatus);
+  statusBar()->addPermanentWidget(_glStatus);
 
   createDocks();
   createActions();
@@ -137,17 +137,17 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {
-  delete m_import; // cancels and waits for a running import
+  delete _import; // cancels and waits for a running import
   // The panel and its dock still emit while child widgets are torn down; nothing may reach
   // syncMeasurementWitnesses once the tool is gone.
-  disconnect(m_measurements, nullptr, this, nullptr);
-  disconnect(m_measurementsDock->toggleViewAction(), nullptr, this, nullptr);
-  disconnect(m_viewport, &render::OcctViewport::devicePixelRatioChanged, this, nullptr);
-  delete m_measureTool; // removes its witnesses while the viewer exists
+  disconnect(_measurements, nullptr, this, nullptr);
+  disconnect(_measurementsDock->toggleViewAction(), nullptr, this, nullptr);
+  disconnect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this, nullptr);
+  delete _measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
-  delete m_sectionTool; // removes its handles and the parts' clip planes
-  m_pmiScene.reset();
-  m_scene.reset();
+  delete _sectionTool; // removes its handles and the parts' clip planes
+  _pmiScene.reset();
+  _scene.reset();
 }
 
 // ---------------------------------------------------------------------------------
@@ -155,97 +155,97 @@ MainWindow::~MainWindow() {
 // ---------------------------------------------------------------------------------
 
 void MainWindow::createDocks() {
-  m_treeModel = new AssemblyTreeModel(this);
-  m_treeView = new QTreeView(this);
-  m_treeView->setModel(m_treeModel);
-  m_treeView->setHeaderHidden(true);
-  m_treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
-  m_treeView->setUniformRowHeights(true); // fast scrolling in large assemblies
-  m_treeView->setContextMenuPolicy(Qt::CustomContextMenu);
-  connect(m_treeView, &QWidget::customContextMenuRequested, this,
-          [this](const QPoint& pos) { showContextMenu(m_treeView->viewport(), pos); });
-  connect(m_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+  _treeModel = new AssemblyTreeModel(this);
+  _treeView = new QTreeView(this);
+  _treeView->setModel(_treeModel);
+  _treeView->setHeaderHidden(true);
+  _treeView->setSelectionMode(QAbstractItemView::ExtendedSelection);
+  _treeView->setUniformRowHeights(true); // fast scrolling in large assemblies
+  _treeView->setContextMenuPolicy(Qt::CustomContextMenu);
+  connect(_treeView, &QWidget::customContextMenuRequested, this,
+          [this](const QPoint& pos) { showContextMenu(_treeView->viewport(), pos); });
+  connect(_treeView->selectionModel(), &QItemSelectionModel::selectionChanged, this,
           &MainWindow::onTreeSelectionChanged);
-  connect(m_treeModel, &AssemblyTreeModel::visibilityRequested, this, &MainWindow::setNodeVisible);
+  connect(_treeModel, &AssemblyTreeModel::visibilityRequested, this, &MainWindow::setNodeVisible);
 
   auto* treeDock = new QDockWidget(tr("Assembly"), this);
   treeDock->setObjectName(QStringLiteral("AssemblyDock"));
-  treeDock->setWidget(m_treeView);
+  treeDock->setWidget(_treeView);
   addDockWidget(Qt::LeftDockWidgetArea, treeDock);
 
-  m_properties = new PropertiesPanel(this);
+  _properties = new PropertiesPanel(this);
   auto* propertiesDock = new QDockWidget(tr("Properties"), this);
   propertiesDock->setObjectName(QStringLiteral("PropertiesDock"));
-  propertiesDock->setWidget(m_properties);
+  propertiesDock->setWidget(_properties);
   addDockWidget(Qt::LeftDockWidgetArea, propertiesDock);
   splitDockWidget(treeDock, propertiesDock, Qt::Vertical);
   resizeDocks({treeDock}, {300}, Qt::Horizontal);
 
-  m_messages = new QListWidget(this);
-  m_messages->setAlternatingRowColors(true);
-  m_messagesDock = new QDockWidget(tr("Import Messages"), this);
-  m_messagesDock->setObjectName(QStringLiteral("MessagesDock"));
-  m_messagesDock->setWidget(m_messages);
-  addDockWidget(Qt::BottomDockWidgetArea, m_messagesDock);
-  m_messagesDock->hide();
+  _messages = new QListWidget(this);
+  _messages->setAlternatingRowColors(true);
+  _messagesDock = new QDockWidget(tr("Import Messages"), this);
+  _messagesDock->setObjectName(QStringLiteral("MessagesDock"));
+  _messagesDock->setWidget(_messages);
+  addDockWidget(Qt::BottomDockWidgetArea, _messagesDock);
+  _messagesDock->hide();
 
-  m_pmiPanel = new PmiPanel(this);
-  m_pmiDock = new QDockWidget(tr("PMI"), this);
-  m_pmiDock->setObjectName(QStringLiteral("PmiDock"));
-  m_pmiDock->setWidget(m_pmiPanel);
-  addDockWidget(Qt::RightDockWidgetArea, m_pmiDock);
-  m_pmiDock->hide();
-  connect(m_pmiPanel, &PmiPanel::pmiSelected, this, &MainWindow::onPmiSelected);
-  connect(m_pmiPanel, &PmiPanel::viewActivated, this, &MainWindow::activateSavedView);
-  connect(m_pmiPanel, &PmiPanel::visibilityRequested, this,
+  _pmiPanel = new PmiPanel(this);
+  _pmiDock = new QDockWidget(tr("PMI"), this);
+  _pmiDock->setObjectName(QStringLiteral("PmiDock"));
+  _pmiDock->setWidget(_pmiPanel);
+  addDockWidget(Qt::RightDockWidgetArea, _pmiDock);
+  _pmiDock->hide();
+  connect(_pmiPanel, &PmiPanel::pmiSelected, this, &MainWindow::onPmiSelected);
+  connect(_pmiPanel, &PmiPanel::viewActivated, this, &MainWindow::activateSavedView);
+  connect(_pmiPanel, &PmiPanel::visibilityRequested, this,
           [this](const std::vector<core::PmiId>& ids, bool visible) {
-            m_pmiScene->setVisible(ids, visible);
-            m_viewport->invalidateScene();
+            _pmiScene->setVisible(ids, visible);
+            _viewport->invalidateScene();
           });
 
-  m_sectionPanel = new SectionPanel(m_sectionTool, this);
-  m_sectionDock = new QDockWidget(tr("Section"), this);
-  m_sectionDock->setObjectName(QStringLiteral("SectionDock"));
-  m_sectionDock->setWidget(m_sectionPanel);
-  addDockWidget(Qt::RightDockWidgetArea, m_sectionDock);
-  m_sectionDock->hide();
-  connect(m_sectionPanel, &SectionPanel::sectionChanged, this, [this] {
-    if (m_sectionAction != nullptr) {
-      const QSignalBlocker blocker(m_sectionAction);
-      m_sectionAction->setChecked(m_sectionTool->isActive());
+  _sectionPanel = new SectionPanel(_sectionTool, this);
+  _sectionDock = new QDockWidget(tr("Section"), this);
+  _sectionDock->setObjectName(QStringLiteral("SectionDock"));
+  _sectionDock->setWidget(_sectionPanel);
+  addDockWidget(Qt::RightDockWidgetArea, _sectionDock);
+  _sectionDock->hide();
+  connect(_sectionPanel, &SectionPanel::sectionChanged, this, [this] {
+    if (_sectionAction != nullptr) {
+      const QSignalBlocker blocker(_sectionAction);
+      _sectionAction->setChecked(_sectionTool->isActive());
     }
-    m_viewport->invalidateScene();
+    _viewport->invalidateScene();
   });
 
-  m_measurements = new MeasurementsPanel(this);
-  m_measurementsDock = new QDockWidget(tr("Measurements"), this);
-  m_measurementsDock->setObjectName(QStringLiteral("MeasurementsDock"));
-  m_measurementsDock->setWidget(m_measurements);
-  addDockWidget(Qt::RightDockWidgetArea, m_measurementsDock);
-  tabifyDockWidget(m_pmiDock, m_measurementsDock);
-  tabifyDockWidget(m_pmiDock, m_sectionDock);
-  resizeDocks({m_pmiDock}, {340}, Qt::Horizontal);
-  m_measurementsDock->hide();
-  connect(m_measurements, &MeasurementsPanel::displayChanged, this, &MainWindow::syncMeasurementWitnesses);
+  _measurements = new MeasurementsPanel(this);
+  _measurementsDock = new QDockWidget(tr("Measurements"), this);
+  _measurementsDock->setObjectName(QStringLiteral("MeasurementsDock"));
+  _measurementsDock->setWidget(_measurements);
+  addDockWidget(Qt::RightDockWidgetArea, _measurementsDock);
+  tabifyDockWidget(_pmiDock, _measurementsDock);
+  tabifyDockWidget(_pmiDock, _sectionDock);
+  resizeDocks({_pmiDock}, {340}, Qt::Horizontal);
+  _measurementsDock->hide();
+  connect(_measurements, &MeasurementsPanel::displayChanged, this, &MainWindow::syncMeasurementWitnesses);
   // Closing the panel hides the results' witnesses; reopening it shows them again.
-  connect(m_measurementsDock->toggleViewAction(), &QAction::toggled, this,
+  connect(_measurementsDock->toggleViewAction(), &QAction::toggled, this,
           &MainWindow::syncMeasurementWitnesses);
 }
 
 // Draws every checked result's witness while the Measurements panel is open; the one the
 // user is looking at is emphasized.
 void MainWindow::syncMeasurementWitnesses() {
-  const auto& results = m_measurements->measurements();
-  const int current = m_measurements->currentIndex();
-  const bool panelOpen = m_measurementsDock->toggleViewAction()->isChecked(); // open, even if tabbed behind
+  const auto& results = _measurements->measurements();
+  const int current = _measurements->currentIndex();
+  const bool panelOpen = _measurementsDock->toggleViewAction()->isChecked(); // open, even if tabbed behind
   std::vector<render::MeasureTool::ShownWitness> shown;
   for (int i = 0; i < static_cast<int>(results.size()) && panelOpen; ++i) {
-    if (m_measurements->isShown(i)) {
-      shown.push_back({m_measurements->idAt(i), results[static_cast<size_t>(i)].witness, i == current});
+    if (_measurements->isShown(i)) {
+      shown.push_back({_measurements->idAt(i), results[static_cast<size_t>(i)].witness, i == current});
     }
   }
-  m_measureTool->setWitnesses(shown);
-  m_viewport->invalidateScene();
+  _measureTool->setWitnesses(shown);
+  _viewport->invalidateScene();
 }
 
 void MainWindow::createActions() {
@@ -253,14 +253,14 @@ void MainWindow::createActions() {
   QMenu* fileMenu = menuBar()->addMenu(tr("&File"));
   QAction* open = fileMenu->addAction(tr("&Open..."), this, &MainWindow::openFileDialog);
   open->setShortcut(QKeySequence::Open);
-  m_recentMenu = fileMenu->addMenu(tr("Open &Recent"));
-  connect(m_recentMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildRecentMenu);
-  m_closeAction = fileMenu->addAction(tr("&Close"), this, &MainWindow::closeModel);
-  m_closeAction->setShortcut(QKeySequence::Close);
+  _recentMenu = fileMenu->addMenu(tr("Open &Recent"));
+  connect(_recentMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildRecentMenu);
+  _closeAction = fileMenu->addAction(tr("&Close"), this, &MainWindow::closeModel);
+  _closeAction->setShortcut(QKeySequence::Close);
   fileMenu->addSeparator();
-  m_exportImageAction = fileMenu->addAction(tr("&Export Image..."), this, &MainWindow::exportImage);
-  m_exportImageAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
-  m_exportImageAction->setStatusTip(tr("Save the current 3D view as a PNG or JPEG image"));
+  _exportImageAction = fileMenu->addAction(tr("&Export Image..."), this, &MainWindow::exportImage);
+  _exportImageAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  _exportImageAction->setStatusTip(tr("Save the current 3D view as a PNG or JPEG image"));
   QAction* preferences = fileMenu->addAction(tr("&Preferences..."), this, &MainWindow::showPreferences);
   preferences->setMenuRole(QAction::PreferencesRole); // application menu on macOS
   fileMenu->addSeparator();
@@ -270,10 +270,10 @@ void MainWindow::createActions() {
   // --- View -----------------------------------------------------------------
   QMenu* viewMenu = menuBar()->addMenu(tr("&View"));
 
-  QAction* fit = viewMenu->addAction(tr("&Fit All"), m_viewport, &render::OcctViewport::fitAll);
+  QAction* fit = viewMenu->addAction(tr("&Fit All"), _viewport, &render::OcctViewport::fitAll);
   fit->setShortcut(Qt::Key_F);
-  m_fitSelectionAction = viewMenu->addAction(tr("Fit &Selection"), this, &MainWindow::fitSelection);
-  m_fitSelectionAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F));
+  _fitSelectionAction = viewMenu->addAction(tr("Fit &Selection"), this, &MainWindow::fitSelection);
+  _fitSelectionAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_F));
 
   QMenu* standardViews = viewMenu->addMenu(tr("Standard &Views"));
   struct NamedView {
@@ -295,16 +295,16 @@ void MainWindow::createActions() {
     action->setShortcut(v.key);
     const V3d_TypeOfOrientation orientation = v.orientation;
     connect(action, &QAction::triggered, this,
-            [this, orientation] { m_viewport->setStandardView(orientation); });
+            [this, orientation] { _viewport->setStandardView(orientation); });
   }
 
   QAction* perspective = viewMenu->addAction(tr("&Perspective Projection"));
   perspective->setCheckable(true);
   perspective->setShortcut(Qt::Key_P);
-  connect(perspective, &QAction::toggled, m_viewport, &render::OcctViewport::setPerspective);
+  connect(perspective, &QAction::toggled, _viewport, &render::OcctViewport::setPerspective);
 
   viewMenu->addSeparator();
-  m_styleGroup = new QActionGroup(this);
+  _styleGroup = new QActionGroup(this);
   struct NamedStyle {
     const char* label;
     render::DisplayStyle style;
@@ -315,54 +315,53 @@ void MainWindow::createActions() {
       {QT_TR_NOOP("Shaded with &Edges"), render::DisplayStyle::ShadedWithEdges, Qt::Key_E},
       {QT_TR_NOOP("&Wireframe"), render::DisplayStyle::Wireframe, Qt::Key_W},
   };
-  for (const NamedStyle& s : styles) {
-    QAction* action = viewMenu->addAction(tr(s.label));
+  for (const NamedStyle& namedStyle : styles) {
+    QAction* action = viewMenu->addAction(tr(namedStyle.label));
     action->setCheckable(true);
-    action->setShortcut(s.key);
-    action->setChecked(s.style == m_scene->displayStyle());
-    m_styleGroup->addAction(action);
-    const render::DisplayStyle style = s.style;
+    action->setShortcut(namedStyle.key);
+    action->setChecked(namedStyle.style == _scene->displayStyle());
+    _styleGroup->addAction(action);
+    const render::DisplayStyle style = namedStyle.style;
     connect(action, &QAction::triggered, this, [this, style] {
-      m_scene->setDisplayStyle(style);
-      m_viewport->invalidateScene();
+      _scene->setDisplayStyle(style);
+      _viewport->invalidateScene();
     });
   }
 
   viewMenu->addSeparator();
-  m_hideAction = viewMenu->addAction(tr("&Hide"), this, &MainWindow::hideSelected);
-  m_hideAction->setShortcut(Qt::Key_H);
-  m_isolateAction = viewMenu->addAction(tr("&Isolate"), this, &MainWindow::isolateSelected);
-  m_isolateAction->setShortcut(Qt::Key_I);
-  m_showAllAction = viewMenu->addAction(tr("Show &All"), this, &MainWindow::showAll);
-  m_showAllAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_H));
-  m_transparentAction =
-      viewMenu->addAction(tr("&Transparent"), this, &MainWindow::toggleTransparencySelected);
-  m_transparentAction->setShortcut(Qt::Key_T);
+  _hideAction = viewMenu->addAction(tr("&Hide"), this, &MainWindow::hideSelected);
+  _hideAction->setShortcut(Qt::Key_H);
+  _isolateAction = viewMenu->addAction(tr("&Isolate"), this, &MainWindow::isolateSelected);
+  _isolateAction->setShortcut(Qt::Key_I);
+  _showAllAction = viewMenu->addAction(tr("Show &All"), this, &MainWindow::showAll);
+  _showAllAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_H));
+  _transparentAction = viewMenu->addAction(tr("&Transparent"), this, &MainWindow::toggleTransparencySelected);
+  _transparentAction->setShortcut(Qt::Key_T);
 
-  m_sectionAction = viewMenu->addAction(tr("Se&ction View"));
-  m_sectionAction->setCheckable(true);
-  m_sectionAction->setShortcut(Qt::Key_X);
-  m_sectionAction->setStatusTip(
+  _sectionAction = viewMenu->addAction(tr("Se&ction View"));
+  _sectionAction->setCheckable(true);
+  _sectionAction->setShortcut(Qt::Key_X);
+  _sectionAction->setStatusTip(
       tr("Cut the model with up to three planes (drag a plane's handle to move it)"));
-  connect(m_sectionAction, &QAction::toggled, this, &MainWindow::setSectionView);
-  m_showAllPmiAction = viewMenu->addAction(tr("Show All &PMI"), this, &MainWindow::showAllPmi);
-  m_showAllPmiAction->setStatusTip(tr("Show every annotation and remove saved-view clipping"));
-  m_semanticLabelsAction = viewMenu->addAction(tr("PMI &Labels from Semantics"));
-  m_semanticLabelsAction->setCheckable(true);
-  m_semanticLabelsAction->setStatusTip(
+  connect(_sectionAction, &QAction::toggled, this, &MainWindow::setSectionView);
+  _showAllPmiAction = viewMenu->addAction(tr("Show All &PMI"), this, &MainWindow::showAllPmi);
+  _showAllPmiAction->setStatusTip(tr("Show every annotation and remove saved-view clipping"));
+  _semanticLabelsAction = viewMenu->addAction(tr("PMI &Labels from Semantics"));
+  _semanticLabelsAction->setCheckable(true);
+  _semanticLabelsAction->setStatusTip(
       tr("Draw annotations that have no graphics in the file as labels, dimension lines and arrows"));
-  connect(m_semanticLabelsAction, &QAction::toggled, this, [this](bool on) {
-    m_pmiScene->setSemanticLabelsVisible(on);
-    m_declutterTimer->start();
-    m_viewport->invalidateScene();
+  connect(_semanticLabelsAction, &QAction::toggled, this, [this](bool on) {
+    _pmiScene->setSemanticLabelsVisible(on);
+    _declutterTimer->start();
+    _viewport->invalidateScene();
   });
 
   viewMenu->addSeparator();
-  m_antialiasingAction = viewMenu->addAction(tr("&Antialiasing (4x MSAA)"));
-  m_antialiasingAction->setCheckable(true);
+  _antialiasingAction = viewMenu->addAction(tr("&Antialiasing (4x MSAA)"));
+  _antialiasingAction->setCheckable(true);
   // Same setting as in the Preferences dialog; persisted in QSettings.
-  m_antialiasingAction->setChecked(ViewPreferences::load().antialiasing);
-  connect(m_antialiasingAction, &QAction::toggled, this, [this](bool on) {
+  _antialiasingAction->setChecked(ViewPreferences::load().antialiasing);
+  connect(_antialiasingAction, &QAction::toggled, this, [this](bool on) {
     ViewPreferences preferences = ViewPreferences::load();
     preferences.antialiasing = on;
     preferences.save();
@@ -370,7 +369,7 @@ void MainWindow::createActions() {
   });
   QAction* frameRate = viewMenu->addAction(tr("Show Frame &Rate"));
   frameRate->setCheckable(true);
-  connect(frameRate, &QAction::toggled, m_viewport, &render::OcctViewport::setShowFrameRate);
+  connect(frameRate, &QAction::toggled, _viewport, &render::OcctViewport::setShowFrameRate);
 
   viewMenu->addSeparator();
   QMenu* panels = viewMenu->addMenu(tr("&Panels"));
@@ -379,7 +378,7 @@ void MainWindow::createActions() {
   }
 
   createMeasureMenu();
-  m_measurements->setHint(tr("Choose a measurement from the Measure menu."));
+  _measurements->setHint(tr("Choose a measurement from the Measure menu."));
 
   // --- Help -----------------------------------------------------------------
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
@@ -391,15 +390,15 @@ void MainWindow::createActions() {
 
 void MainWindow::createMeasureMenu() {
   QSettings settings;
-  m_measureOptions.lengthUnit = static_cast<core::LengthUnit>(
-      settings.value(kMeasureUnitKey, int(core::LengthUnit::Millimeter)).toInt());
-  m_measureOptions.decimals = std::clamp(settings.value(kMeasureDecimalsKey, 3).toInt(), 0, 8);
-  m_measureOptions.angleUnit = static_cast<core::AngleUnit>(
-      settings.value(kMeasureAngleUnitKey, int(core::AngleUnit::Degree)).toInt());
-  m_measureTool->setDisplayOptions(m_measureOptions);
+  _measureOptions.lengthUnit = static_cast<core::LengthUnit>(
+      settings.value(MeasureUnitKey, int(core::LengthUnit::Millimeter)).toInt());
+  _measureOptions.decimals = std::clamp(settings.value(MeasureDecimalsKey, 3).toInt(), 0, 8);
+  _measureOptions.angleUnit =
+      static_cast<core::AngleUnit>(settings.value(MeasureAngleUnitKey, int(core::AngleUnit::Degree)).toInt());
+  _measureTool->setDisplayOptions(_measureOptions);
 
   QMenu* menu = menuBar()->addMenu(tr("&Measure"));
-  m_measureGroup = new QActionGroup(this);
+  _measureGroup = new QActionGroup(this);
   struct NamedMode {
     const char* label;
     core::MeasureMode mode;
@@ -418,25 +417,25 @@ void MainWindow::createMeasureMenu() {
       {QT_TR_NOOP("&Radius / Diameter"), core::MeasureMode::Radius, QKeySequence(Qt::Key_R),
        QT_TR_NOOP("Radius of a circular edge or a cylindrical, spherical or toroidal face")},
   };
-  for (const NamedMode& m : modes) {
-    QAction* action = menu->addAction(tr(m.label));
+  for (const NamedMode& namedMode : modes) {
+    QAction* action = menu->addAction(tr(namedMode.label));
     action->setCheckable(true);
-    action->setShortcut(m.key);
-    action->setStatusTip(tr(m.tip));
-    action->setData(int(m.mode));
-    m_measureGroup->addAction(action);
-    const int mode = int(m.mode);
+    action->setShortcut(namedMode.key);
+    action->setStatusTip(tr(namedMode.tip));
+    action->setData(int(namedMode.mode));
+    _measureGroup->addAction(action);
+    const int mode = int(namedMode.mode);
     connect(action, &QAction::triggered, this, [this, mode] { setMeasureMode(mode); });
   }
   menu->addSeparator();
-  m_massPropertiesAction = menu->addAction(tr("Mass &Properties"), this, [this] { measureMassProperties(); });
-  m_massPropertiesAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_M));
-  m_massPropertiesAction->setStatusTip(
+  _massPropertiesAction = menu->addAction(tr("Mass &Properties"), this, [this] { measureMassProperties(); });
+  _massPropertiesAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_M));
+  _massPropertiesAction->setStatusTip(
       tr("Volume, surface area, centroid, inertia and bounding box of the selected parts (all visible "
          "parts when nothing is selected)"));
   menu->addSeparator();
-  m_stopMeasureAction = menu->addAction(tr("&Stop Measuring"), this, [this] { setMeasureMode(-1); });
-  m_stopMeasureAction->setShortcut(Qt::Key_Escape);
+  _stopMeasureAction = menu->addAction(tr("&Stop Measuring"), this, [this] { setMeasureMode(-1); });
+  _stopMeasureAction->setShortcut(Qt::Key_Escape);
 
   menu->addSeparator();
   QMenu* units = menu->addMenu(tr("Length &Unit"));
@@ -446,11 +445,11 @@ void MainWindow::createMeasureMenu() {
         core::LengthUnit::Meter, core::LengthUnit::Inch, core::LengthUnit::Foot}) {
     QAction* action = units->addAction(QString::fromUtf8(core::displayName(unit).data()));
     action->setCheckable(true);
-    action->setChecked(unit == m_measureOptions.lengthUnit);
+    action->setChecked(unit == _measureOptions.lengthUnit);
     unitGroup->addAction(action);
     connect(action, &QAction::triggered, this, [this, unit] {
-      m_measureOptions.lengthUnit = unit;
-      QSettings().setValue(kMeasureUnitKey, int(unit));
+      _measureOptions.lengthUnit = unit;
+      QSettings().setValue(MeasureUnitKey, int(unit));
       applyMeasureOptions();
     });
   }
@@ -459,11 +458,11 @@ void MainWindow::createMeasureMenu() {
   for (int decimals = 0; decimals <= 6; ++decimals) {
     QAction* action = precision->addAction(tr("%n decimal(s)", nullptr, decimals));
     action->setCheckable(true);
-    action->setChecked(decimals == m_measureOptions.decimals);
+    action->setChecked(decimals == _measureOptions.decimals);
     precisionGroup->addAction(action);
     connect(action, &QAction::triggered, this, [this, decimals] {
-      m_measureOptions.decimals = decimals;
-      QSettings().setValue(kMeasureDecimalsKey, decimals);
+      _measureOptions.decimals = decimals;
+      QSettings().setValue(MeasureDecimalsKey, decimals);
       applyMeasureOptions();
     });
   }
@@ -474,54 +473,54 @@ void MainWindow::createMeasureMenu() {
   for (const auto& [unit, label] : angleUnits) {
     QAction* action = angles->addAction(tr(label));
     action->setCheckable(true);
-    action->setChecked(unit == m_measureOptions.angleUnit);
+    action->setChecked(unit == _measureOptions.angleUnit);
     angleGroup->addAction(action);
     const core::AngleUnit angleUnit = unit;
     connect(action, &QAction::triggered, this, [this, angleUnit] {
-      m_measureOptions.angleUnit = angleUnit;
-      QSettings().setValue(kMeasureAngleUnitKey, int(angleUnit));
+      _measureOptions.angleUnit = angleUnit;
+      QSettings().setValue(MeasureAngleUnitKey, int(angleUnit));
       applyMeasureOptions();
     });
   }
   menu->addSeparator();
-  menu->addAction(m_measurementsDock->toggleViewAction());
+  menu->addAction(_measurementsDock->toggleViewAction());
 }
 
 void MainWindow::applyMeasureOptions() {
   // New results use the new units; existing results keep the text they were measured with.
-  m_measureTool->setDisplayOptions(m_measureOptions);
-  statusBar()->showMessage(tr("New measurements use %1, %n decimal(s).", nullptr, m_measureOptions.decimals)
-                               .arg(QString::fromUtf8(core::displayName(m_measureOptions.lengthUnit).data())),
+  _measureTool->setDisplayOptions(_measureOptions);
+  statusBar()->showMessage(tr("New measurements use %1, %n decimal(s).", nullptr, _measureOptions.decimals)
+                               .arg(QString::fromUtf8(core::displayName(_measureOptions.lengthUnit).data())),
                            5000);
 }
 
 void MainWindow::setMeasureMode(int mode) {
   std::optional<core::MeasureMode> newMode =
       mode < 0 ? std::nullopt : std::optional<core::MeasureMode>(static_cast<core::MeasureMode>(mode));
-  if (newMode && !m_scene->model()) {
+  if (newMode && !_scene->model()) {
     statusBar()->showMessage(tr("Open a model to measure."), 4000);
     newMode.reset();
   }
-  for (QAction* action : m_measureGroup->actions()) {
+  for (QAction* action : _measureGroup->actions()) {
     action->setChecked(newMode && action->data().toInt() == mode);
   }
   if (newMode) {
     // Measuring works on sub-shapes: drop the part selection first.
-    m_syncingSelection = true;
-    m_treeView->clearSelection();
-    m_syncingSelection = false;
-    m_measurementsDock->show();
+    _syncingSelection = true;
+    _treeView->clearSelection();
+    _syncingSelection = false;
+    _measurementsDock->show();
   }
-  m_measureTool->setMode(newMode);
+  _measureTool->setMode(newMode);
   if (!newMode) {
-    m_measurements->setHint(tr("Choose a measurement from the Measure menu."));
+    _measurements->setHint(tr("Choose a measurement from the Measure menu."));
     statusBar()->clearMessage();
   }
   updateActions();
 }
 
 void MainWindow::onPickProgress(int picked, int required) {
-  const auto mode = m_measureTool->mode();
+  const auto mode = _measureTool->mode();
   if (!mode) {
     return;
   }
@@ -532,13 +531,13 @@ void MainWindow::onPickProgress(int picked, int required) {
                                  .arg(name)
                                  .arg(picked + 1)
                                  .arg(required);
-  m_measurements->setHint(hint);
+  _measurements->setHint(hint);
   statusBar()->showMessage(hint);
 }
 
 void MainWindow::onMeasured(const core::Measurement& measurement) {
-  m_measurementsDock->show(); // a closed panel hides witnesses: reopen it to show the new result
-  m_measurements->addMeasurement(measurement);
+  _measurementsDock->show(); // a closed panel hides witnesses: reopen it to show the new result
+  _measurements->addMeasurement(measurement);
   if (!measurement.ok) {
     statusBar()->showMessage(QString::fromStdString(measurement.error), 6000);
   }
@@ -551,13 +550,13 @@ void MainWindow::onMeasured(const core::Measurement& measurement) {
 // cleared, so that case also measures all parts rather than guessing from the picks. Hidden
 // parts are always skipped: what you see is what gets measured.
 void MainWindow::measureMassProperties() {
-  const std::shared_ptr<const core::AssemblyIndex> index = m_scene->model();
+  const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
   if (!index) {
     statusBar()->showMessage(tr("Open a model to measure."), 4000);
     return;
   }
   const std::vector<core::NodeId> selection =
-      m_measureTool->isActive() ? std::vector<core::NodeId>{} : selectedNodes();
+      _measureTool->isActive() ? std::vector<core::NodeId>{} : selectedNodes();
 
   std::vector<core::NodeId> parts;
   if (selection.empty()) {
@@ -571,7 +570,7 @@ void MainWindow::measureMassProperties() {
     parts.erase(std::unique(parts.begin(), parts.end()), parts.end());
   }
   parts.erase(
-      std::remove_if(parts.begin(), parts.end(), [this](core::NodeId id) { return !m_scene->isVisible(id); }),
+      std::remove_if(parts.begin(), parts.end(), [this](core::NodeId id) { return !_scene->isVisible(id); }),
       parts.end());
   if (parts.empty()) {
     statusBar()->showMessage(selection.empty() ? tr("There are no visible parts to measure.")
@@ -591,33 +590,33 @@ void MainWindow::measureMassProperties() {
     item.location = index->node(id).location;
     items.push_back(std::move(item));
   }
-  const core::Measurement result = core::computeMassProperties(items, m_measureOptions);
+  const core::Measurement result = core::computeMassProperties(items, _measureOptions);
   QApplication::restoreOverrideCursor();
 
-  m_measurementsDock->show();
+  _measurementsDock->show();
   // Adding emits MeasurementsPanel::displayChanged, so syncMeasurementWitnesses draws the witness.
-  m_measurements->addMeasurement(result);
+  _measurements->addMeasurement(result);
   if (!result.ok) {
     statusBar()->showMessage(QString::fromStdString(result.error), 6000);
   }
 }
 
 void MainWindow::updateActions() {
-  const bool hasModel = m_scene->model() != nullptr;
+  const bool hasModel = _scene->model() != nullptr;
   const bool hasSelection = hasModel && !selectedNodes().empty();
-  m_closeAction->setEnabled(hasModel);
-  m_hideAction->setEnabled(hasSelection);
-  m_isolateAction->setEnabled(hasSelection);
-  m_transparentAction->setEnabled(hasSelection);
-  m_fitSelectionAction->setEnabled(hasSelection);
-  m_showAllAction->setEnabled(hasModel);
-  m_showAllPmiAction->setEnabled(m_pmi && !m_pmi->isEmpty());
-  m_semanticLabelsAction->setEnabled(m_pmi && !m_pmi->isEmpty());
-  m_sectionAction->setEnabled(hasModel);
-  if (m_stopMeasureAction != nullptr) {
-    m_stopMeasureAction->setEnabled(m_measureTool->isActive());
-    m_massPropertiesAction->setEnabled(hasModel);
-    for (QAction* action : m_measureGroup->actions()) {
+  _closeAction->setEnabled(hasModel);
+  _hideAction->setEnabled(hasSelection);
+  _isolateAction->setEnabled(hasSelection);
+  _transparentAction->setEnabled(hasSelection);
+  _fitSelectionAction->setEnabled(hasSelection);
+  _showAllAction->setEnabled(hasModel);
+  _showAllPmiAction->setEnabled(_pmi && !_pmi->isEmpty());
+  _semanticLabelsAction->setEnabled(_pmi && !_pmi->isEmpty());
+  _sectionAction->setEnabled(hasModel);
+  if (_stopMeasureAction != nullptr) {
+    _stopMeasureAction->setEnabled(_measureTool->isActive());
+    _massPropertiesAction->setEnabled(hasModel);
+    for (QAction* action : _measureGroup->actions()) {
       action->setEnabled(hasModel);
     }
   }
@@ -625,7 +624,7 @@ void MainWindow::updateActions() {
 
 void MainWindow::onGlInitialized(bool ok, const QString& message) {
   if (!ok) {
-    m_glStatus->setText(tr("3D view unavailable"));
+    _glStatus->setText(tr("3D view unavailable"));
     QString details = message;
 #ifdef __linux__
     details += tr("\n\nTry starting with --software-gl to use software rendering.");
@@ -633,11 +632,11 @@ void MainWindow::onGlInitialized(bool ok, const QString& message) {
     QMessageBox::critical(this, tr("Graphics Error"), details);
     return;
   }
-  m_glStatus->setText(message);
-  m_glReady = true;
+  _glStatus->setText(message);
+  _glReady = true;
   applyViewPreferences(ViewPreferences::load());
-  if (!m_pendingFile.isEmpty()) {
-    const QString path = std::exchange(m_pendingFile, QString());
+  if (!_pendingFile.isEmpty()) {
+    const QString path = std::exchange(_pendingFile, QString());
     openFile(path);
   }
 }
@@ -647,30 +646,30 @@ void MainWindow::onGlInitialized(bool ok, const QString& message) {
 // ---------------------------------------------------------------------------------
 
 void MainWindow::openFileWhenReady(const QString& path) {
-  if (m_glReady) {
+  if (_glReady) {
     openFile(path);
   } else {
-    m_pendingFile = path;
+    _pendingFile = path;
   }
 }
 
 void MainWindow::openFileDialog() {
   QSettings settings;
-  const QString dir = settings.value(QLatin1String(kLastDirKey)).toString();
+  const QString dir = settings.value(QLatin1String(LastDirKey)).toString();
   const QString path = QFileDialog::getOpenFileName(
       this, tr("Open STEP File"), dir, tr("STEP files (*.step *.stp *.stpz *.p21);;All files (*)"));
   if (!path.isEmpty()) {
-    settings.setValue(QLatin1String(kLastDirKey), QFileInfo(path).absolutePath());
+    settings.setValue(QLatin1String(LastDirKey), QFileInfo(path).absolutePath());
     openFile(path);
   }
 }
 
 void MainWindow::openFile(const QString& path) {
-  if (m_import) {
+  if (_import) {
     // A newer request (Open, Recent, a Finder/Explorer double-click) wins: cancel the
     // current import and open this file once the cancelled one has wound down.
-    m_pendingFile = path;
-    m_import->cancel();
+    _pendingFile = path;
+    _import->cancel();
     return;
   }
   if (!QFileInfo::exists(path)) {
@@ -678,36 +677,36 @@ void MainWindow::openFile(const QString& path) {
     return;
   }
 
-  m_import = new ImportJob(QFileInfo(path).absoluteFilePath(), this);
+  _import = new ImportJob(QFileInfo(path).absoluteFilePath(), this);
 
-  m_progress =
+  _progress =
       new QProgressDialog(tr("Opening %1...").arg(QFileInfo(path).fileName()), tr("Cancel"), 0, 100, this);
-  m_progress->setWindowModality(Qt::WindowModal);
-  m_progress->setMinimumDuration(400);
-  m_progress->setAutoClose(false);
-  m_progress->setAutoReset(false);
-  m_progress->setValue(0);
-  connect(m_progress, &QProgressDialog::canceled, m_import, &ImportJob::cancel);
-  connect(m_import, &ImportJob::progress, m_progress, [this, path](int percent, const QString& stage) {
-    if (m_progress) {
-      m_progress->setLabelText(tr("%1\n%2...").arg(QFileInfo(path).fileName(), stage));
-      m_progress->setValue(std::min(percent, 99));
+  _progress->setWindowModality(Qt::WindowModal);
+  _progress->setMinimumDuration(400);
+  _progress->setAutoClose(false);
+  _progress->setAutoReset(false);
+  _progress->setValue(0);
+  connect(_progress, &QProgressDialog::canceled, _import, &ImportJob::cancel);
+  connect(_import, &ImportJob::progress, _progress, [this, path](int percent, const QString& stage) {
+    if (_progress) {
+      _progress->setLabelText(tr("%1\n%2...").arg(QFileInfo(path).fileName(), stage));
+      _progress->setValue(std::min(percent, 99));
     }
   });
-  connect(m_import, &ImportJob::finished, this, &MainWindow::onImportFinished);
+  connect(_import, &ImportJob::finished, this, &MainWindow::onImportFinished);
 
   statusBar()->showMessage(tr("Loading %1...").arg(QFileInfo(path).fileName()));
-  m_import->start();
+  _import->start();
 }
 
 void MainWindow::onImportFinished() {
-  ImportJob* job = m_import;
+  ImportJob* job = _import;
   if (job == nullptr) {
     return;
   }
-  if (m_progress) {
-    m_progress->close();
-    m_progress->deleteLater();
+  if (_progress) {
+    _progress->close();
+    _progress->deleteLater();
   }
   const core::ImportResult& result = job->result();
   const QString fileName = QFileInfo(job->path()).fileName();
@@ -721,32 +720,32 @@ void MainWindow::onImportFinished() {
   } else {
     // Replace the previous model only once the new one loaded successfully.
     std::shared_ptr<const core::AssemblyIndex> index = job->index();
-    m_transparentParts.clear();
-    m_measureTool->reset();
-    m_measurements->clear(); // results belong to the previous model
-    m_pmiScene->clearViewClipping(m_viewport->view());
-    m_sectionTool->reset();
-    m_scene->setModel(index);
-    m_sectionTool->setBounds(m_scene->boundingBox(index->roots()));
-    m_sectionPanel->refresh();
-    m_pmi = job->pmi();
-    m_pmiScene->setModel(m_pmi, index, m_viewport->devicePixelRatioF());
-    m_pmiPanel->setModel(m_pmi);
+    _transparentParts.clear();
+    _measureTool->reset();
+    _measurements->clear(); // results belong to the previous model
+    _pmiScene->clearViewClipping(_viewport->view());
+    _sectionTool->reset();
+    _scene->setModel(index);
+    _sectionTool->setBounds(_scene->boundingBox(index->roots()));
+    _sectionPanel->refresh();
+    _pmi = job->pmi();
+    _pmiScene->setModel(_pmi, index, _viewport->devicePixelRatioF());
+    _pmiPanel->setModel(_pmi);
     {
-      const QSignalBlocker blocker(m_semanticLabelsAction);
-      m_semanticLabelsAction->setChecked(m_pmiScene->semanticLabelsVisible()); // auto default per file
+      const QSignalBlocker blocker(_semanticLabelsAction);
+      _semanticLabelsAction->setChecked(_pmiScene->semanticLabelsVisible()); // auto default per file
     }
-    m_declutterTimer->start();
-    if (m_pmi && !m_pmi->isEmpty()) {
-      m_pmiDock->show();
-      m_pmiDock->raise();
+    _declutterTimer->start();
+    if (_pmi && !_pmi->isEmpty()) {
+      _pmiDock->show();
+      _pmiDock->raise();
     }
-    render::SceneManager* scene = m_scene.get();
-    m_treeModel->setModel(index, [scene](core::NodeId id) { return scene->isVisible(id); });
-    m_treeView->expandToDepth(0);
-    m_properties->setModel(index, result.stats, job->elapsedSeconds());
+    render::SceneManager* scene = _scene.get();
+    _treeModel->setModel(index, [scene](core::NodeId id) { return scene->isVisible(id); });
+    _treeView->expandToDepth(0);
+    _properties->setModel(index, result.stats, job->elapsedSeconds());
 
-    m_messages->clear();
+    _messages->clear();
     int problems = 0;
     for (const core::ImportMessage& message : result.messages) {
       QString text =
@@ -754,7 +753,7 @@ void MainWindow::onImportFinished() {
       if (message.count > 1) {
         text += tr(" (%1 times)").arg(message.count);
       }
-      m_messages->addItem(text);
+      _messages->addItem(text);
       problems += message.severity != core::ImportMessage::Severity::Info ? message.count : 0;
     }
 
@@ -763,13 +762,13 @@ void MainWindow::onImportFinished() {
     if (document->fileUnit()) {
       unit = QString::fromUtf8(core::symbol(*document->fileUnit()).data());
     }
-    m_unitStatus->setText(unit.isEmpty() ? QString() : tr("File unit: %1").arg(unit));
+    _unitStatus->setText(unit.isEmpty() ? QString() : tr("File unit: %1").arg(unit));
 
-    m_emptyHint->hide();
+    _emptyHint->hide();
     setWindowTitle(QStringLiteral("%1 — %2").arg(fileName, QString::fromUtf8(core::AppName)));
     addRecentFile(job->path());
-    m_viewport->fitAll();
-    m_viewport->invalidateScene();
+    _viewport->fitAll();
+    _viewport->invalidateScene();
 
     QString summary = tr("Loaded %1: %2 part instances, %3 unique parts in %4 s.")
                           .arg(fileName)
@@ -783,75 +782,75 @@ void MainWindow::onImportFinished() {
   }
 
   job->deleteLater();
-  m_import = nullptr;
+  _import = nullptr;
   updateActions();
   core::releaseFreedMemory(); // the previous model, if one was replaced
 
-  if (!m_pendingFile.isEmpty() && m_glReady) {
-    openFile(std::exchange(m_pendingFile, QString()));
+  if (!_pendingFile.isEmpty() && _glReady) {
+    openFile(std::exchange(_pendingFile, QString()));
   }
 }
 
 void MainWindow::closeModel() {
   setMeasureMode(-1);
-  m_measureTool->reset();
-  m_measurements->clear();
+  _measureTool->reset();
+  _measurements->clear();
   setSectionView(false);
-  m_pmiScene->clearViewClipping(m_viewport->view());
-  m_pmiScene->clear();
-  m_pmiPanel->clear();
-  m_pmi.reset();
-  m_scene->setModel(nullptr);
-  m_treeModel->setModel(nullptr, {});
-  m_properties->clear();
-  m_messages->clear();
-  m_transparentParts.clear();
-  m_unitStatus->clear();
-  m_emptyHint->show();
+  _pmiScene->clearViewClipping(_viewport->view());
+  _pmiScene->clear();
+  _pmiPanel->clear();
+  _pmi.reset();
+  _scene->setModel(nullptr);
+  _treeModel->setModel(nullptr, {});
+  _properties->clear();
+  _messages->clear();
+  _transparentParts.clear();
+  _unitStatus->clear();
+  _emptyHint->show();
   setWindowTitle(QString::fromUtf8(core::AppName));
-  m_viewport->invalidateScene();
+  _viewport->invalidateScene();
   updateActions();
   core::releaseFreedMemory();
 }
 
 void MainWindow::addRecentFile(const QString& path) {
   QSettings settings;
-  QStringList files = settings.value(QLatin1String(kRecentFilesKey)).toStringList();
+  QStringList files = settings.value(QLatin1String(RecentFilesKey)).toStringList();
   files.removeAll(path);
   files.prepend(path);
-  while (files.size() > kMaxRecentFiles) {
+  while (files.size() > MaxRecentFiles) {
     files.removeLast();
   }
-  settings.setValue(QLatin1String(kRecentFilesKey), files);
+  settings.setValue(QLatin1String(RecentFilesKey), files);
 }
 
 void MainWindow::rebuildRecentMenu() {
-  m_recentMenu->clear();
-  const QStringList files = QSettings().value(QLatin1String(kRecentFilesKey)).toStringList();
+  _recentMenu->clear();
+  const QStringList files = QSettings().value(QLatin1String(RecentFilesKey)).toStringList();
   for (const QString& path : files) {
     QAction* action =
-        m_recentMenu->addAction(QFileInfo(path).fileName(), this, [this, path] { openFile(path); });
+        _recentMenu->addAction(QFileInfo(path).fileName(), this, [this, path] { openFile(path); });
     action->setToolTip(path);
     action->setStatusTip(path);
     action->setEnabled(QFileInfo::exists(path));
   }
   if (files.isEmpty()) {
-    m_recentMenu->addAction(tr("No recent files"))->setEnabled(false);
+    _recentMenu->addAction(tr("No recent files"))->setEnabled(false);
   } else {
-    m_recentMenu->addSeparator();
-    m_recentMenu->addAction(tr("Clear Recent Files"), this,
-                            [] { QSettings().remove(QLatin1String(kRecentFilesKey)); });
+    _recentMenu->addSeparator();
+    _recentMenu->addAction(tr("Clear Recent Files"), this,
+                           [] { QSettings().remove(QLatin1String(RecentFilesKey)); });
   }
 }
 
 bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
-  if (watched == m_viewport) {
+  if (watched == _viewport) {
     switch (event->type()) {
     case QEvent::MouseButtonRelease:
     case QEvent::Wheel:
     case QEvent::Resize:
     case QEvent::KeyRelease: // standard views, fit
-      m_declutterTimer->start();
+      _declutterTimer->start();
       break;
     default:
       break;
@@ -881,8 +880,8 @@ void MainWindow::dropEvent(QDropEvent* event) {
 
 std::vector<core::NodeId> MainWindow::selectedNodes() const {
   std::vector<core::NodeId> nodes;
-  for (const QModelIndex& index : m_treeView->selectionModel()->selectedRows()) {
-    const core::NodeId id = m_treeModel->nodeId(index);
+  for (const QModelIndex& index : _treeView->selectionModel()->selectedRows()) {
+    const core::NodeId id = _treeModel->nodeId(index);
     if (id != core::NoNode) {
       nodes.push_back(id);
     }
@@ -892,33 +891,33 @@ std::vector<core::NodeId> MainWindow::selectedNodes() const {
 
 void MainWindow::onTreeSelectionChanged() {
   const std::vector<core::NodeId> nodes = selectedNodes();
-  m_properties->showSelection(nodes);
+  _properties->showSelection(nodes);
   updateActions();
-  if (m_syncingSelection) {
+  if (_syncingSelection) {
     return;
   }
-  if (m_measureTool->isActive()) {
+  if (_measureTool->isActive()) {
     return; // in measure mode the 3D selection holds picks, not parts
   }
-  m_syncingSelection = true;
-  if (!m_pmiScene->highlighted().empty()) {
-    m_pmiScene->highlight({});
-    m_pmiPanel->selectPmi({});
+  _syncingSelection = true;
+  if (!_pmiScene->highlighted().empty()) {
+    _pmiScene->highlight({});
+    _pmiPanel->selectPmi({});
   }
-  m_scene->select(nodes);
-  m_viewport->invalidateScene();
-  m_syncingSelection = false;
+  _scene->select(nodes);
+  _viewport->invalidateScene();
+  _syncingSelection = false;
 }
 
 void MainWindow::onViewportSelectionChanged() {
-  if (m_syncingSelection || m_measureTool->isActive()) {
+  if (_syncingSelection || _measureTool->isActive()) {
     return;
   }
-  m_syncingSelection = true;
+  _syncingSelection = true;
   QItemSelection selection;
   QModelIndex first;
-  for (const core::NodeId part : m_scene->selectedParts()) {
-    const QModelIndex index = m_treeModel->indexOf(part);
+  for (const core::NodeId part : _scene->selectedParts()) {
+    const QModelIndex index = _treeModel->indexOf(part);
     if (index.isValid()) {
       selection.select(index, index);
       if (!first.isValid()) {
@@ -926,28 +925,28 @@ void MainWindow::onViewportSelectionChanged() {
       }
     }
   }
-  m_treeView->selectionModel()->select(selection,
-                                       QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+  _treeView->selectionModel()->select(selection,
+                                      QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
   if (first.isValid()) {
-    m_treeView->scrollTo(first); // expands collapsed parents
-    m_treeView->selectionModel()->setCurrentIndex(first, QItemSelectionModel::NoUpdate);
+    _treeView->scrollTo(first); // expands collapsed parents
+    _treeView->selectionModel()->setCurrentIndex(first, QItemSelectionModel::NoUpdate);
   }
-  m_syncingSelection = false;
+  _syncingSelection = false;
 
   // A picked annotation: select it in the PMI panel and show what it applies to.
-  const std::vector<core::PmiId> pmi = m_pmiScene->selectedPmi();
+  const std::vector<core::PmiId> pmi = _pmiScene->selectedPmi();
   if (!pmi.empty()) {
-    m_pmiPanel->selectPmi(pmi);
-    m_pmiScene->highlight(pmi);
-    m_properties->showPmi(m_pmi, pmi);
-    m_viewport->invalidateScene();
+    _pmiPanel->selectPmi(pmi);
+    _pmiScene->highlight(pmi);
+    _properties->showPmi(_pmi, pmi);
+    _viewport->invalidateScene();
   } else {
-    if (!m_pmiScene->highlighted().empty()) {
-      m_pmiScene->highlight({});
-      m_pmiPanel->selectPmi({});
-      m_viewport->invalidateScene();
+    if (!_pmiScene->highlighted().empty()) {
+      _pmiScene->highlight({});
+      _pmiPanel->selectPmi({});
+      _viewport->invalidateScene();
     }
-    m_properties->showSelection(selectedNodes());
+    _properties->showSelection(selectedNodes());
   }
   updateActions();
 }
@@ -957,75 +956,74 @@ void MainWindow::onViewportSelectionChanged() {
 // ---------------------------------------------------------------------------------
 
 void MainWindow::afterVisibilityChange() {
-  m_treeModel->refreshVisibility();
-  m_viewport->invalidateScene();
+  _treeModel->refreshVisibility();
+  _viewport->invalidateScene();
   updateActions();
 }
 
 void MainWindow::setNodeVisible(core::NodeId node, bool visible) {
-  m_scene->setVisible({node}, visible);
+  _scene->setVisible({node}, visible);
   afterVisibilityChange();
 }
 
 void MainWindow::hideSelected() {
-  m_scene->setVisible(selectedNodes(), false);
+  _scene->setVisible(selectedNodes(), false);
   afterVisibilityChange();
 }
 
 void MainWindow::isolateSelected() {
-  m_scene->isolate(selectedNodes());
+  _scene->isolate(selectedNodes());
   afterVisibilityChange();
 }
 
 void MainWindow::showAll() {
-  m_scene->showAll();
+  _scene->showAll();
   afterVisibilityChange();
 }
 
 void MainWindow::toggleTransparencySelected() {
   const std::vector<core::NodeId> nodes = selectedNodes();
-  if (nodes.empty() || !m_scene->model()) {
+  if (nodes.empty() || !_scene->model()) {
     return;
   }
   // Toggle based on the first selected part: transparent -> opaque, otherwise -> transparent.
-  const auto parts = m_scene->model()->partsBelow(nodes.front());
-  const bool makeTransparent =
-      parts.empty() || std::find(m_transparentParts.begin(), m_transparentParts.end(), parts.front()) ==
-                           m_transparentParts.end();
-  m_scene->setTransparency(nodes, makeTransparent ? kTransparency : 0.0);
+  const auto parts = _scene->model()->partsBelow(nodes.front());
+  const bool makeTransparent = parts.empty() || std::find(_transparentParts.begin(), _transparentParts.end(),
+                                                          parts.front()) == _transparentParts.end();
+  _scene->setTransparency(nodes, makeTransparent ? Transparency : 0.0);
   for (const core::NodeId node : nodes) {
-    for (const core::NodeId part : m_scene->model()->partsBelow(node)) {
-      m_transparentParts.erase(std::remove(m_transparentParts.begin(), m_transparentParts.end(), part),
-                               m_transparentParts.end());
+    for (const core::NodeId part : _scene->model()->partsBelow(node)) {
+      _transparentParts.erase(std::remove(_transparentParts.begin(), _transparentParts.end(), part),
+                              _transparentParts.end());
       if (makeTransparent) {
-        m_transparentParts.push_back(part);
+        _transparentParts.push_back(part);
       }
     }
   }
-  m_viewport->invalidateScene();
+  _viewport->invalidateScene();
 }
 
 void MainWindow::fitSelection() {
-  const Bnd_Box box = m_scene->boundingBox(selectedNodes());
+  const Bnd_Box box = _scene->boundingBox(selectedNodes());
   if (box.IsVoid()) {
     return;
   }
-  m_viewport->view()->FitAll(box, 0.05, false);
-  m_viewport->invalidateScene();
+  _viewport->view()->FitAll(box, 0.05, false);
+  _viewport->invalidateScene();
 }
 
 void MainWindow::showContextMenu(QWidget* source, const QPoint& pos) {
-  if (!m_scene->model()) {
+  if (!_scene->model()) {
     return;
   }
   updateActions();
   QMenu menu(this);
-  menu.addAction(m_hideAction);
-  menu.addAction(m_isolateAction);
-  menu.addAction(m_showAllAction);
+  menu.addAction(_hideAction);
+  menu.addAction(_isolateAction);
+  menu.addAction(_showAllAction);
   menu.addSeparator();
-  menu.addAction(m_transparentAction);
-  menu.addAction(m_fitSelectionAction);
+  menu.addAction(_transparentAction);
+  menu.addAction(_fitSelectionAction);
   menu.exec(source->mapToGlobal(pos));
 }
 
@@ -1034,27 +1032,27 @@ void MainWindow::showContextMenu(QWidget* source, const QPoint& pos) {
 // ---------------------------------------------------------------------------------
 
 void MainWindow::setSectionView(bool on) {
-  if (on && !m_scene->model()) {
+  if (on && !_scene->model()) {
     statusBar()->showMessage(tr("Open a model to cut it."), 4000);
     on = false;
   }
   if (on) {
-    if (!m_sectionTool->isActive()) {
-      render::SectionPlane first = m_sectionTool->plane(0);
+    if (!_sectionTool->isActive()) {
+      render::SectionPlane first = _sectionTool->plane(0);
       first.enabled = true;
-      m_sectionTool->setPlane(0, first);
+      _sectionTool->setPlane(0, first);
     }
-    m_sectionDock->show();
-    m_sectionDock->raise();
+    _sectionDock->show();
+    _sectionDock->raise();
   } else {
-    m_sectionTool->reset();
+    _sectionTool->reset();
   }
   {
-    const QSignalBlocker blocker(m_sectionAction);
-    m_sectionAction->setChecked(on);
+    const QSignalBlocker blocker(_sectionAction);
+    _sectionAction->setChecked(on);
   }
-  m_sectionPanel->refresh();
-  m_viewport->invalidateScene();
+  _sectionPanel->refresh();
+  _viewport->invalidateScene();
 }
 
 // ---------------------------------------------------------------------------------
@@ -1062,33 +1060,33 @@ void MainWindow::setSectionView(bool on) {
 // ---------------------------------------------------------------------------------
 
 void MainWindow::onPmiSelected(const std::vector<core::PmiId>& ids) {
-  if (m_measureTool->isActive()) {
+  if (_measureTool->isActive()) {
     setMeasureMode(-1); // PMI selection replaces measurement picks
   }
-  m_syncingSelection = true;
-  m_treeView->clearSelection();
-  m_syncingSelection = false;
-  m_pmiScene->highlight(ids);
+  _syncingSelection = true;
+  _treeView->clearSelection();
+  _syncingSelection = false;
+  _pmiScene->highlight(ids);
   if (ids.empty()) {
-    m_properties->showSelection({});
+    _properties->showSelection({});
   } else {
-    m_properties->showPmi(m_pmi, ids);
+    _properties->showPmi(_pmi, ids);
   }
-  m_viewport->invalidateScene();
+  _viewport->invalidateScene();
   updateActions();
 }
 
 void MainWindow::activateSavedView(int viewId) {
-  if (!m_pmi || viewId < 0 || viewId >= static_cast<int>(m_pmi->views().size())) {
+  if (!_pmi || viewId < 0 || viewId >= static_cast<int>(_pmi->views().size())) {
     return;
   }
-  const core::PmiSavedView& view = m_pmi->views()[static_cast<size_t>(viewId)];
-  m_pmiScene->applyView(view, m_viewport->view());
-  m_declutterTimer->start();
-  m_pmiPanel->setVisible(m_pmiPanel->visibleIds(), false);
-  m_pmiPanel->setVisible(view.pmi, true);
-  m_showAllPmiAction->setEnabled(true);
-  m_viewport->invalidateScene();
+  const core::PmiSavedView& view = _pmi->views()[static_cast<size_t>(viewId)];
+  _pmiScene->applyView(view, _viewport->view());
+  _declutterTimer->start();
+  _pmiPanel->setVisible(_pmiPanel->visibleIds(), false);
+  _pmiPanel->setVisible(view.pmi, true);
+  _showAllPmiAction->setEnabled(true);
+  _viewport->invalidateScene();
   QString message = tr("Saved view \"%1\": %n annotation(s)", nullptr, static_cast<int>(view.pmi.size()))
                         .arg(QString::fromStdString(view.name));
   if (!view.clippingPlanes.empty()) {
@@ -1098,16 +1096,16 @@ void MainWindow::activateSavedView(int viewId) {
 }
 
 void MainWindow::showAllPmi() {
-  m_pmiScene->clearViewClipping(m_viewport->view());
-  if (m_pmi) {
+  _pmiScene->clearViewClipping(_viewport->view());
+  if (_pmi) {
     std::vector<core::PmiId> all;
-    for (const core::PmiItem& item : m_pmi->items()) {
+    for (const core::PmiItem& item : _pmi->items()) {
       all.push_back(item.id);
     }
-    m_pmiScene->setVisible(all, true);
-    m_pmiPanel->setVisible(all, true);
+    _pmiScene->setVisible(all, true);
+    _pmiPanel->setVisible(all, true);
   }
-  m_viewport->invalidateScene();
+  _viewport->invalidateScene();
 }
 
 // ---------------------------------------------------------------------------------
@@ -1115,14 +1113,14 @@ void MainWindow::showAllPmi() {
 // ---------------------------------------------------------------------------------
 
 void MainWindow::exportImage() {
-  if (!m_glReady) {
+  if (!_glReady) {
     return;
   }
   QSettings settings;
   const QString dirKey = QStringLiteral("export/directory");
   // The window title is "<file> — <app>" while a model is open.
   const QString suggested =
-      m_closeAction->isEnabled()
+      _closeAction->isEnabled()
           ? QFileInfo(windowTitle().section(QChar(0x2014), 0, 0).trimmed()).completeBaseName()
           : QStringLiteral("view");
   QString selectedFilter;
@@ -1142,13 +1140,13 @@ void MainWindow::exportImage() {
     path += jpeg ? QStringLiteral(".jpg") : QStringLiteral(".png");
   }
 
-  ExportImageDialog dialog(m_viewport->framebufferSize(), render::OcctViewport::MaxExportSize, !jpeg, this);
+  ExportImageDialog dialog(_viewport->framebufferSize(), render::OcctViewport::MaxExportSize, !jpeg, this);
   if (dialog.exec() != QDialog::Accepted) {
     return;
   }
   QApplication::setOverrideCursor(Qt::WaitCursor);
   const QSize size = dialog.imageSize();
-  const QImage image = m_viewport->renderImage(size.width(), size.height(), dialog.background());
+  const QImage image = _viewport->renderImage(size.width(), size.height(), dialog.background());
   QApplication::restoreOverrideCursor();
 
   const bool saved = !image.isNull() && (jpeg ? image.save(path, "JPEG", 92) : image.save(path, "PNG"));
@@ -1173,12 +1171,12 @@ void MainWindow::showPreferences() {
 }
 
 void MainWindow::applyViewPreferences(const ViewPreferences& preferences) {
-  m_viewport->setBackground(preferences.background);
-  m_viewport->setLighting(preferences.lighting);
-  m_viewport->setMsaaSamples(preferences.antialiasing ? 4 : 0);
-  if (m_antialiasingAction != nullptr && m_antialiasingAction->isChecked() != preferences.antialiasing) {
-    const QSignalBlocker blocker(m_antialiasingAction);
-    m_antialiasingAction->setChecked(preferences.antialiasing);
+  _viewport->setBackground(preferences.background);
+  _viewport->setLighting(preferences.lighting);
+  _viewport->setMsaaSamples(preferences.antialiasing ? 4 : 0);
+  if (_antialiasingAction != nullptr && _antialiasingAction->isChecked() != preferences.antialiasing) {
+    const QSignalBlocker blocker(_antialiasingAction);
+    _antialiasingAction->setChecked(preferences.antialiasing);
   }
 }
 
@@ -1190,9 +1188,8 @@ void MainWindow::showGraphicsInfo() {
   auto* text = new QPlainTextEdit(&dialog);
   text->setReadOnly(true);
   text->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
-  const QString info = m_viewport->isGlReady()
-                           ? m_viewport->glInfo()
-                           : tr("OpenGL was not initialized; the 3D view is unavailable.");
+  const QString info = _viewport->isGlReady() ? _viewport->glInfo()
+                                              : tr("OpenGL was not initialized; the 3D view is unavailable.");
   text->setPlainText(info);
 
   auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
@@ -1208,8 +1205,8 @@ void MainWindow::showGraphicsInfo() {
 
 void MainWindow::showAbout() {
   AboutDialog dialog(this);
-  if (m_viewport != nullptr) {
-    dialog.setGraphicsInfo(m_viewport->glInfo());
+  if (_viewport != nullptr) {
+    dialog.setGraphicsInfo(_viewport->glInfo());
   }
   dialog.exec();
 }

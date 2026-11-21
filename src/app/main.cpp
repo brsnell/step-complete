@@ -23,32 +23,32 @@ public:
   using QApplication::QApplication;
 
   void setOpenHandler(std::function<void(const QString&)> handler) {
-    m_handler = std::move(handler);
-    const QStringList queued = std::exchange(m_queued, {});
+    _handler = std::move(handler);
+    const QStringList queued = std::exchange(_queued, {});
     for (const QString& path : queued) {
-      m_handler(path);
+      _handler(path);
     }
   }
 
 protected:
-  bool event(QEvent* e) override {
-    if (e->type() == QEvent::FileOpen) {
-      const QString path = static_cast<QFileOpenEvent*>(e)->file();
+  bool event(QEvent* event) override {
+    if (event->type() == QEvent::FileOpen) {
+      const QString path = static_cast<QFileOpenEvent*>(event)->file();
       if (!path.isEmpty()) {
-        if (m_handler) {
-          m_handler(path);
+        if (_handler) {
+          _handler(path);
         } else {
-          m_queued.append(path);
+          _queued.append(path);
         }
       }
       return true;
     }
-    return QApplication::event(e);
+    return QApplication::event(event);
   }
 
 private:
-  std::function<void(const QString&)> m_handler;
-  QStringList m_queued;
+  std::function<void(const QString&)> _handler;
+  QStringList _queued;
 };
 
 QIcon loadAppIcon() {

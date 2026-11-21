@@ -34,7 +34,7 @@ class PreferencesDialog : public QDialog {
 public:
   explicit PreferencesDialog(const ViewPreferences& initial, QWidget* parent = nullptr);
 
-  ViewPreferences preferences() const { return m_current; }
+  ViewPreferences preferences() const { return _current; }
   // Replaces the shown values (emits preferencesChanged if they differ).
   void setPreferences(const ViewPreferences& preferences);
 
@@ -51,17 +51,17 @@ private:
   void edited();
   void updateCacheSize();
 
-  ViewPreferences m_initial;
-  ViewPreferences m_current;
-  QComboBox* m_styleCombo = nullptr;
-  QPushButton* m_topButton = nullptr;
-  QPushButton* m_bottomButton = nullptr;
-  QPushButton* m_solidButton = nullptr;
-  QComboBox* m_lightingCombo = nullptr;
-  QCheckBox* m_antialiasing = nullptr;
-  QCheckBox* m_cacheEnabled = nullptr;
-  QLabel* m_cacheSize = nullptr;
-  QPushButton* m_clearCache = nullptr;
+  ViewPreferences _initial;
+  ViewPreferences _current;
+  QComboBox* _styleCombo = nullptr;
+  QPushButton* _topButton = nullptr;
+  QPushButton* _bottomButton = nullptr;
+  QPushButton* _solidButton = nullptr;
+  QComboBox* _lightingCombo = nullptr;
+  QCheckBox* _antialiasing = nullptr;
+  QCheckBox* _cacheEnabled = nullptr;
+  QLabel* _cacheSize = nullptr;
+  QPushButton* _clearCache = nullptr;
 };
 
 } // namespace sc::app

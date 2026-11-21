@@ -39,16 +39,16 @@ class SectionToolModel : public SectionModel {
 public:
   explicit SectionToolModel(render::SectionTool* tool, QObject* parent = nullptr);
 
-  const render::SectionPlane& plane(int index) const override { return m_tool->plane(index); }
-  void setPlane(int index, const render::SectionPlane& plane) override { m_tool->setPlane(index, plane); }
-  std::pair<double, double> offsetRange(int index) const override { return m_tool->offsetRange(index); }
-  void flip(int index) override { m_tool->flip(index); }
-  void reset() override { m_tool->reset(); }
-  bool handlesVisible() const override { return m_tool->handlesVisible(); }
-  void setHandlesVisible(bool visible) override { m_tool->setHandlesVisible(visible); }
+  const render::SectionPlane& plane(int index) const override { return _tool->plane(index); }
+  void setPlane(int index, const render::SectionPlane& plane) override { _tool->setPlane(index, plane); }
+  std::pair<double, double> offsetRange(int index) const override { return _tool->offsetRange(index); }
+  void flip(int index) override { _tool->flip(index); }
+  void reset() override { _tool->reset(); }
+  bool handlesVisible() const override { return _tool->handlesVisible(); }
+  void setHandlesVisible(bool visible) override { _tool->setHandlesVisible(visible); }
 
 private:
-  render::SectionTool* m_tool;
+  render::SectionTool* _tool;
 };
 
 } // namespace sc::app

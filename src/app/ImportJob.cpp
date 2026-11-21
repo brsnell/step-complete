@@ -10,12 +10,12 @@
 
 namespace sc::app {
 
-ImportJob::ImportJob(QString path, QObject* parent) : QObject(parent), m_path(std::move(path)) {}
+ImportJob::ImportJob(QString path, QObject* parent) : QObject(parent), _path(std::move(path)) {}
 
 ImportJob::~ImportJob() {
-  if (m_thread != nullptr) {
-    m_cancel.cancel();
-    m_thread->wait();
+  if (_thread != nullptr) {
+    _cancel.cancel();
+    _thread->wait();
   }
 }
 
@@ -33,8 +33,8 @@ void ImportJob::setCacheEnabled(bool enabled) {
 }
 
 void ImportJob::start() {
-  m_timer.start();
-  const std::string utf8Path = m_path.toStdString();
+  _timer.start();
+  const std::string utf8Path = _path.toStdString();
 
   // Open-file cache; the "cache/enabled" setting (default on) is read on the UI thread.
   core::ImportOptions options;
@@ -42,7 +42,7 @@ void ImportJob::start() {
     options.cacheDir = documentCacheDir().toStdString();
   }
 
-  m_thread = QThread::create([this, utf8Path, options] {
+  _thread = QThread::create([this, utf8Path, options] {
     const auto onProgress = [this](double fraction, std::string_view stage) {
       const int percent = static_cast<int>(std::lround(fraction * 100.0));
       const QString text = QString::fromUtf8(stage.data(), static_cast<qsizetype>(stage.size()));
@@ -51,7 +51,7 @@ void ImportJob::start() {
     };
 
     auto result =
-        std::make_shared<core::ImportResult>(core::importStep(utf8Path, options, onProgress, &m_cancel));
+        std::make_shared<core::ImportResult>(core::importStep(utf8Path, options, onProgress, &_cancel));
     std::shared_ptr<const core::AssemblyIndex> index;
     std::shared_ptr<const core::PmiModel> pmi;
     if (result->ok) {
@@ -63,18 +63,18 @@ void ImportJob::start() {
     QMetaObject::invokeMethod(
         this,
         [this, result, index, pmi] {
-          m_result = std::move(*result);
-          m_index = index;
-          m_pmi = pmi;
-          m_elapsedSeconds = m_timer.elapsed() / 1000.0;
+          _result = std::move(*result);
+          _index = index;
+          _pmi = pmi;
+          _elapsedSeconds = _timer.elapsed() / 1000.0;
           Q_EMIT finished();
         },
         Qt::QueuedConnection);
   });
-  m_thread->setObjectName(QStringLiteral("STEP import"));
-  connect(m_thread, &QThread::finished, m_thread, &QObject::deleteLater);
-  connect(m_thread, &QObject::destroyed, this, [this] { m_thread = nullptr; });
-  m_thread->start();
+  _thread->setObjectName(QStringLiteral("STEP import"));
+  connect(_thread, &QThread::finished, _thread, &QObject::deleteLater);
+  connect(_thread, &QObject::destroyed, this, [this] { _thread = nullptr; });
+  _thread->start();
 }
 
 } // namespace sc::app

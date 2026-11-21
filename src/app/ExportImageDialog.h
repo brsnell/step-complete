@@ -29,13 +29,13 @@ private:
   void onHeightEdited(int height);
   void updateEnabled();
 
-  QSize m_viewSize;
-  QRadioButton* m_currentSize = nullptr;
-  QRadioButton* m_customSize = nullptr;
-  QSpinBox* m_width = nullptr;
-  QSpinBox* m_height = nullptr;
-  QCheckBox* m_keepAspect = nullptr;
-  QComboBox* m_background = nullptr;
+  QSize _viewSize;
+  QRadioButton* _currentSize = nullptr;
+  QRadioButton* _customSize = nullptr;
+  QSpinBox* _width = nullptr;
+  QSpinBox* _height = nullptr;
+  QCheckBox* _keepAspect = nullptr;
+  QComboBox* _background = nullptr;
 };
 
 } // namespace sc::app

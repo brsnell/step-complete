@@ -3,7 +3,7 @@
 namespace sc::app {
 
 SectionToolModel::SectionToolModel(render::SectionTool* tool, QObject* parent)
-    : SectionModel(parent), m_tool(tool) {
+    : SectionModel(parent), _tool(tool) {
   connect(tool, &render::SectionTool::planeChanged, this, &SectionModel::planeChanged);
 }
 

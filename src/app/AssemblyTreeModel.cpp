@@ -15,24 +15,24 @@ quintptr toInternalId(core::NodeId id) {
 
 AssemblyTreeModel::AssemblyTreeModel(QObject* parent) : QAbstractItemModel(parent) {
   QStyle* style = QApplication::style();
-  m_assemblyIcon = style->standardIcon(QStyle::SP_DirIcon);
-  m_partIcon = style->standardIcon(QStyle::SP_FileIcon);
+  _assemblyIcon = style->standardIcon(QStyle::SP_DirIcon);
+  _partIcon = style->standardIcon(QStyle::SP_FileIcon);
 }
 
 void AssemblyTreeModel::setModel(std::shared_ptr<const core::AssemblyIndex> index,
                                  PartVisibility visibility) {
   beginResetModel();
-  m_index = std::move(index);
-  m_visibility = std::move(visibility);
-  m_rowInParent.clear();
-  if (m_index) {
-    m_rowInParent.assign(m_index->nodes().size(), 0);
-    for (size_t row = 0; row < m_index->roots().size(); ++row) {
-      m_rowInParent[static_cast<size_t>(m_index->roots()[row])] = static_cast<int>(row);
+  _index = std::move(index);
+  _visibility = std::move(visibility);
+  _rowInParent.clear();
+  if (_index) {
+    _rowInParent.assign(_index->nodes().size(), 0);
+    for (size_t row = 0; row < _index->roots().size(); ++row) {
+      _rowInParent[static_cast<size_t>(_index->roots()[row])] = static_cast<int>(row);
     }
-    for (const auto& node : m_index->nodes()) {
+    for (const auto& node : _index->nodes()) {
       for (size_t row = 0; row < node.children.size(); ++row) {
-        m_rowInParent[static_cast<size_t>(node.children[row])] = static_cast<int>(row);
+        _rowInParent[static_cast<size_t>(node.children[row])] = static_cast<int>(row);
       }
     }
   }
@@ -41,31 +41,31 @@ void AssemblyTreeModel::setModel(std::shared_ptr<const core::AssemblyIndex> inde
 }
 
 void AssemblyTreeModel::computeVisibleCounts() {
-  m_visibleParts.clear();
-  m_totalParts.clear();
-  if (!m_index) {
+  _visibleParts.clear();
+  _totalParts.clear();
+  if (!_index) {
     return;
   }
-  const auto& nodes = m_index->nodes();
-  m_visibleParts.assign(nodes.size(), 0);
-  m_totalParts.assign(nodes.size(), 0);
+  const auto& nodes = _index->nodes();
+  _visibleParts.assign(nodes.size(), 0);
+  _totalParts.assign(nodes.size(), 0);
   // Children always have larger ids than their parent (depth-first build), so a
   // reverse pass accumulates counts bottom-up.
   for (auto it = nodes.rbegin(); it != nodes.rend(); ++it) {
     const auto id = static_cast<size_t>(it->id);
     if (it->kind == core::NodeKind::Part) {
-      m_totalParts[id] = 1;
-      m_visibleParts[id] = m_visibility && m_visibility(it->id) ? 1 : 0;
+      _totalParts[id] = 1;
+      _visibleParts[id] = _visibility && _visibility(it->id) ? 1 : 0;
     }
     if (it->parent != core::NoNode) {
-      m_totalParts[static_cast<size_t>(it->parent)] += m_totalParts[id];
-      m_visibleParts[static_cast<size_t>(it->parent)] += m_visibleParts[id];
+      _totalParts[static_cast<size_t>(it->parent)] += _totalParts[id];
+      _visibleParts[static_cast<size_t>(it->parent)] += _visibleParts[id];
     }
   }
 }
 
 void AssemblyTreeModel::refreshVisibility() {
-  if (!m_index || m_index->nodes().empty()) {
+  if (!_index || _index->nodes().empty()) {
     return;
   }
   computeVisibleCounts();
@@ -96,18 +96,18 @@ core::NodeId AssemblyTreeModel::nodeId(const QModelIndex& index) const {
 }
 
 QModelIndex AssemblyTreeModel::indexOf(core::NodeId node) const {
-  if (!m_index || node < 0 || static_cast<size_t>(node) >= m_rowInParent.size()) {
+  if (!_index || node < 0 || static_cast<size_t>(node) >= _rowInParent.size()) {
     return {};
   }
-  return createIndex(m_rowInParent[static_cast<size_t>(node)], 0, toInternalId(node));
+  return createIndex(_rowInParent[static_cast<size_t>(node)], 0, toInternalId(node));
 }
 
 QModelIndex AssemblyTreeModel::index(int row, int column, const QModelIndex& parent) const {
-  if (!m_index || column != 0 || row < 0) {
+  if (!_index || column != 0 || row < 0) {
     return {};
   }
   const std::vector<core::NodeId>& siblings =
-      parent.isValid() ? m_index->node(nodeId(parent)).children : m_index->roots();
+      parent.isValid() ? _index->node(nodeId(parent)).children : _index->roots();
   if (static_cast<size_t>(row) >= siblings.size()) {
     return {};
   }
@@ -119,20 +119,20 @@ QModelIndex AssemblyTreeModel::parent(const QModelIndex& child) const {
   if (id == core::NoNode) {
     return {};
   }
-  return indexOf(m_index->node(id).parent);
+  return indexOf(_index->node(id).parent);
 }
 
 int AssemblyTreeModel::rowCount(const QModelIndex& parent) const {
-  if (!m_index) {
+  if (!_index) {
     return 0;
   }
   if (!parent.isValid()) {
-    return static_cast<int>(m_index->roots().size());
+    return static_cast<int>(_index->roots().size());
   }
   if (parent.column() != 0) {
     return 0;
   }
-  return static_cast<int>(m_index->node(nodeId(parent)).children.size());
+  return static_cast<int>(_index->node(nodeId(parent)).children.size());
 }
 
 int AssemblyTreeModel::columnCount(const QModelIndex&) const {
@@ -144,17 +144,17 @@ QVariant AssemblyTreeModel::data(const QModelIndex& index, int role) const {
   if (id == core::NoNode) {
     return {};
   }
-  const core::AssemblyNode& node = m_index->node(id);
+  const core::AssemblyNode& node = _index->node(id);
   switch (role) {
   case Qt::DisplayRole:
     return QString::fromStdString(node.name);
   case Qt::ToolTipRole:
-    return QString::fromStdString(m_index->displayPath(id));
+    return QString::fromStdString(_index->displayPath(id));
   case Qt::DecorationRole:
-    return node.kind == core::NodeKind::Assembly ? m_assemblyIcon : m_partIcon;
+    return node.kind == core::NodeKind::Assembly ? _assemblyIcon : _partIcon;
   case Qt::CheckStateRole: {
-    const int visible = m_visibleParts[static_cast<size_t>(id)];
-    const int total = m_totalParts[static_cast<size_t>(id)];
+    const int visible = _visibleParts[static_cast<size_t>(id)];
+    const int total = _totalParts[static_cast<size_t>(id)];
     if (visible == 0) {
       return Qt::Unchecked;
     }

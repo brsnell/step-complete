@@ -43,13 +43,13 @@ private:
   void refreshSystemInfo();
   void showLicense(int index);
 
-  QList<LicenseEntry> m_entries;
-  QString m_graphicsInfo;
-  QPlainTextEdit* m_systemText = nullptr;
-  QListWidget* m_licenseList = nullptr;
-  QPlainTextEdit* m_licenseText = nullptr;
-  QLabel* m_licenseSource = nullptr;
-  QLabel* m_licenseNote = nullptr;
+  QList<LicenseEntry> _entries;
+  QString _graphicsInfo;
+  QPlainTextEdit* _systemText = nullptr;
+  QListWidget* _licenseList = nullptr;
+  QPlainTextEdit* _licenseText = nullptr;
+  QLabel* _licenseSource = nullptr;
+  QLabel* _licenseNote = nullptr;
 };
 
 } // namespace sc::app

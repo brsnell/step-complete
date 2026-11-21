@@ -145,7 +145,7 @@ private Q_SLOTS:
       QCOMPARE(axis(i)->count(), 3); // no "Custom" for axis-aligned planes
     }
     QCOMPARE(spin(0)->value(), 50.0); // setBounds centers the planes
-    QCOMPARE(slider(0)->value(), SectionPanel::kSliderSteps / 2);
+    QCOMPARE(slider(0)->value(), SectionPanel::SliderSteps / 2);
     QCOMPARE(m_changed->count(), 0);
   }
 
