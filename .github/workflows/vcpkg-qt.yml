@@ -30,14 +30,14 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 240
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up MSVC
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: ./.github/actions/msvc-env
 
       - name: Restore vcpkg binary cache
         id: vcpkg-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .vcpkg-cache
           key: vcpkg-qt-x64-windows-${{ env.VCPKG_COMMIT }}-${{ hashFiles('vcpkg.json', 'cmake/triplets/**') }}
@@ -57,7 +57,7 @@ jobs:
 
       - name: Save vcpkg binary cache
         if: ${{ always() && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .vcpkg-cache
           key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}

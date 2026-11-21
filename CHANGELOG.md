@@ -22,6 +22,9 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ### Internal
 - The code follows the naming conventions in `CLAUDE.md` (adapted from Task Complete), checked
   by a clang-tidy job in CI. Renames only: no behavior changes.
+- CI and release workflows run on Node 24: `checkout` v7, `cache` v6, `upload-artifact` v7,
+  `download-artifact` v8, `action-gh-release` v3. The MSVC setup is a small local action
+  (`.github/actions/msvc-env`) in place of `ilammy/msvc-dev-cmd`, which has no Node 24 release.
 
 ### Fixed
 - Measurement markers redraw at the right size after the window moves to a screen with
