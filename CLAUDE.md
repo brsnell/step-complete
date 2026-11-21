@@ -20,6 +20,7 @@ cmake --build --preset dev         # build
 ctest --preset dev                 # all tests (render tests need a display, see Testing)
 ./build/dev/src/app/StepComplete   # run
 tests/data/fetch.sh                # optional real-world STEP models for the RealModels tests
+cmake --build --preset dev --target tidy   # naming check (clang-tidy; build first)
 ```
 
 <!-- gstack:verify: cmake --build --preset dev && xvfb-run -a -s '-screen 0 1280x1024x24' ctest --preset dev -j4 -->
@@ -49,7 +50,9 @@ The same conventions as Task Complete (`brsnell/RealTaskManagement`), adapted fo
 OCCT name methods in `camelCase` and virtual overrides must keep the framework's names, so
 methods stay `camelCase`; everything else C++ allows follows Task Complete. Decisions and
 rationale: `docs/superpowers/plans/2026-11-21-naming-conventions.md`. clang-tidy
-(`readability-identifier-naming`) checks these rules.
+(`readability-identifier-naming`, configured in `.clang-tidy`) checks these rules: run the
+`tidy` target locally; CI's `Naming (clang-tidy)` job reports them (report-only until the rename
+PRs land, then it fails on a violation).
 
 | Element | Rule | Example |
 |---|---|---|
