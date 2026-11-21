@@ -2,6 +2,8 @@
 
 State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. The Windows packages passed a hands-on test on real hardware (2026-11-16). v1.0.0 ships for Windows and Linux only; the release workflow builds the macOS DMGs but does not publish them until the hands-on macOS check below passes.
 
+Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN.md) §7a, not approved yet. Every open item under Release and Viewport is blocked on hardware or a cost decision, so the v1.1 section is the next work that can be coded. Each v1.1 and v2 item gets a design in `docs/designs/` before work starts.
+
 ## Release
 
 ### Manual test of the packages on a real Mac
@@ -53,6 +55,118 @@ State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see 
 **Effort:** S
 **Priority:** P2
 **Depends on:** Manual macOS package test.
+
+## v1.1 (M6)
+
+### Hidden-line display style
+
+**What:** A fourth display style, Hidden Line, next to Shaded, Shaded with Edges and Wireframe: visible edges drawn solid, hidden edges dashed or left out.
+
+**Why:** It was a v1 goal (PLAN §1) and was never built. Engineers use it to read a model the way it looks on a drawing.
+
+**Context:** `DisplayStyle` in `src/render/SceneStyle.h` has only the three styles. OCCT does hidden-line removal through the view's computed mode (`V3d_View::SetComputedMode`), which recomputes on every camera change and can be slow on large assemblies. Measure it against the PLAN §6 targets on the benchmark models; it may need to fall back to plain edges while the camera moves. Needs a keyboard shortcut next to `S`/`E`/`W` and a render test.
+
+**Effort:** M
+**Priority:** P1
+**Depends on:** Design approved.
+
+### Search in the assembly tree
+
+**What:** A filter box on the Assembly panel that matches part and product names, keeps the parent rows of matches and expands to them.
+
+**Why:** Large assemblies (hundreds of parts) are hard to get around without it. The PMI panel already has **Filter PMI...**.
+
+**Context:** `AssemblyTreeModel` in `src/app/`. Qt 6's `QSortFilterProxyModel::setRecursiveFilteringEnabled` keeps the ancestors of matches. Selection sync between the tree and the 3D view has to go through the proxy. Add the case to the Qt Test suite.
+
+**Effort:** S
+**Priority:** P1
+**Depends on:** Design approved.
+
+### Geometry export (STL, OBJ, glTF)
+
+**What:** File > Export Geometry: STL (merged or one file per part), OBJ, and glTF/GLB with colors and the assembly structure. Choose the visible parts or the selection, and the mesh quality.
+
+**Why:** "I need an STL for my 3D printer" or "a glTF for the web" is a common reason to open a STEP viewer.
+
+**Context:** OCCT has the writers (`StlAPI_Writer`, `RWObj_CafWriter`, `RWGltf_CafWriter`). The CAF writers take the XCAF document the importer already builds. This is the first file the app writes besides images and CSV; writing STEP stays a non-goal (PLAN §1). Run the export off the GUI thread like `ImportJob`, with progress and cancel.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Design approved.
+
+### Section planes at any angle
+
+**What:** Besides X, Y and Z, let a section plane lie on a picked planar face, or use a typed normal.
+
+**Why:** Real parts are rarely cut usefully along the world axes alone. Other viewers offer both options.
+
+**Context:** `SectionPlane` in `src/render/SectionTool.h` already takes any `gp_Dir normal`, and the drag handles move along it; only the Section panel (`SectionPanel`, `SectionModel`) limits the choice to X/Y/Z. Picking reuses the measure tool's face picking.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Design approved.
+
+### User saved views
+
+**What:** Save the current camera, part visibility and section planes under a name and restore them later, listed next to the PMI saved views.
+
+**Why:** Saved views are only available when the file's PMI supplies them. Users want their own for repeat inspections and screenshots.
+
+**Context:** The design has to choose where they are stored: per file in the app's settings or cache (keyed by the open-file cache's file hash), or in a sidecar file that can be shared. Markup (v2) will need the same storage choice, so decide both together.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Design approved.
+
+## v2 (M7)
+
+### Wall thickness analysis
+
+**What:** Color the model by local wall thickness with a min/max legend and threshold, plus a pick readout of the thickness at a point.
+
+**Why:** Listed as a v2 candidate (PLAN §1). Used to check castings, moldings and printed parts.
+
+**Context:** Read-only analysis, so it fits the current design best of the v2 items. Choose between exact B-rep thickness (accurate, slow) and ray casting on the display mesh (fast, approximate) in the design. Either way it must stay usable on the PLAN §2a reference machine: run it in the background with progress and cancel.
+
+**Effort:** L
+**Priority:** P2
+**Depends on:** Design approved.
+
+### Model comparison
+
+**What:** Open two revisions of a model, align them, and color what was added, removed or changed, with a deviation legend and a list of changed parts.
+
+**Why:** Listed as a v2 candidate (PLAN §1). Checking what changed between revisions is a frequent review task.
+
+**Context:** Needs two documents in one scene (`SceneManager` and `MainWindow` hold one today), a way to pair parts between revisions (by name, by product, by geometry), and a deviation method (point sampling against the other shape, or Boolean differences).
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** Design approved.
+
+### Markup
+
+**What:** 3D notes and simple sketches pinned to geometry, saved to a sidecar file next to the model and included in image export.
+
+**Why:** Listed as a v2 candidate (PLAN §1). Reviewers need to point at things.
+
+**Context:** It must never write into the STEP file. Notes have to stay attached when the same file is reopened, so they need a stable reference to the geometry (assembly path plus face). Shares the storage decision with user saved views.
+
+**Effort:** L
+**Priority:** P3
+**Depends on:** Design approved; user saved views (storage decision).
+
+### Collaboration
+
+**What:** Not defined yet. The smallest version: share markup files and merge markup from several reviewers into one view.
+
+**Why:** Listed as a v2 candidate (PLAN §1).
+
+**Context:** Anything hosted (accounts, a sync server) does not fit an offline, lightweight viewer and needs its own decision before a design.
+
+**Effort:** L
+**Priority:** P4
+**Depends on:** Markup; a decision on scope.
 
 ## Deferred
 
