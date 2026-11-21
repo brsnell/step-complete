@@ -29,6 +29,9 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ### Fixed
 - Measurement markers redraw at the right size after the window moves to a screen with
   different scaling.
+- PMI annotations (lines, arrowheads, labels) redraw at the right size after the window moves
+  to a screen with different scaling, keeping which items are shown, the selection and the
+  semantic-labels setting.
 - Release workflow: cancelling a tag run no longer publishes the release.
 
 ## [1.0.0] - 2026-11-15

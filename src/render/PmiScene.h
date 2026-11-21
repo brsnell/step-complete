@@ -114,6 +114,11 @@ public:
                 double devicePixelRatio = 1.0);
   void clear();
   const std::shared_ptr<const core::PmiModel>& model() const { return _pmi; }
+  // Rebuilds the presentations at a new device-pixel ratio (line widths, arrowheads and labels
+  // are sized in device pixels), keeping visibility, highlight and the semantic-labels switch.
+  // Labels go back to their base positions: call declutter() afterwards. No-op for the same ratio.
+  void setDevicePixelRatio(double devicePixelRatio);
+  double devicePixelRatio() const { return _dpr; }
 
   void setVisible(const std::vector<core::PmiId>& ids, bool visible);
   void setOnlyVisible(const std::vector<core::PmiId>& ids);
@@ -161,6 +166,8 @@ private:
     bool visible = true;
   };
   std::vector<TopLoc_Location> placementsOf(const core::PmiItem& item) const;
+  void build(const std::vector<bool>& visibility);
+  void removePresentations();
   void removeTargetHighlight();
   void updateDisplay(Entry& entry);
 

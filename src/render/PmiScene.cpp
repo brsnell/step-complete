@@ -599,31 +599,61 @@ void PmiScene::setModel(std::shared_ptr<const core::PmiModel> pmi,
   clear();
   _pmi = std::move(pmi);
   _index = std::move(index);
+  _dpr = devicePixelRatio > 0.0 ? devicePixelRatio : 1.0;
   if (!_pmi) {
     return;
   }
-  _entries.resize(_pmi->items().size());
-  _dpr = devicePixelRatio > 0.0 ? devicePixelRatio : 1.0;
   size_t graphical = 0;
   for (const core::PmiItem& item : _pmi->items()) {
     graphical += item.presentation.IsNull() ? 0 : 1;
   }
   _semanticLabels = graphical * 2 < _pmi->items().size() || _pmi->items().empty();
+  build({});
+}
+
+void PmiScene::setDevicePixelRatio(double devicePixelRatio) {
+  const double ratio = devicePixelRatio > 0.0 ? devicePixelRatio : 1.0;
+  if (ratio == _dpr) {
+    return;
+  }
+  _dpr = ratio;
+  if (!_pmi) {
+    return;
+  }
+  // Everything is sized when it is built: rebuild, keeping what the user chose.
+  std::vector<bool> visibility;
+  visibility.reserve(_entries.size());
+  for (const Entry& entry : _entries) {
+    visibility.push_back(entry.visible);
+  }
+  const std::vector<core::PmiId> highlighted = _highlighted;
+  removePresentations();
+  build(visibility);
+  if (!highlighted.empty()) {
+    highlight(highlighted);
+  }
+}
+
+// Creates the presentations of every item at the current device-pixel ratio and displays the
+// ones that are wanted. `visibility` is per item; empty shows all.
+void PmiScene::build(const std::vector<bool>& visibility) {
+  _entries.resize(_pmi->items().size());
+  for (size_t i = 0; i < visibility.size() && i < _entries.size(); ++i) {
+    _entries[i].visible = visibility[i];
+  }
   // Labels sharing an anchor are stacked (view independent); the rest of the decluttering
   // needs the camera and is done by declutter(), which the owner of the view calls.
   std::vector<std::pair<gp_Pnt, int>> anchors;
   for (const core::PmiItem& item : _pmi->items()) {
     Entry& entry = _entries[static_cast<size_t>(item.id)];
     for (const TopLoc_Location& placement : placementsOf(item)) {
-      OccHandle<PmiPresentation> prs = new PmiPresentation(item, placement, devicePixelRatio);
+      OccHandle<PmiPresentation> prs = new PmiPresentation(item, placement, _dpr);
       _objectToPmi[prs.get()] = item.id;
-      _context->Display(prs, 0, 0, false);
       entry.placements.push_back(prs);
       for (const PmiPresentation::ArrowSpec& spec : prs->arrows()) {
         const gp_Trsf trsf = placement.Transformation();
         OccHandle<PmiArrow> arrow = new PmiArrow(spec.tip.Transformed(trsf), spec.dir.Transformed(trsf),
-                                                 spec.side.Transformed(trsf), devicePixelRatio);
-        _context->Display(arrow, 0, -1, false);
+                                                 spec.side.Transformed(trsf), _dpr);
         entry.arrows.push_back(arrow);
       }
       if (prs->hasLabel()) {
@@ -635,17 +665,14 @@ void PmiScene::setModel(std::shared_ptr<const core::PmiModel> pmi,
           anchors.emplace_back(anchor, 0);
           same = std::prev(anchors.end());
         }
-        OccHandle<PmiLabel> label = new PmiLabel(item, anchor, same->second++, devicePixelRatio);
+        OccHandle<PmiLabel> label = new PmiLabel(item, anchor, same->second++, _dpr);
         _objectToPmi[label.get()] = item.id;
-        _context->Display(label, 0, 0, false);
         entry.labels.push_back(label);
       }
     }
   }
-  if (!_semanticLabels) {
-    for (Entry& entry : _entries) {
-      updateDisplay(entry);
-    }
+  for (Entry& entry : _entries) {
+    updateDisplay(entry);
   }
 }
 
@@ -753,6 +780,12 @@ void PmiScene::declutter(const OccHandle<V3d_View>& view) {
 }
 
 void PmiScene::clear() {
+  removePresentations();
+  _pmi.reset();
+  _index.reset();
+}
+
+void PmiScene::removePresentations() {
   removeTargetHighlight();
   for (Entry& entry : _entries) {
     for (const auto& prs : entry.placements) {
@@ -768,8 +801,6 @@ void PmiScene::clear() {
   _entries.clear();
   _objectToPmi.clear();
   _highlighted.clear();
-  _pmi.reset();
-  _index.reset();
 }
 
 void PmiScene::setVisible(const std::vector<core::PmiId>& ids, bool visible) {
