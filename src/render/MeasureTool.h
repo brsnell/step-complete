@@ -37,13 +37,13 @@ public:
 
   // nullopt turns measuring off and restores whole-part selection.
   void setMode(std::optional<core::MeasureMode> mode);
-  std::optional<core::MeasureMode> mode() const { return m_mode; }
-  bool isActive() const { return m_mode.has_value(); }
+  std::optional<core::MeasureMode> mode() const { return _mode; }
+  bool isActive() const { return _mode.has_value(); }
 
-  void setDisplayOptions(const core::MeasureDisplayOptions& options) { m_options = options; }
-  const core::MeasureDisplayOptions& displayOptions() const { return m_options; }
+  void setDisplayOptions(const core::MeasureDisplayOptions& options) { _options = options; }
+  const core::MeasureDisplayOptions& displayOptions() const { return _options; }
 
-  int pickCount() const { return static_cast<int>(m_picks.size()); }
+  int pickCount() const { return static_cast<int>(_picks.size()); }
 
   struct ShownWitness {
     int id = 0; // stable per result: the same id keeps its presentation
@@ -55,8 +55,8 @@ public:
   // the viewport.
   void setWitnesses(const std::vector<ShownWitness>& witnesses);
   void clearWitnesses();
-  int witnessCount() const { return static_cast<int>(m_witnesses.size()); }
-  bool hasWitness(int id) const { return m_witnesses.count(id) != 0; }
+  int witnessCount() const { return static_cast<int>(_witnesses.size()); }
+  bool hasWitness(int id) const { return _witnesses.count(id) != 0; }
   bool isEmphasized(int id) const;
 
   // Drops pending picks, witnesses and the selection, e.g. when the model changes.
@@ -84,13 +84,13 @@ private:
   std::vector<int> selectionModesFor(core::MeasureMode mode) const;
   void finish();
 
-  OcctViewport* m_viewport;
-  SceneManager* m_scene;
-  std::optional<core::MeasureMode> m_mode;
-  core::MeasureDisplayOptions m_options;
-  std::vector<PendingPick> m_picks;
-  std::map<int, OccHandle<WitnessPresentation>> m_witnesses;
-  bool m_updatingSelection = false;
+  OcctViewport* _viewport;
+  SceneManager* _scene;
+  std::optional<core::MeasureMode> _mode;
+  core::MeasureDisplayOptions _options;
+  std::vector<PendingPick> _picks;
+  std::map<int, OccHandle<WitnessPresentation>> _witnesses;
+  bool _updatingSelection = false;
 };
 
 } // namespace sc::render

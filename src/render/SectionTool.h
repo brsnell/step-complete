@@ -37,17 +37,17 @@ class SectionTool : public QObject, public DragHandler {
   Q_OBJECT
 
 public:
-  static constexpr int kMaxPlanes = 3;
+  static constexpr int MaxPlanes = 3;
 
   SectionTool(OcctViewport* viewport, SceneManager* scene, QObject* parent = nullptr);
   ~SectionTool() override;
 
   // Model extent: sizes the handles and the offset range. Call after loading a model.
   void setBounds(const Bnd_Box& bounds);
-  const Bnd_Box& bounds() const { return m_bounds; }
+  const Bnd_Box& bounds() const { return _bounds; }
 
   void setPlane(int index, const SectionPlane& plane);
-  const SectionPlane& plane(int index) const { return m_planes.at(static_cast<size_t>(index)); }
+  const SectionPlane& plane(int index) const { return _planes.at(static_cast<size_t>(index)); }
   // Offsets that cross the model along the plane's normal (min, max).
   std::pair<double, double> offsetRange(int index) const;
   // Reverses the normal, keeping the plane where it is (the other side is cut).
@@ -57,7 +57,7 @@ public:
   void reset();
 
   void setHandlesVisible(bool visible);
-  bool handlesVisible() const { return m_handlesVisible; }
+  bool handlesVisible() const { return _handlesVisible; }
 
   // DragHandler: dragging a handle moves its plane along the normal.
   bool beginDrag(const OccHandle<AIS_InteractiveObject>& detected,
@@ -75,17 +75,17 @@ private:
   // Model units per pixel of mouse movement along the plane's normal on screen.
   double offsetPerPixel(int index, NCollection_Vec2<double>& screenDirection) const;
 
-  OcctViewport* m_viewport;
-  SceneManager* m_scene;
-  Bnd_Box m_bounds;
-  std::array<SectionPlane, kMaxPlanes> m_planes;
-  std::array<OccHandle<Graphic3d_ClipPlane>, kMaxPlanes> m_clip;
-  std::array<OccHandle<SectionHandle>, kMaxPlanes> m_handles;
-  OccHandle<Graphic3d_SequenceOfHClipPlane> m_sequence;
-  bool m_handlesVisible = true;
+  OcctViewport* _viewport;
+  SceneManager* _scene;
+  Bnd_Box _bounds;
+  std::array<SectionPlane, MaxPlanes> _planes;
+  std::array<OccHandle<Graphic3d_ClipPlane>, MaxPlanes> _clip;
+  std::array<OccHandle<SectionHandle>, MaxPlanes> _handles;
+  OccHandle<Graphic3d_SequenceOfHClipPlane> _sequence;
+  bool _handlesVisible = true;
 
-  int m_dragIndex = -1;
-  double m_dragStartOffset = 0.0;
+  int _dragIndex = -1;
+  double _dragStartOffset = 0.0;
 };
 
 } // namespace sc::render

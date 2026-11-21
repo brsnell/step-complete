@@ -1142,7 +1142,7 @@ void MainWindow::exportImage() {
     path += jpeg ? QStringLiteral(".jpg") : QStringLiteral(".png");
   }
 
-  ExportImageDialog dialog(m_viewport->framebufferSize(), render::OcctViewport::kMaxExportSize, !jpeg, this);
+  ExportImageDialog dialog(m_viewport->framebufferSize(), render::OcctViewport::MaxExportSize, !jpeg, this);
   if (dialog.exec() != QDialog::Accepted) {
     return;
   }

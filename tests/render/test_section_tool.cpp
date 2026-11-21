@@ -143,7 +143,7 @@ private Q_SLOTS:
 
   void threePlanesKeepTheirCommonSide() {
     m_section->setHandlesVisible(false);
-    for (int i = 0; i < sc::render::SectionTool::kMaxPlanes; ++i) {
+    for (int i = 0; i < sc::render::SectionTool::MaxPlanes; ++i) {
       SectionPlane p = m_section->plane(i);
       p.enabled = true;
       m_section->setPlane(i, p); // X, Y, Z through the model's center: x = 50, y = 30, z = 15

@@ -30,22 +30,22 @@ class PmiLabel : public AIS_InteractiveObject {
 public:
   PmiLabel(const core::PmiItem& item, const gp_Pnt& worldAnchor, int stackIndex, double devicePixelRatio);
 
-  core::PmiId pmiId() const { return m_id; }
-  const gp_Pnt& anchor() const { return m_anchor; }
-  int stackIndex() const { return m_stackIndex; }
+  core::PmiId pmiId() const { return _id; }
+  const gp_Pnt& anchor() const { return _anchor; }
+  int stackIndex() const { return _stackIndex; }
 
   // The box in device pixels relative to the anchor (x right, y up): the first cell
   // starts at boxLeft() (after a stem, if any) and the box is boxHeight() tall, centered
   // on the stack row's center, `stackIndex * stackPitch` below the anchor.
-  double boxLeft() const { return m_boxLeft; }
-  double boxWidth() const { return m_boxWidth; }
-  double boxHeight() const { return m_rowHeight; }
-  double centerY() const { return m_centerY; }
+  double boxLeft() const { return _boxLeft; }
+  double boxWidth() const { return _boxWidth; }
+  double boxHeight() const { return _rowHeight; }
+  double centerY() const { return _centerY; }
 
   // Moves the box by (dx, dy) device pixels (y up) from its stack row. The caller redisplays.
   void setOffset(double dx, double dy);
-  double offsetX() const { return m_offsetX; }
-  double offsetY() const { return m_offsetY; }
+  double offsetX() const { return _offsetX; }
+  double offsetY() const { return _offsetY; }
 
   // Horizontal extent of each cell, in device pixels from the anchor.
   std::vector<std::pair<double, double>> cellExtents() const;
@@ -69,18 +69,18 @@ private:
   };
   void layout(const core::PmiItem& item);
 
-  core::PmiId m_id;
-  gp_Pnt m_anchor;
-  int m_stackIndex;
-  double m_dpr;
-  double m_rowHeight = 0.0;
-  double m_stem = 0.0; // datum flags
-  double m_boxLeft = 0.0;
-  double m_boxWidth = 0.0;
-  double m_centerY = 0.0;
-  double m_offsetX = 0.0;
-  double m_offsetY = 0.0;
-  std::vector<Cell> m_cells;
+  core::PmiId _id;
+  gp_Pnt _anchor;
+  int _stackIndex;
+  double _dpr;
+  double _rowHeight = 0.0;
+  double _stem = 0.0; // datum flags
+  double _boxLeft = 0.0;
+  double _boxWidth = 0.0;
+  double _centerY = 0.0;
+  double _offsetX = 0.0;
+  double _offsetY = 0.0;
+  std::vector<Cell> _cells;
 };
 
 } // namespace sc::render

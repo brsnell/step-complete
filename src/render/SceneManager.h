@@ -45,9 +45,9 @@ public:
 
   void setModel(std::shared_ptr<const core::AssemblyIndex> index);
   void clear();
-  const std::shared_ptr<const core::AssemblyIndex>& model() const { return m_index; }
+  const std::shared_ptr<const core::AssemblyIndex>& model() const { return _index; }
 
-  DisplayStyle displayStyle() const { return m_style; }
+  DisplayStyle displayStyle() const { return _style; }
   void setDisplayStyle(DisplayStyle style);
 
   // --- Visibility ---------------------------------------------------------------
@@ -74,7 +74,7 @@ public:
   // values). Empty means whole parts (mode 0), the default. Changing modes
   // clears the selection.
   void setSelectionModes(const std::vector<int>& modes);
-  const std::vector<int>& selectionModes() const { return m_selectionModes; }
+  const std::vector<int>& selectionModes() const { return _selectionModes; }
   static std::vector<int> subShapeModes(bool vertices, bool edges, bool faces);
 
   struct PickedEntity {
@@ -94,7 +94,7 @@ public:
   Bnd_Box boundingBox(const std::vector<core::NodeId>& nodes) const;
 
   // Diagnostics: number of shared prototypes and of instances using them.
-  int prototypeCount() const { return static_cast<int>(m_prototypes.size()); }
+  int prototypeCount() const { return static_cast<int>(_prototypes.size()); }
   int detachedCount() const;
 
 private:
@@ -115,14 +115,14 @@ private:
   PartEntry* entry(core::NodeId part);
   const PartEntry* entry(core::NodeId part) const;
 
-  OccHandle<AIS_InteractiveContext> m_context;
-  std::shared_ptr<const core::AssemblyIndex> m_index;
-  std::vector<PartEntry> m_parts; // indexed by NodeId; empty object for assemblies
-  std::unordered_map<const AIS_InteractiveObject*, core::NodeId> m_objectToPart;
-  std::map<std::string, OccHandle<XCAFPrs_AISObject>> m_prototypes;
-  DisplayStyle m_style = DisplayStyle::ShadedWithEdges;
-  std::vector<int> m_selectionModes;
-  OccHandle<Graphic3d_SequenceOfHClipPlane> m_clipPlanes;
+  OccHandle<AIS_InteractiveContext> _context;
+  std::shared_ptr<const core::AssemblyIndex> _index;
+  std::vector<PartEntry> _parts; // indexed by NodeId; empty object for assemblies
+  std::unordered_map<const AIS_InteractiveObject*, core::NodeId> _objectToPart;
+  std::map<std::string, OccHandle<XCAFPrs_AISObject>> _prototypes;
+  DisplayStyle _style = DisplayStyle::ShadedWithEdges;
+  std::vector<int> _selectionModes;
+  OccHandle<Graphic3d_SequenceOfHClipPlane> _clipPlanes;
 };
 
 } // namespace sc::render

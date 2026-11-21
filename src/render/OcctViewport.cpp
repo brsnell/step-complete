@@ -42,16 +42,16 @@ namespace {
 
 #ifdef __APPLE__
 // macOS only offers OpenGL > 2.1 through a core profile (4.1 on all supported Macs).
-constexpr bool kCoreProfile = true;
+constexpr bool CoreProfile = true;
 #else
 // Compatibility profile gives the highest version the driver supports and the
 // widest support on older GPUs and drivers.
-constexpr bool kCoreProfile = false;
+constexpr bool CoreProfile = false;
 #endif
 
 // OCCT's hard minimum.
-constexpr int kMinGlMajor = 2;
-constexpr int kMinGlMinor = 1;
+constexpr int MinGlMajor = 2;
+constexpr int MinGlMinor = 1;
 
 // Qt's FBO is linear RGB; tell OCCT not to expect an sRGB framebuffer.
 class QtFrameBufferWrapper : public OpenGl_FrameBuffer {
@@ -135,7 +135,7 @@ void OcctViewport::configureDefaultSurfaceFormat() {
   QSurfaceFormat format;
   format.setDepthBufferSize(24);
   format.setStencilBufferSize(8);
-  if (kCoreProfile) {
+  if (CoreProfile) {
     format.setVersion(4, 1);
     format.setProfile(QSurfaceFormat::CoreProfile);
   } else {
@@ -151,43 +151,43 @@ OcctViewport::OcctViewport(QWidget* parent) : QOpenGLWidget(parent) {
   driver->ChangeOptions().buffersNoSwap = true;
   driver->ChangeOptions().buffersOpaqueAlpha = true;
   driver->ChangeOptions().useSystemBuffer = false;
-  driver->ChangeOptions().contextCompatible = !kCoreProfile;
+  driver->ChangeOptions().contextCompatible = !CoreProfile;
 
-  m_navigationEnd.setSingleShot(true);
-  m_navigationEnd.setInterval(250);
-  connect(&m_navigationEnd, &QTimer::timeout, this, [this] { setNavigating(false); });
+  _navigationEnd.setSingleShot(true);
+  _navigationEnd.setInterval(250);
+  connect(&_navigationEnd, &QTimer::timeout, this, [this] { setNavigating(false); });
 
-  m_viewer = new V3d_Viewer(driver);
+  _viewer = new V3d_Viewer(driver);
   // Same setup as V3d_Viewer::SetDefaultLights(), but kept so the intensity can be changed.
-  m_headlight = new V3d_DirectionalLight(V3d_XnegYnegZneg, Quantity_NOC_WHITE, true);
-  m_ambientLight = new V3d_AmbientLight(Quantity_NOC_WHITE);
-  m_viewer->AddLight(m_headlight);
-  m_viewer->AddLight(m_ambientLight);
-  m_viewer->SetLightOn();
+  _headlight = new V3d_DirectionalLight(V3d_XnegYnegZneg, Quantity_NOC_WHITE, true);
+  _ambientLight = new V3d_AmbientLight(Quantity_NOC_WHITE);
+  _viewer->AddLight(_headlight);
+  _viewer->AddLight(_ambientLight);
+  _viewer->SetLightOn();
   applyLighting();
 
-  m_context = new AIS_InteractiveContext(m_viewer);
+  _context = new AIS_InteractiveContext(_viewer);
   // Selection: saturated blue; hover: light cyan. Both read well on gray and colored parts.
   const Quantity_Color selectedColor(0.20, 0.50, 0.95, Quantity_TOC_sRGB);
   const Quantity_Color hoverColor(0.55, 0.85, 1.00, Quantity_TOC_sRGB);
-  setHighlightColor(m_context->HighlightStyle(Prs3d_TypeOfHighlight_Selected), selectedColor);
-  setHighlightColor(m_context->HighlightStyle(Prs3d_TypeOfHighlight_LocalSelected), selectedColor);
-  setHighlightColor(m_context->HighlightStyle(Prs3d_TypeOfHighlight_Dynamic), hoverColor);
-  setHighlightColor(m_context->HighlightStyle(Prs3d_TypeOfHighlight_LocalDynamic), hoverColor);
+  setHighlightColor(_context->HighlightStyle(Prs3d_TypeOfHighlight_Selected), selectedColor);
+  setHighlightColor(_context->HighlightStyle(Prs3d_TypeOfHighlight_LocalSelected), selectedColor);
+  setHighlightColor(_context->HighlightStyle(Prs3d_TypeOfHighlight_Dynamic), hoverColor);
+  setHighlightColor(_context->HighlightStyle(Prs3d_TypeOfHighlight_LocalDynamic), hoverColor);
 
-  m_view = m_viewer->CreateView();
-  m_view->SetImmediateUpdate(false);
-  applyBackground(m_background);
+  _view = _viewer->CreateView();
+  _view->SetImmediateUpdate(false);
+  applyBackground(_background);
 
   // Lightweight defaults for 10-year-old integrated GPUs: no MSAA, no stats overlay.
-  Graphic3d_RenderingParams& params = m_view->ChangeRenderingParams();
+  Graphic3d_RenderingParams& params = _view->ChangeRenderingParams();
   params.NbMsaaSamples = 0;
   params.ToShowStats = false;
 
-  m_viewCube = new AIS_ViewCube();
-  m_viewCube->SetViewAnimation(ViewAnimation());
-  m_viewCube->SetFixedAnimationLoop(false);
-  m_viewCube->SetAutoStartAnimation(true);
+  _viewCube = new AIS_ViewCube();
+  _viewCube->SetViewAnimation(ViewAnimation());
+  _viewCube->SetFixedAnimationLoop(false);
+  _viewCube->SetAutoStartAnimation(true);
 
   configureNavigation();
 
@@ -196,21 +196,21 @@ OcctViewport::OcctViewport(QWidget* parent) : QOpenGLWidget(parent) {
   setBackgroundRole(QPalette::NoRole);
   setUpdateBehavior(QOpenGLWidget::NoPartialUpdate);
 
-  m_overlayWidget = new OverlayWidget(this);
-  m_overlayWidget->setGeometry(rect());
+  _overlayWidget = new OverlayWidget(this);
+  _overlayWidget->setGeometry(rect());
 }
 
 OcctViewport::~OcctViewport() {
   // Keep the X11 display connection alive until Qt's context is current again;
   // releasing it first can crash inside QOpenGLWidget's destructor.
-  OccHandle<Aspect_DisplayConnection> display = m_viewer->Driver()->GetDisplayConnection();
+  OccHandle<Aspect_DisplayConnection> display = _viewer->Driver()->GetDisplayConnection();
 
   makeCurrent();
-  m_context->RemoveAll(false);
-  m_context.Nullify();
-  m_view->Remove();
-  m_view.Nullify();
-  m_viewer.Nullify();
+  _context->RemoveAll(false);
+  _context.Nullify();
+  _view->Remove();
+  _view.Nullify();
+  _viewer.Nullify();
   doneCurrent();
 
   display.Nullify();
@@ -235,29 +235,29 @@ void OcctViewport::setAccumulatingSelection(bool accumulate) {
 }
 
 double OcctViewport::pixelsToModel(double logicalPixels) const {
-  if (m_view.IsNull() || m_view->Window().IsNull()) {
+  if (_view.IsNull() || _view->Window().IsNull()) {
     return 0.0;
   }
-  return m_view->Convert(static_cast<int>(std::lround(logicalPixels * devicePixelRatioF())));
+  return _view->Convert(static_cast<int>(std::lround(logicalPixels * devicePixelRatioF())));
 }
 
 void OcctViewport::initializeGL() {
-  if (m_glFailed) {
+  if (_glFailed) {
     return;
   }
 
   OccHandle<OpenGl_Context> glCtx = new OpenGl_Context();
-  if (!glCtx->Init(kCoreProfile)) {
+  if (!glCtx->Init(CoreProfile)) {
     failGl(tr("OCCT could not use the OpenGL context created by Qt."));
     return;
   }
-  if (glCtx->VersionMajor() < kMinGlMajor ||
-      (glCtx->VersionMajor() == kMinGlMajor && glCtx->VersionMinor() < kMinGlMinor)) {
+  if (glCtx->VersionMajor() < MinGlMajor ||
+      (glCtx->VersionMajor() == MinGlMajor && glCtx->VersionMinor() < MinGlMinor)) {
     failGl(tr("OpenGL %1.%2 is too old; at least %3.%4 is required.")
                .arg(glCtx->VersionMajor())
                .arg(glCtx->VersionMinor())
-               .arg(kMinGlMajor)
-               .arg(kMinGlMinor));
+               .arg(MinGlMajor)
+               .arg(MinGlMinor));
     return;
   }
 
@@ -285,7 +285,7 @@ void OcctViewport::initializeGL() {
   const int heightPx = std::max(1, static_cast<int>(std::lround(height() * dpr)));
 
   // initializeGL runs again if Qt recreates the context (e.g. moving to another screen).
-  OccHandle<Aspect_NeutralWindow> window = OccHandle<Aspect_NeutralWindow>::DownCast(m_view->Window());
+  OccHandle<Aspect_NeutralWindow> window = OccHandle<Aspect_NeutralWindow>::DownCast(_view->Window());
   const bool firstInit = window.IsNull();
   if (firstInit) {
     window = new Aspect_NeutralWindow();
@@ -293,20 +293,20 @@ void OcctViewport::initializeGL() {
   }
   window->SetNativeHandle(drawable);
   window->SetSize(widthPx, heightPx);
-  m_view->SetWindow(window, glCtx->RenderingContext());
+  _view->SetWindow(window, glCtx->RenderingContext());
 
   if (firstInit) {
-    m_viewCube->SetSize(55.0 * dpr, false);
-    m_viewCube->SetFontHeight(12.0 * dpr);
-    m_viewCube->SetTransformPersistence(new Graphic3d_TransformPers(
+    _viewCube->SetSize(55.0 * dpr, false);
+    _viewCube->SetFontHeight(12.0 * dpr);
+    _viewCube->SetTransformPersistence(new Graphic3d_TransformPers(
         Graphic3d_TMF_TriedronPers, Aspect_TOTP_RIGHT_UPPER,
         NCollection_Vec2<int>(static_cast<int>(85 * dpr), static_cast<int>(85 * dpr))));
-    m_context->Display(m_viewCube, 0, 0, false);
+    _context->Display(_viewCube, 0, 0, false);
   }
 
   collectGlInfo(glCtx->VersionMajor(), glCtx->VersionMinor());
-  m_glReady = true;
-  Q_EMIT glInitialized(true, m_glSummary);
+  _glReady = true;
+  Q_EMIT glInitialized(true, _glSummary);
 }
 
 bool OcctViewport::event(QEvent* event) {
@@ -319,12 +319,12 @@ bool OcctViewport::event(QEvent* event) {
 
 void OcctViewport::checkDevicePixelRatio() {
   const qreal dpr = devicePixelRatioF();
-  if (m_lastDpr == 0.0) {
-    m_lastDpr = dpr;
+  if (_lastDpr == 0.0) {
+    _lastDpr = dpr;
     return;
   }
-  if (!qFuzzyCompare(dpr, m_lastDpr)) {
-    m_lastDpr = dpr;
+  if (!qFuzzyCompare(dpr, _lastDpr)) {
+    _lastDpr = dpr;
     QMetaObject::invokeMethod(this, &OcctViewport::devicePixelRatioChanged, Qt::QueuedConnection);
   }
 }
@@ -332,11 +332,11 @@ void OcctViewport::checkDevicePixelRatio() {
 void OcctViewport::paintGL() {
   // Also checked per frame: not every scale change arrives as a screen change.
   checkDevicePixelRatio();
-  if (!m_glReady || m_view->Window().IsNull()) {
+  if (!_glReady || _view->Window().IsNull()) {
     return;
   }
 
-  OccHandle<OpenGl_Context> glCtx = glContextOf(m_view);
+  OccHandle<OpenGl_Context> glCtx = glContextOf(_view);
   if (glCtx.IsNull()) {
     return;
   }
@@ -352,18 +352,18 @@ void OcctViewport::paintGL() {
     return;
   }
 
-  OccHandle<Aspect_NeutralWindow> window = OccHandle<Aspect_NeutralWindow>::DownCast(m_view->Window());
+  OccHandle<Aspect_NeutralWindow> window = OccHandle<Aspect_NeutralWindow>::DownCast(_view->Window());
   NCollection_Vec2<int> oldSize;
   window->Size(oldSize.x(), oldSize.y());
   const NCollection_Vec2<int> newSize = fbo->GetVPSize();
   if (newSize != oldSize) {
     window->SetSize(newSize.x(), newSize.y());
-    m_view->MustBeResized();
-    m_view->Invalidate();
+    _view->MustBeResized();
+    _view->Invalidate();
   }
 
-  m_view->InvalidateImmediate();
-  FlushViewEvents(m_context, m_view, true);
+  _view->InvalidateImmediate();
+  FlushViewEvents(_context, _view, true);
   updateOverlayPosition(); // the camera may have moved
 }
 
@@ -374,19 +374,19 @@ OverlayWidget::OverlayWidget(QWidget* parent) : QWidget(parent) {
 }
 
 void OverlayWidget::setMarker(const std::optional<QPointF>& position, const QString& caption) {
-  if (position == m_position && caption == m_caption) {
+  if (position == _position && caption == _caption) {
     return;
   }
-  m_position = position;
-  m_caption = caption;
+  _position = position;
+  _caption = caption;
   update();
 }
 
 void OverlayWidget::paintEvent(QPaintEvent*) {
-  if (!m_position) {
+  if (!_position) {
     return;
   }
-  const QPointF center = *m_position;
+  const QPointF center = *_position;
   QPainter painter(this);
   painter.setRenderHint(QPainter::Antialiasing);
   const QColor accent(242, 115, 13);
@@ -399,38 +399,38 @@ void OverlayWidget::paintEvent(QPaintEvent*) {
     painter.drawLine(center - QPointF(0, 11), center - QPointF(0, 4));
     painter.drawLine(center + QPointF(0, 4), center + QPointF(0, 11));
   }
-  if (!m_caption.isEmpty()) {
+  if (!_caption.isEmpty()) {
     const QFontMetricsF metrics(painter.font());
-    QRectF box = metrics.boundingRect(m_caption).adjusted(-4, -2, 4, 2);
+    QRectF box = metrics.boundingRect(_caption).adjusted(-4, -2, 4, 2);
     box.moveTopLeft(center + QPointF(12, 8));
     painter.setPen(Qt::NoPen);
     painter.setBrush(QColor(255, 255, 255, 225));
     painter.drawRoundedRect(box, 3, 3);
     painter.setPen(QColor(30, 30, 35));
-    painter.drawText(box, Qt::AlignCenter, m_caption);
+    painter.drawText(box, Qt::AlignCenter, _caption);
   }
 }
 
 void OcctViewport::updateOverlayPosition() {
-  if (m_overlayWidget == nullptr) {
+  if (_overlayWidget == nullptr) {
     return;
   }
-  if (!m_overlay || m_view.IsNull() || m_view->Window().IsNull()) {
-    m_overlayWidget->setMarker(std::nullopt, {});
+  if (!_overlay || _view.IsNull() || _view->Window().IsNull()) {
+    _overlayWidget->setMarker(std::nullopt, {});
     return;
   }
-  int xp = 0;
-  int yp = 0;
-  m_view->Convert(m_overlay->point.X(), m_overlay->point.Y(), m_overlay->point.Z(), xp, yp);
+  int pixelX = 0;
+  int pixelY = 0;
+  _view->Convert(_overlay->point.X(), _overlay->point.Y(), _overlay->point.Z(), pixelX, pixelY);
   const qreal dpr = devicePixelRatioF();
-  m_overlayWidget->setMarker(QPointF(xp / dpr, yp / dpr), m_overlay->caption);
+  _overlayWidget->setMarker(QPointF(pixelX / dpr, pixelY / dpr), _overlay->caption);
 }
 
 void OcctViewport::setOverlayMarker(const std::optional<OverlayMarker>& marker) {
   const bool changed =
-      marker.has_value() != m_overlay.has_value() ||
-      (marker && (!marker->point.IsEqual(m_overlay->point, 0.0) || marker->caption != m_overlay->caption));
-  m_overlay = marker;
+      marker.has_value() != _overlay.has_value() ||
+      (marker && (!marker->point.IsEqual(_overlay->point, 0.0) || marker->caption != _overlay->caption));
+  _overlay = marker;
   if (changed) {
     updateOverlayPosition();
   }
@@ -438,8 +438,8 @@ void OcctViewport::setOverlayMarker(const std::optional<OverlayMarker>& marker) 
 
 void OcctViewport::resizeEvent(QResizeEvent* event) {
   QOpenGLWidget::resizeEvent(event);
-  if (m_overlayWidget != nullptr) {
-    m_overlayWidget->setGeometry(rect());
+  if (_overlayWidget != nullptr) {
+    _overlayWidget->setGeometry(rect());
   }
 }
 
@@ -474,34 +474,34 @@ NCollection_Vec2<int> OcctViewport::toViewPixels(const QPointF& logicalPos) cons
 
 void OcctViewport::mousePressEvent(QMouseEvent* event) {
   QOpenGLWidget::mousePressEvent(event);
-  if (m_glReady && m_dragHandler != nullptr && event->buttons() == Qt::LeftButton &&
-      event->modifiers() == Qt::NoModifier && m_context->HasDetected()) {
+  if (_glReady && _dragHandler != nullptr && event->buttons() == Qt::LeftButton &&
+      event->modifiers() == Qt::NoModifier && _context->HasDetected()) {
     const NCollection_Vec2<int> pixel = toViewPixels(event->position());
-    if (m_dragHandler->beginDrag(m_context->DetectedInteractive(), pixel)) {
-      m_dragging = true;
-      m_dragStart = pixel;
+    if (_dragHandler->beginDrag(_context->DetectedInteractive(), pixel)) {
+      _dragging = true;
+      _dragStart = pixel;
       return;
     }
   }
   setNavigating(true);
-  if (m_glReady && UpdateMouseButtons(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
-                                      toVKeyFlags(event->modifiers()), false)) {
+  if (_glReady && UpdateMouseButtons(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
+                                     toVKeyFlags(event->modifiers()), false)) {
     update();
   }
 }
 
 void OcctViewport::mouseReleaseEvent(QMouseEvent* event) {
   QOpenGLWidget::mouseReleaseEvent(event);
-  if (m_dragging) {
-    m_dragging = false;
-    if (m_dragHandler != nullptr) {
-      m_dragHandler->endDrag();
+  if (_dragging) {
+    _dragging = false;
+    if (_dragHandler != nullptr) {
+      _dragHandler->endDrag();
     }
     invalidateScene();
     return;
   }
-  if (m_glReady && UpdateMouseButtons(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
-                                      toVKeyFlags(event->modifiers()), false)) {
+  if (_glReady && UpdateMouseButtons(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
+                                     toVKeyFlags(event->modifiers()), false)) {
     update();
   }
   if (event->buttons() == Qt::NoButton) {
@@ -511,114 +511,114 @@ void OcctViewport::mouseReleaseEvent(QMouseEvent* event) {
 
 void OcctViewport::mouseMoveEvent(QMouseEvent* event) {
   QOpenGLWidget::mouseMoveEvent(event);
-  if (m_dragging) {
-    if (m_dragHandler != nullptr) {
-      m_dragHandler->drag(m_dragStart, toViewPixels(event->position()));
+  if (_dragging) {
+    if (_dragHandler != nullptr) {
+      _dragHandler->drag(_dragStart, toViewPixels(event->position()));
     }
     invalidateScene();
     return;
   }
-  if (m_glReady && UpdateMousePosition(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
-                                       toVKeyFlags(event->modifiers()), false)) {
+  if (_glReady && UpdateMousePosition(toViewPixels(event->position()), toVKeyMouse(event->buttons()),
+                                      toVKeyFlags(event->modifiers()), false)) {
     update();
   }
 }
 
 void OcctViewport::wheelEvent(QWheelEvent* event) {
   QOpenGLWidget::wheelEvent(event);
-  if (!m_glReady) {
+  if (!_glReady) {
     return;
   }
   // angleDelta is in eighths of a degree; one notch = 15 degrees.
   const double delta = event->angleDelta().y() / 8.0;
   if (delta != 0.0 && UpdateZoom(Aspect_ScrollDelta(toViewPixels(event->position()), delta))) {
     setNavigating(true);
-    m_navigationEnd.start(); // wheel events have no "release": end after a pause
+    _navigationEnd.start(); // wheel events have no "release": end after a pause
     update();
   }
 }
 
 void OcctViewport::setNavigating(bool navigating) {
-  if (navigating == m_navigating || m_viewer.IsNull()) {
+  if (navigating == _navigating || _viewer.IsNull()) {
     return;
   }
-  m_navigating = navigating;
+  _navigating = navigating;
   // Bounding-box diagonal in pixels below which an object is skipped (needs
   // frustum culling, which is on by default).
-  constexpr double kCullingPixels = 4.0;
-  Graphic3d_ZLayerSettings settings = m_viewer->ZLayerSettings(Graphic3d_ZLayerId_Default);
-  settings.SetCullingSize(navigating ? kCullingPixels * devicePixelRatioF() : Precision::Infinite());
-  m_viewer->SetZLayerSettings(Graphic3d_ZLayerId_Default, settings);
+  constexpr double CullingPixels = 4.0;
+  Graphic3d_ZLayerSettings settings = _viewer->ZLayerSettings(Graphic3d_ZLayerId_Default);
+  settings.SetCullingSize(navigating ? CullingPixels * devicePixelRatioF() : Precision::Infinite());
+  _viewer->SetZLayerSettings(Graphic3d_ZLayerId_Default, settings);
   if (!navigating) {
     invalidateScene(); // redraw with everything
   }
 }
 
 void OcctViewport::invalidateScene() {
-  m_view->Invalidate();
+  _view->Invalidate();
   update();
 }
 
 void OcctViewport::fitAll() {
-  m_view->FitAll(0.01, false);
+  _view->FitAll(0.01, false);
   update();
 }
 
 void OcctViewport::setStandardView(V3d_TypeOfOrientation orientation) {
-  m_view->SetProj(orientation, false);
-  m_view->FitAll(0.01, false);
+  _view->SetProj(orientation, false);
+  _view->FitAll(0.01, false);
   update();
 }
 
 void OcctViewport::setPerspective(bool enabled) {
-  m_view->Camera()->SetProjectionType(enabled ? Graphic3d_Camera::Projection_Perspective
-                                              : Graphic3d_Camera::Projection_Orthographic);
+  _view->Camera()->SetProjectionType(enabled ? Graphic3d_Camera::Projection_Perspective
+                                             : Graphic3d_Camera::Projection_Orthographic);
   update();
 }
 
 bool OcctViewport::isPerspective() const {
-  return m_view->Camera()->ProjectionType() == Graphic3d_Camera::Projection_Perspective;
+  return _view->Camera()->ProjectionType() == Graphic3d_Camera::Projection_Perspective;
 }
 
 void OcctViewport::setMsaaSamples(int samples) {
-  m_view->ChangeRenderingParams().NbMsaaSamples = std::max(0, samples);
+  _view->ChangeRenderingParams().NbMsaaSamples = std::max(0, samples);
   update();
 }
 
 int OcctViewport::msaaSamples() const {
-  return m_view->RenderingParams().NbMsaaSamples;
+  return _view->RenderingParams().NbMsaaSamples;
 }
 
 void OcctViewport::setShowFrameRate(bool enabled) {
-  m_view->ChangeRenderingParams().ToShowStats = enabled;
+  _view->ChangeRenderingParams().ToShowStats = enabled;
   update();
 }
 
 void OcctViewport::applyBackground(const BackgroundStyle& style) {
-  auto toOcct = [](const QColor& c) {
-    return Quantity_Color(c.redF(), c.greenF(), c.blueF(), Quantity_TOC_sRGB);
+  auto toOcct = [](const QColor& color) {
+    return Quantity_Color(color.redF(), color.greenF(), color.blueF(), Quantity_TOC_sRGB);
   };
   switch (style.kind) {
   case BackgroundStyle::Kind::Gradient:
-    m_view->SetBgGradientColors(toOcct(style.top), toOcct(style.bottom), Aspect_GradientFillMethod_Vertical,
-                                false);
+    _view->SetBgGradientColors(toOcct(style.top), toOcct(style.bottom), Aspect_GradientFillMethod_Vertical,
+                               false);
     break;
   case BackgroundStyle::Kind::Solid:
   case BackgroundStyle::Kind::White: {
     const Quantity_Color color = style.kind == BackgroundStyle::Kind::White
                                      ? Quantity_Color(1.0, 1.0, 1.0, Quantity_TOC_sRGB)
                                      : toOcct(style.solid);
-    m_view->SetBackgroundColor(color);
-    m_view->SetBgGradientColors(color, color, Aspect_GradientFillMethod_Vertical, false);
+    _view->SetBackgroundColor(color);
+    _view->SetBgGradientColors(color, color, Aspect_GradientFillMethod_Vertical, false);
     break;
   }
   }
-  m_view->Invalidate();
+  _view->Invalidate();
 }
 
 void OcctViewport::setBackground(const BackgroundStyle& style) {
-  m_background = style;
-  applyBackground(m_background);
+  _background = style;
+  applyBackground(_background);
   update();
 }
 
@@ -626,7 +626,7 @@ void OcctViewport::applyLighting() {
   // Headlight / ambient intensity. Cheap on purpose: no shadows, no extra lights.
   double headlight = 1.0;
   double ambient = 1.0;
-  switch (m_lighting) {
+  switch (_lighting) {
   case LightingPreset::Default:
     break;
   case LightingPreset::Brighter:
@@ -640,16 +640,16 @@ void OcctViewport::applyLighting() {
   }
   // The headlight is dimmed through its color: OCCT does not apply SetIntensity to it (checked
   // with Mesa llvmpipe), while the ambient light honors intensities above 1.
-  m_headlight->SetColor(Quantity_Color(headlight, headlight, headlight, Quantity_TOC_RGB));
-  m_ambientLight->SetIntensity(static_cast<float>(ambient));
-  m_viewer->UpdateLights();
-  if (!m_view.IsNull()) {
-    m_view->Invalidate();
+  _headlight->SetColor(Quantity_Color(headlight, headlight, headlight, Quantity_TOC_RGB));
+  _ambientLight->SetIntensity(static_cast<float>(ambient));
+  _viewer->UpdateLights();
+  if (!_view.IsNull()) {
+    _view->Invalidate();
   }
 }
 
 void OcctViewport::setLighting(LightingPreset preset) {
-  m_lighting = preset;
+  _lighting = preset;
   applyLighting();
   update();
 }
@@ -673,8 +673,8 @@ QImage OcctViewport::dumpView(int width, int height) {
 #if OCC_VERSION_HEX >= 0x070700
   options.TargetZLayerId = Graphic3d_ZLayerId_Topmost; // include the view cube (OSD layers)
 #endif
-  if (!m_view->ToPixMap(pixmap, options) || pixmap.IsEmpty() ||
-      pixmap.Width() != static_cast<size_t>(width) || pixmap.Height() != static_cast<size_t>(height)) {
+  if (!_view->ToPixMap(pixmap, options) || pixmap.IsEmpty() || pixmap.Width() != static_cast<size_t>(width) ||
+      pixmap.Height() != static_cast<size_t>(height)) {
     return {};
   }
 
@@ -695,11 +695,11 @@ QImage OcctViewport::dumpView(int width, int height) {
 }
 
 QImage OcctViewport::renderImage(int width, int height, ExportBackground background) {
-  if (!m_glReady || m_view.IsNull() || m_view->Window().IsNull()) {
+  if (!_glReady || _view.IsNull() || _view->Window().IsNull()) {
     return {};
   }
-  width = std::clamp(width, 1, kMaxExportSize);
-  height = std::clamp(height, 1, kMaxExportSize);
+  width = std::clamp(width, 1, MaxExportSize);
+  height = std::clamp(height, 1, MaxExportSize);
 
   // Exactly what is on screen: take Qt's own framebuffer.
   if (background == ExportBackground::AsShown && QSize(width, height) == framebufferSize()) {
@@ -710,7 +710,7 @@ QImage OcctViewport::renderImage(int width, int height, ExportBackground backgro
   }
 
   makeCurrent();
-  const BackgroundStyle shown = m_background;
+  const BackgroundStyle shown = _background;
   QImage result;
   if (background == ExportBackground::AsShown) {
     result = dumpView(width, height);
@@ -742,8 +742,9 @@ QImage OcctViewport::renderImage(int width, int height, ExportBackground backgro
               white[x] = qRgba(0, 0, 0, 0);
             } else {
               // Straight (non-premultiplied) color: black pixel = color * alpha.
-              const auto un = [alpha](int v) { return std::min(255, v * 255 / alpha); };
-              white[x] = qRgba(un(qRed(black[x])), un(qGreen(black[x])), un(qBlue(black[x])), alpha);
+              const auto unpremultiply = [alpha](int v) { return std::min(255, v * 255 / alpha); };
+              white[x] = qRgba(unpremultiply(qRed(black[x])), unpremultiply(qGreen(black[x])),
+                               unpremultiply(qBlue(black[x])), alpha);
             }
           }
         }
@@ -752,7 +753,7 @@ QImage OcctViewport::renderImage(int width, int height, ExportBackground backgro
     applyBackground(shown);
   }
   doneCurrent();
-  m_view->Invalidate();
+  _view->Invalidate();
   update();
 
   if (result.isNull()) {
@@ -763,7 +764,7 @@ QImage OcctViewport::renderImage(int width, int height, ExportBackground backgro
 
 void OcctViewport::collectGlInfo(int glMajor, int glMinor) {
   occ::StringStringMap info;
-  m_view->DiagnosticInformation(info, Graphic3d_DiagnosticInfo_Basic);
+  _view->DiagnosticInformation(info, Graphic3d_DiagnosticInfo_Basic);
 
   QString text;
   QString renderer;
@@ -775,17 +776,17 @@ void OcctViewport::collectGlInfo(int glMajor, int glMinor) {
       renderer = value;
     }
   }
-  m_glInfo = text;
-  m_glSummary = QStringLiteral("OpenGL %1.%2").arg(glMajor).arg(glMinor);
+  _glInfo = text;
+  _glSummary = QStringLiteral("OpenGL %1.%2").arg(glMajor).arg(glMinor);
   if (!renderer.isEmpty()) {
-    m_glSummary += QStringLiteral(" · ") + renderer;
+    _glSummary += QStringLiteral(" · ") + renderer;
   }
-  Message::SendInfo() << "OpenGL context wrapped by OCCT: " << m_glSummary.toStdString().c_str();
+  Message::SendInfo() << "OpenGL context wrapped by OCCT: " << _glSummary.toStdString().c_str();
 }
 
 void OcctViewport::failGl(const QString& message) {
-  m_glReady = false;
-  m_glFailed = true;
+  _glReady = false;
+  _glFailed = true;
   Message::SendFail() << message.toStdString().c_str();
   Q_EMIT glInitialized(false, message);
 }

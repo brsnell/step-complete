@@ -71,10 +71,11 @@ No Hungarian prefixes (`m_`, `k`, type tags). Never a leading underscore at name
 before a capital letter (reserved in C++); `_camelCase` is only for class members.
 
 Short names that stay: loop counters (`i`, `j`), `it`, `ok`, `id`, `ex`, `ctx`, one-line lambda
-parameters, and standard math and C++ shorthand: `x`/`y`/`z` for coordinates, `u`/`v` for surface
-parameters, `a`/`b` for two things being compared, `p1`/`p2` and `v1`/`v2` for pairs of points or
-vectors, `mm` for a value in millimetres, `ec` for a `std::error_code`, `in`/`os`/`is` for streams,
-and `Pi`.
+parameters, short whole words (`to`, as in `from`/`to`), and standard math and C++ shorthand:
+`x`/`y`/`z` for coordinates and `u`/`v` for surface parameters, including their numbered, delta and
+per-point forms (`x0`/`y1`, `dx`/`dy`, `du`/`dv`, `ax`/`ay` for point `a`), `a`/`b` for two things
+being compared, `p1`/`p2` and `v1`/`v2` for pairs of points or vectors, `mm` for a value in
+millimetres, `ec` for a `std::error_code`, `in`/`os`/`is` for streams, and `Pi`.
 
 - **Never rename to fit the standard:** strings saved to disk or read by tools (`QSettings`
   keys, dock and widget `objectName`s (tests look widgets up by them), CSV headers,

@@ -18,23 +18,23 @@ namespace sc::render {
 
 namespace {
 
-const Quantity_ColorRGBA kDefaultPartColor(Quantity_Color(0.72, 0.75, 0.80, Quantity_TOC_sRGB), 1.0f);
-const Quantity_Color kEdgeColor(0.15, 0.16, 0.18, Quantity_TOC_sRGB);
+const Quantity_ColorRGBA DefaultPartColor(Quantity_Color(0.72, 0.75, 0.80, Quantity_TOC_sRGB), 1.0f);
+const Quantity_Color EdgeColor(0.15, 0.16, 0.18, Quantity_TOC_sRGB);
 
 // Part presentation whose fallback color is the color inherited from the
 // assembly structure (or a neutral gray), instead of XCAFPrs's white.
 class PartPresentation : public XCAFPrs_AISObject {
 public:
   PartPresentation(const TDF_Label& label, const Quantity_ColorRGBA& fallback)
-      : XCAFPrs_AISObject(label), m_fallback(fallback) {}
+      : XCAFPrs_AISObject(label), _fallback(fallback) {}
 
   void DefaultStyle(XCAFPrs_Style& style) const override {
-    style.SetColorSurf(m_fallback);
-    style.SetColorCurv(m_fallback.GetRGB());
+    style.SetColorSurf(_fallback);
+    style.SetColorCurv(_fallback.GetRGB());
   }
 
 private:
-  Quantity_ColorRGBA m_fallback;
+  Quantity_ColorRGBA _fallback;
 };
 
 int aisMode(DisplayStyle style) {
@@ -45,7 +45,7 @@ void configureDrawer(const OccHandle<Prs3d_Drawer>& drawer, DisplayStyle style) 
   const bool edges = style == DisplayStyle::ShadedWithEdges;
   drawer->SetFaceBoundaryDraw(edges);
   if (edges) {
-    drawer->SetFaceBoundaryAspect(new Prs3d_LineAspect(kEdgeColor, Aspect_TOL_SOLID, 1.0));
+    drawer->SetFaceBoundaryAspect(new Prs3d_LineAspect(EdgeColor, Aspect_TOL_SOLID, 1.0));
     // Only sharp (C0) edges: skipping tangent edges between fillets and faces keeps
     // filleted parts readable and draws far fewer lines on large models.
     drawer->SetFaceBoundaryUpperContinuity(GeomAbs_C0);
@@ -68,7 +68,7 @@ std::string prototypeKey(const core::AssemblyNode& node) {
 
 } // namespace
 
-SceneManager::SceneManager(const OccHandle<AIS_InteractiveContext>& context) : m_context(context) {
+SceneManager::SceneManager(const OccHandle<AIS_InteractiveContext>& context) : _context(context) {
   applyHighlightMode();
 }
 
@@ -77,32 +77,32 @@ SceneManager::~SceneManager() {
 }
 
 void SceneManager::clear() {
-  for (const PartEntry& part : m_parts) {
+  for (const PartEntry& part : _parts) {
     if (!part.object.IsNull()) {
-      m_context->Remove(part.object, false);
+      _context->Remove(part.object, false);
     }
   }
-  m_parts.clear();
-  m_objectToPart.clear();
-  m_prototypes.clear();
-  m_index.reset();
+  _parts.clear();
+  _objectToPart.clear();
+  _prototypes.clear();
+  _index.reset();
 }
 
 void SceneManager::setModel(std::shared_ptr<const core::AssemblyIndex> index) {
   clear();
-  m_index = std::move(index);
-  if (!m_index) {
+  _index = std::move(index);
+  if (!_index) {
     return;
   }
-  m_parts.resize(m_index->nodes().size());
-  for (const core::NodeId id : m_index->partInstances()) {
-    const core::AssemblyNode& node = m_index->node(id);
-    PartEntry& part = m_parts[static_cast<size_t>(id)];
+  _parts.resize(_index->nodes().size());
+  for (const core::NodeId id : _index->partInstances()) {
+    const core::AssemblyNode& node = _index->node(id);
+    PartEntry& part = _parts[static_cast<size_t>(id)];
     part.object = createInstance(node);
     if (part.object.IsNull()) {
       continue;
     }
-    m_objectToPart[part.object.get()] = id;
+    _objectToPart[part.object.get()] = id;
     part.visible = node.visibleInFile;
     if (part.visible) {
       displayPart(part.object);
@@ -112,14 +112,14 @@ void SceneManager::setModel(std::shared_ptr<const core::AssemblyIndex> index) {
 
 OccHandle<XCAFPrs_AISObject> SceneManager::prototypeFor(const core::AssemblyNode& node) {
   const std::string key = prototypeKey(node);
-  auto it = m_prototypes.find(key);
-  if (it != m_prototypes.end()) {
+  auto it = _prototypes.find(key);
+  if (it != _prototypes.end()) {
     return it->second;
   }
   OccHandle<XCAFPrs_AISObject> prototype =
-      new PartPresentation(node.prototypeLabel, node.inheritedColor.value_or(kDefaultPartColor));
+      new PartPresentation(node.prototypeLabel, node.inheritedColor.value_or(DefaultPartColor));
   applyStyleTo(prototype);
-  m_prototypes.emplace(key, prototype);
+  _prototypes.emplace(key, prototype);
   return prototype;
 }
 
@@ -127,7 +127,7 @@ OccHandle<AIS_InteractiveObject> SceneManager::createInstance(const core::Assemb
   OccHandle<XCAFPrs_AISObject> prototype = prototypeFor(node);
   OccHandle<AIS_ConnectedInteractive> instance = new AIS_ConnectedInteractive();
   instance->Connect(prototype, node.location.Transformation());
-  instance->SetDisplayMode(aisMode(m_style));
+  instance->SetDisplayMode(aisMode(_style));
   return instance;
 }
 
@@ -136,30 +136,30 @@ void SceneManager::detach(core::NodeId id) {
   if (part == nullptr || part->detached || part->object.IsNull()) {
     return;
   }
-  const core::AssemblyNode& node = m_index->node(id);
-  const bool wasSelected = m_context->IsSelected(part->object);
+  const core::AssemblyNode& node = _index->node(id);
+  const bool wasSelected = _context->IsSelected(part->object);
 
   OccHandle<XCAFPrs_AISObject> own =
-      new PartPresentation(node.prototypeLabel, node.inheritedColor.value_or(kDefaultPartColor));
+      new PartPresentation(node.prototypeLabel, node.inheritedColor.value_or(DefaultPartColor));
   own->SetLocalTransformation(node.location.Transformation());
   applyStyleTo(own);
-  own->SetDisplayMode(aisMode(m_style));
+  own->SetDisplayMode(aisMode(_style));
 
-  m_objectToPart.erase(part->object.get());
-  m_context->Remove(part->object, false);
+  _objectToPart.erase(part->object.get());
+  _context->Remove(part->object, false);
   part->object = own;
   part->detached = true;
-  m_objectToPart[own.get()] = id;
+  _objectToPart[own.get()] = id;
   if (part->visible) {
     displayPart(own);
     if (wasSelected) {
-      m_context->AddOrRemoveSelected(own, false);
+      _context->AddOrRemoveSelected(own, false);
     }
   }
 }
 
 void SceneManager::applyStyleTo(const OccHandle<AIS_InteractiveObject>& object) {
-  configureDrawer(object->Attributes(), m_style);
+  configureDrawer(object->Attributes(), _style);
 }
 
 void SceneManager::applyHighlightMode() {
@@ -170,39 +170,39 @@ void SceneManager::applyHighlightMode() {
   for (const Prs3d_TypeOfHighlight type :
        {Prs3d_TypeOfHighlight_Selected, Prs3d_TypeOfHighlight_Dynamic, Prs3d_TypeOfHighlight_LocalSelected,
         Prs3d_TypeOfHighlight_LocalDynamic}) {
-    m_context->HighlightStyle(type)->SetDisplayMode(aisMode(m_style));
+    _context->HighlightStyle(type)->SetDisplayMode(aisMode(_style));
   }
 }
 
 void SceneManager::setDisplayStyle(DisplayStyle style) {
-  m_style = style;
+  _style = style;
   applyHighlightMode();
-  for (auto& [key, prototype] : m_prototypes) {
+  for (auto& [key, prototype] : _prototypes) {
     applyStyleTo(prototype);
     prototype->SetToUpdate(); // connected instances recompute from it
   }
-  for (const PartEntry& part : m_parts) {
+  for (const PartEntry& part : _parts) {
     if (part.object.IsNull()) {
       continue;
     }
     if (part.detached) {
       applyStyleTo(part.object);
     }
-    m_context->SetDisplayMode(part.object, aisMode(style), false);
-    m_context->Redisplay(part.object, false);
+    _context->SetDisplayMode(part.object, aisMode(style), false);
+    _context->Redisplay(part.object, false);
   }
 }
 
 std::vector<core::NodeId> SceneManager::expandToParts(const std::vector<core::NodeId>& nodes) const {
   std::vector<core::NodeId> parts;
-  if (!m_index) {
+  if (!_index) {
     return parts;
   }
   for (const core::NodeId node : nodes) {
-    if (node < 0 || static_cast<size_t>(node) >= m_index->nodes().size()) {
+    if (node < 0 || static_cast<size_t>(node) >= _index->nodes().size()) {
       continue;
     }
-    const auto below = m_index->partsBelow(node);
+    const auto below = _index->partsBelow(node);
     parts.insert(parts.end(), below.begin(), below.end());
   }
   std::sort(parts.begin(), parts.end());
@@ -211,11 +211,11 @@ std::vector<core::NodeId> SceneManager::expandToParts(const std::vector<core::No
 }
 
 SceneManager::PartEntry* SceneManager::entry(core::NodeId part) {
-  if (part < 0 || static_cast<size_t>(part) >= m_parts.size() ||
-      m_parts[static_cast<size_t>(part)].object.IsNull()) {
+  if (part < 0 || static_cast<size_t>(part) >= _parts.size() ||
+      _parts[static_cast<size_t>(part)].object.IsNull()) {
     return nullptr;
   }
-  return &m_parts[static_cast<size_t>(part)];
+  return &_parts[static_cast<size_t>(part)];
 }
 
 const SceneManager::PartEntry* SceneManager::entry(core::NodeId part) const {
@@ -232,18 +232,18 @@ void SceneManager::setVisible(const std::vector<core::NodeId>& nodes, bool visib
     if (visible) {
       displayPart(part->object);
     } else {
-      m_context->Erase(part->object, false);
+      _context->Erase(part->object, false);
     }
   }
 }
 
 void SceneManager::isolate(const std::vector<core::NodeId>& nodes) {
-  if (!m_index) {
+  if (!_index) {
     return;
   }
   const std::vector<core::NodeId> keep = expandToParts(nodes);
   std::vector<core::NodeId> hide;
-  for (const core::NodeId id : m_index->partInstances()) {
+  for (const core::NodeId id : _index->partInstances()) {
     if (!std::binary_search(keep.begin(), keep.end(), id)) {
       hide.push_back(id);
     }
@@ -253,8 +253,8 @@ void SceneManager::isolate(const std::vector<core::NodeId>& nodes) {
 }
 
 void SceneManager::showAll() {
-  if (m_index) {
-    setVisible(m_index->roots(), true);
+  if (_index) {
+    setVisible(_index->roots(), true);
   }
 }
 
@@ -279,9 +279,9 @@ void SceneManager::setTransparency(const std::vector<core::NodeId>& nodes, doubl
       continue;
     }
     if (transparency > 0.0) {
-      m_context->SetTransparency(part->object, transparency, false);
+      _context->SetTransparency(part->object, transparency, false);
     } else if (part->detached) {
-      m_context->UnsetTransparency(part->object, false);
+      _context->UnsetTransparency(part->object, false);
     }
   }
 }
@@ -290,49 +290,49 @@ core::NodeId SceneManager::partOf(const OccHandle<AIS_InteractiveObject>& object
   if (object.IsNull()) {
     return core::NoNode;
   }
-  const auto it = m_objectToPart.find(object.get());
-  return it == m_objectToPart.end() ? core::NoNode : it->second;
+  const auto it = _objectToPart.find(object.get());
+  return it == _objectToPart.end() ? core::NoNode : it->second;
 }
 
 void SceneManager::setClipPlanes(const OccHandle<Graphic3d_SequenceOfHClipPlane>& planes) {
-  m_clipPlanes = planes;
-  for (const PartEntry& part : m_parts) {
+  _clipPlanes = planes;
+  for (const PartEntry& part : _parts) {
     if (!part.object.IsNull()) {
-      part.object->SetClipPlanes(m_clipPlanes);
+      part.object->SetClipPlanes(_clipPlanes);
     }
   }
 }
 
 void SceneManager::displayPart(const OccHandle<AIS_InteractiveObject>& object) {
-  object->SetClipPlanes(m_clipPlanes);
+  object->SetClipPlanes(_clipPlanes);
   // Display with the first active selection mode (which also loads the object
   // into the selector; per-object Activate() does nothing for objects that are
   // not loaded), then activate the remaining modes the current tool wants.
   const std::vector<int> modes = activeSelectionModes();
-  m_context->Display(object, aisMode(m_style), modes.front(), false);
+  _context->Display(object, aisMode(_style), modes.front(), false);
   for (size_t i = 1; i < modes.size(); ++i) {
-    m_context->Activate(object, modes[i]);
+    _context->Activate(object, modes[i]);
   }
 }
 
 std::vector<int> SceneManager::activeSelectionModes() const {
-  return m_selectionModes.empty() ? std::vector<int>{0} : m_selectionModes;
+  return _selectionModes.empty() ? std::vector<int>{0} : _selectionModes;
 }
 
 void SceneManager::setSelectionModes(const std::vector<int>& modes) {
-  if (modes == m_selectionModes) {
+  if (modes == _selectionModes) {
     return;
   }
-  m_context->ClearSelected(false);
-  m_selectionModes = modes;
+  _context->ClearSelected(false);
+  _selectionModes = modes;
   const std::vector<int> active = activeSelectionModes();
-  for (const PartEntry& part : m_parts) {
+  for (const PartEntry& part : _parts) {
     if (part.object.IsNull() || !part.visible) {
       continue;
     }
-    m_context->Deactivate(part.object);
+    _context->Deactivate(part.object);
     for (const int mode : active) {
-      m_context->Activate(part.object, mode);
+      _context->Activate(part.object, mode);
     }
   }
 }
@@ -354,7 +354,7 @@ std::vector<int> SceneManager::subShapeModes(bool vertices, bool edges, bool fac
 std::optional<SceneManager::PickedEntity>
 SceneManager::pickedEntity(const OccHandle<SelectMgr_EntityOwner>& owner) const {
   const OccHandle<StdSelect_BRepOwner> brepOwner = OccHandle<StdSelect_BRepOwner>::DownCast(owner);
-  if (brepOwner.IsNull() || !brepOwner->HasShape() || !m_index) {
+  if (brepOwner.IsNull() || !brepOwner->HasShape() || !_index) {
     return std::nullopt;
   }
   const core::NodeId part = partOf(OccHandle<AIS_InteractiveObject>::DownCast(brepOwner->Selectable()));
@@ -363,13 +363,13 @@ SceneManager::pickedEntity(const OccHandle<SelectMgr_EntityOwner>& owner) const 
   }
   // Owners of connected and detached instances hold the prototype-space shape;
   // the instance placement is the node's accumulated location.
-  return PickedEntity{part, brepOwner->Shape().Moved(m_index->node(part).location)};
+  return PickedEntity{part, brepOwner->Shape().Moved(_index->node(part).location)};
 }
 
 std::vector<core::NodeId> SceneManager::selectedParts() const {
   std::vector<core::NodeId> parts;
-  for (m_context->InitSelected(); m_context->MoreSelected(); m_context->NextSelected()) {
-    const core::NodeId id = partOf(m_context->SelectedInteractive());
+  for (_context->InitSelected(); _context->MoreSelected(); _context->NextSelected()) {
+    const core::NodeId id = partOf(_context->SelectedInteractive());
     if (id != core::NoNode && std::find(parts.begin(), parts.end(), id) == parts.end()) {
       parts.push_back(id);
     }
@@ -378,11 +378,11 @@ std::vector<core::NodeId> SceneManager::selectedParts() const {
 }
 
 void SceneManager::select(const std::vector<core::NodeId>& nodes) {
-  m_context->ClearSelected(false);
+  _context->ClearSelected(false);
   for (const core::NodeId id : expandToParts(nodes)) {
     const PartEntry* part = entry(id);
-    if (part != nullptr && part->visible && !m_context->IsSelected(part->object)) {
-      m_context->AddOrRemoveSelected(part->object, false);
+    if (part != nullptr && part->visible && !_context->IsSelected(part->object)) {
+      _context->AddOrRemoveSelected(part->object, false);
     }
   }
 }
@@ -402,7 +402,7 @@ Bnd_Box SceneManager::boundingBox(const std::vector<core::NodeId>& nodes) const 
 
 int SceneManager::detachedCount() const {
   return static_cast<int>(
-      std::count_if(m_parts.begin(), m_parts.end(), [](const PartEntry& part) { return part.detached; }));
+      std::count_if(_parts.begin(), _parts.end(), [](const PartEntry& part) { return part.detached; }));
 }
 
 } // namespace sc::render

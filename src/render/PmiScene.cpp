@@ -43,16 +43,16 @@ namespace sc::render {
 namespace {
 
 // Annotations: dark blue, readable on the light background and on part colors.
-const Quantity_Color kPmiColor(0.05, 0.20, 0.55, Quantity_TOC_sRGB);
+const Quantity_Color PmiColor(0.05, 0.20, 0.55, Quantity_TOC_sRGB);
 // Geometry a selected annotation applies to.
-const Quantity_Color kTargetColor(1.0, 0.62, 0.10, Quantity_TOC_sRGB);
+const Quantity_Color TargetColor(1.0, 0.62, 0.10, Quantity_TOC_sRGB);
 // Semantic labels whose anchors are closer than this (model units) are stacked.
-constexpr double kSameAnchorDistance = 1e-3;
+constexpr double SameAnchorDistance = 1e-3;
 // Arrowheads in logical pixels (scaled by the device pixel ratio).
-constexpr double kArrowLength = 11.0;
-constexpr double kArrowHalfWidth = 3.5;
+constexpr double ArrowLength = 11.0;
+constexpr double ArrowHalfWidth = 3.5;
 // Extension lines run this fraction of the dimension-line offset past the dimension line.
-constexpr double kExtensionOvershoot = 0.1;
+constexpr double ExtensionOvershoot = 0.1;
 
 std::optional<gp_Pnt> centerOf(const std::vector<TopoDS_Shape>& shapes) {
   Bnd_Box box;
@@ -141,9 +141,9 @@ std::optional<Circular> circularFeature(const TopoDS_Shape& shape, const gp_Pnt&
   try {
     TopExp_Explorer face(shape, TopAbs_FACE);
     if (shape.ShapeType() == TopAbs_FACE || face.More()) {
-      const TopoDS_Face f =
+      const TopoDS_Face firstFace =
           shape.ShapeType() == TopAbs_FACE ? TopoDS::Face(shape) : TopoDS::Face(face.Current());
-      const BRepAdaptor_Surface surface(f);
+      const BRepAdaptor_Surface surface(firstFace);
       if (surface.GetType() == GeomAbs_Cylinder) {
         const gp_Cylinder cylinder = surface.Cylinder();
         const gp_Ax1 axis = cylinder.Axis();
@@ -159,9 +159,9 @@ std::optional<Circular> circularFeature(const TopoDS_Shape& shape, const gp_Pnt&
     }
     TopExp_Explorer edge(shape, TopAbs_EDGE);
     if (shape.ShapeType() == TopAbs_EDGE || edge.More()) {
-      const TopoDS_Edge e =
+      const TopoDS_Edge firstEdge =
           shape.ShapeType() == TopAbs_EDGE ? TopoDS::Edge(shape) : TopoDS::Edge(edge.Current());
-      const BRepAdaptor_Curve curve(e);
+      const BRepAdaptor_Curve curve(firstEdge);
       if (curve.GetType() == GeomAbs_Circle) {
         const gp_Circ circle = curve.Circle();
         return Circular{circle.Location(), circle.Axis().Direction(), circle.Radius()};
@@ -200,9 +200,9 @@ std::optional<gp_Dir> planarNormal(const TopoDS_Shape& shape) {
   try {
     TopExp_Explorer face(shape, TopAbs_FACE);
     if (shape.ShapeType() == TopAbs_FACE || face.More()) {
-      const TopoDS_Face f =
+      const TopoDS_Face firstFace =
           shape.ShapeType() == TopAbs_FACE ? TopoDS::Face(shape) : TopoDS::Face(face.Current());
-      const BRepAdaptor_Surface surface(f);
+      const BRepAdaptor_Surface surface(firstFace);
       if (surface.GetType() == GeomAbs_Plane) {
         return surface.Plane().Axis().Direction();
       }
@@ -217,26 +217,26 @@ std::optional<gp_Dir> planarNormal(const TopoDS_Shape& shape) {
 // --- PmiPresentation -------------------------------------------------------------------
 
 PmiPresentation::PmiPresentation(const core::PmiItem& item, const TopLoc_Location& placement, double dpr)
-    : m_id(item.id), m_presentation(item.presentation), m_dpr(dpr > 0.0 ? dpr : 1.0) {
+    : _id(item.id), _presentation(item.presentation), _dpr(dpr > 0.0 ? dpr : 1.0) {
   SetLocalTransformation(placement.Transformation());
 
   // Semantic label for items without a graphical presentation.
   // A generated name alone carries no information: items neither interpreted nor graphical
   // are not drawn at all.
   if (item.semantic || !item.presentation.IsNull()) {
-    m_label = !item.text.empty() ? item.text : item.name;
+    _label = !item.text.empty() ? item.text : item.name;
   }
-  m_leaderTarget = item.point1 ? item.point1 : centerOf(item.targets);
+  _leaderTarget = item.point1 ? item.point1 : centerOf(item.targets);
   if (item.textPosition) {
-    m_labelAnchor = *item.textPosition;
-  } else if (m_leaderTarget) {
-    m_labelAnchor = *m_leaderTarget;
+    _labelAnchor = *item.textPosition;
+  } else if (_leaderTarget) {
+    _labelAnchor = *_leaderTarget;
   }
-  if (m_leaderTarget && m_leaderTarget->Distance(m_labelAnchor) < 1e-9) {
-    m_leaderTarget.reset();
+  if (_leaderTarget && _leaderTarget->Distance(_labelAnchor) < 1e-9) {
+    _leaderTarget.reset();
   }
   collectGeometry();
-  if (m_presentation.IsNull() && !m_label.empty()) {
+  if (_presentation.IsNull() && !_label.empty()) {
     buildDimensionGeometry(item);
   }
 }
@@ -250,7 +250,7 @@ void PmiPresentation::buildDimensionGeometry(const core::PmiItem& item) {
   switch (classify(item)) {
   case DimensionShape::Linear:
     if (buildLinear(item)) {
-      m_leaderTarget.reset();
+      _leaderTarget.reset();
     }
     break;
   case DimensionShape::Diameter:
@@ -295,9 +295,9 @@ bool PmiPresentation::buildLinear(const core::PmiItem& item) {
     return false;
   }
   if (!item.textPosition) {
-    m_labelAnchor = *textAt;
+    _labelAnchor = *textAt;
     if (lateral) {
-      m_segments.push_back(*lateral);
+      _segments.push_back(*lateral);
     }
   }
   const gp_Dir dir(span);
@@ -317,27 +317,27 @@ bool PmiPresentation::buildLinear(const core::PmiItem& item) {
   const gp_Dir side = normal ? gp_Dir(gp_Vec(*normal).Crossed(gp_Vec(dir)))
                              : (offsetLine ? gp_Dir(offset) : anyPerpendicular(dir));
 
-  gp_Pnt q1 = *a;
-  gp_Pnt q2 = *b;
+  gp_Pnt extensionStart = *a;
+  gp_Pnt extensionEnd = *b;
   if (offsetLine) {
-    q1.Translate(offset);
-    q2.Translate(offset);
-    const gp_Vec overshoot = offset * kExtensionOvershoot;
-    m_segments.emplace_back(*a, q1.Translated(overshoot));
-    m_segments.emplace_back(*b, q2.Translated(overshoot));
+    extensionStart.Translate(offset);
+    extensionEnd.Translate(offset);
+    const gp_Vec overshoot = offset * ExtensionOvershoot;
+    _segments.emplace_back(*a, extensionStart.Translated(overshoot));
+    _segments.emplace_back(*b, extensionEnd.Translated(overshoot));
   }
   // The dimension line also reaches a text position outside the extension lines.
-  const double along = gp_Vec(q1, *textAt).Dot(gp_Vec(dir));
-  gp_Pnt lineStart = q1;
-  gp_Pnt lineEnd = q2;
+  const double along = gp_Vec(extensionStart, *textAt).Dot(gp_Vec(dir));
+  gp_Pnt lineStart = extensionStart;
+  gp_Pnt lineEnd = extensionEnd;
   if (along < 0.0) {
-    lineStart = q1.Translated(gp_Vec(dir) * along);
+    lineStart = extensionStart.Translated(gp_Vec(dir) * along);
   } else if (along > length) {
-    lineEnd = q1.Translated(gp_Vec(dir) * along);
+    lineEnd = extensionStart.Translated(gp_Vec(dir) * along);
   }
-  m_segments.emplace_back(lineStart, lineEnd);
-  m_arrows.push_back({q1, dir.Reversed(), side});
-  m_arrows.push_back({q2, dir, side});
+  _segments.emplace_back(lineStart, lineEnd);
+  _arrows.push_back({extensionStart, dir.Reversed(), side});
+  _arrows.push_back({extensionEnd, dir, side});
   return true;
 }
 
@@ -362,16 +362,16 @@ void PmiPresentation::buildArrowedLeader(const core::PmiItem& item, bool angular
       const gp_Dir u = radialDirection(*circle, circle->center, item.plane);
       const gp_Dir side = circle->axis ? gp_Dir(gp_Vec(*circle->axis).Crossed(gp_Vec(u))) : arrowSide(u);
       const gp_Pnt tip = circle->center.Translated(gp_Vec(u) * circle->radius);
-      m_labelAnchor = circle->center;
-      m_leaderTarget.reset();
+      _labelAnchor = circle->center;
+      _leaderTarget.reset();
       if (diameter) {
         const gp_Pnt opposite = circle->center.Translated(gp_Vec(u) * -circle->radius);
-        m_segments.emplace_back(opposite, tip);
-        m_arrows.push_back({opposite, u.Reversed(), side});
+        _segments.emplace_back(opposite, tip);
+        _arrows.push_back({opposite, u.Reversed(), side});
       } else {
-        m_segments.emplace_back(circle->center, tip);
+        _segments.emplace_back(circle->center, tip);
       }
-      m_arrows.push_back({tip, u, side});
+      _arrows.push_back({tip, u, side});
       return;
     }
     return;
@@ -391,7 +391,7 @@ void PmiPresentation::buildArrowedLeader(const core::PmiItem& item, bool angular
       }
     }
     if (!rim) {
-      rim = m_leaderTarget;
+      rim = _leaderTarget;
     }
     if (rim) {
       tips = {*rim};
@@ -404,30 +404,30 @@ void PmiPresentation::buildArrowedLeader(const core::PmiItem& item, bool angular
       continue;
     }
     const gp_Dir dir(v);
-    m_arrows.push_back({tip, dir, arrowSide(dir)});
+    _arrows.push_back({tip, dir, arrowSide(dir)});
     if (angular) {
-      m_segments.emplace_back(from, tip);
+      _segments.emplace_back(from, tip);
     } else {
-      m_leaderTarget = tip; // the leader now ends at the arrow tip
+      _leaderTarget = tip; // the leader now ends at the arrow tip
     }
     any = true;
   }
   if (angular && any) {
-    m_leaderTarget.reset();
+    _leaderTarget.reset();
   }
 }
 
 void PmiPresentation::collectGeometry() {
-  if (m_presentation.IsNull()) {
+  if (_presentation.IsNull()) {
     return;
   }
-  for (TopExp_Explorer it(m_presentation, TopAbs_EDGE); it.More(); it.Next()) {
+  for (TopExp_Explorer it(_presentation, TopAbs_EDGE); it.More(); it.Next()) {
     std::vector<gp_Pnt> points = edgePoints(TopoDS::Edge(it.Current()));
     if (points.size() >= 2) {
-      m_polylines.push_back(std::move(points));
+      _polylines.push_back(std::move(points));
     }
   }
-  for (TopExp_Explorer it(m_presentation, TopAbs_FACE); it.More(); it.Next()) {
+  for (TopExp_Explorer it(_presentation, TopAbs_FACE); it.More(); it.Next()) {
     TopLoc_Location location;
     const OccHandle<Poly_Triangulation> mesh = BRep_Tool::Triangulation(TopoDS::Face(it.Current()), location);
     if (mesh.IsNull()) {
@@ -435,11 +435,11 @@ void PmiPresentation::collectGeometry() {
     }
     const gp_Trsf trsf = location.Transformation();
     for (int i = 1; i <= mesh->NbTriangles(); ++i) {
-      int n1 = 0, n2 = 0, n3 = 0;
-      mesh->Triangle(i).Get(n1, n2, n3);
-      m_triangles.push_back(mesh->Node(n1).Transformed(trsf));
-      m_triangles.push_back(mesh->Node(n2).Transformed(trsf));
-      m_triangles.push_back(mesh->Node(n3).Transformed(trsf));
+      int node1 = 0, node2 = 0, node3 = 0;
+      mesh->Triangle(i).Get(node1, node2, node3);
+      _triangles.push_back(mesh->Node(node1).Transformed(trsf));
+      _triangles.push_back(mesh->Node(node2).Transformed(trsf));
+      _triangles.push_back(mesh->Node(node3).Transformed(trsf));
     }
   }
 }
@@ -449,35 +449,35 @@ void PmiPresentation::Compute(const OccHandle<PrsMgr_PresentationManager>&,
   if (mode != 0) {
     return;
   }
-  if (!m_polylines.empty()) {
+  if (!_polylines.empty()) {
     int vertices = 0;
-    for (const auto& polyline : m_polylines) {
+    for (const auto& polyline : _polylines) {
       vertices += static_cast<int>(polyline.size());
     }
     OccHandle<Graphic3d_Group> group = prs->NewGroup();
-    group->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(kPmiColor, Aspect_TOL_SOLID, 1.0 * m_dpr));
+    group->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(PmiColor, Aspect_TOL_SOLID, 1.0 * _dpr));
     OccHandle<Graphic3d_ArrayOfPolylines> lines =
-        new Graphic3d_ArrayOfPolylines(vertices, static_cast<int>(m_polylines.size()));
-    for (const auto& polyline : m_polylines) {
+        new Graphic3d_ArrayOfPolylines(vertices, static_cast<int>(_polylines.size()));
+    for (const auto& polyline : _polylines) {
       lines->AddBound(static_cast<int>(polyline.size()));
-      for (const gp_Pnt& p : polyline) {
-        lines->AddVertex(p);
+      for (const gp_Pnt& point : polyline) {
+        lines->AddVertex(point);
       }
     }
     group->AddPrimitiveArray(lines);
   }
-  if (!m_triangles.empty()) {
+  if (!_triangles.empty()) {
     OccHandle<Graphic3d_Group> group = prs->NewGroup();
     OccHandle<Graphic3d_AspectFillArea3d> fill = new Graphic3d_AspectFillArea3d();
     fill->SetInteriorStyle(Aspect_IS_SOLID);
-    fill->SetInteriorColor(kPmiColor);
+    fill->SetInteriorColor(PmiColor);
     fill->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit);
     fill->SetFaceCulling(Graphic3d_TypeOfBackfacingModel_DoubleSided);
     group->SetGroupPrimitivesAspect(fill);
     OccHandle<Graphic3d_ArrayOfTriangles> triangles =
-        new Graphic3d_ArrayOfTriangles(static_cast<int>(m_triangles.size()));
-    for (const gp_Pnt& p : m_triangles) {
-      triangles->AddVertex(p);
+        new Graphic3d_ArrayOfTriangles(static_cast<int>(_triangles.size()));
+    for (const gp_Pnt& point : _triangles) {
+      triangles->AddVertex(point);
     }
     group->AddPrimitiveArray(triangles);
   }
@@ -486,12 +486,12 @@ void PmiPresentation::Compute(const OccHandle<PrsMgr_PresentationManager>&,
   }
 
   // Semantic-only: dimension and extension lines (arrowheads are PmiArrow objects).
-  if (!m_segments.empty()) {
+  if (!_segments.empty()) {
     OccHandle<Graphic3d_Group> group = prs->NewGroup();
-    group->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(kPmiColor, Aspect_TOL_SOLID, 1.0 * m_dpr));
+    group->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(PmiColor, Aspect_TOL_SOLID, 1.0 * _dpr));
     OccHandle<Graphic3d_ArrayOfSegments> lines =
-        new Graphic3d_ArrayOfSegments(static_cast<int>(2 * m_segments.size()));
-    for (const auto& segment : m_segments) {
+        new Graphic3d_ArrayOfSegments(static_cast<int>(2 * _segments.size()));
+    for (const auto& segment : _segments) {
       lines->AddVertex(segment.first);
       lines->AddVertex(segment.second);
     }
@@ -499,12 +499,12 @@ void PmiPresentation::Compute(const OccHandle<PrsMgr_PresentationManager>&,
   }
 
   // The leader line; the text is a PmiLabel at the anchor.
-  if (m_leaderTarget) {
+  if (_leaderTarget) {
     OccHandle<Graphic3d_Group> leader = prs->NewGroup();
-    leader->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(kPmiColor, Aspect_TOL_SOLID, 1.0 * m_dpr));
+    leader->SetGroupPrimitivesAspect(new Graphic3d_AspectLine3d(PmiColor, Aspect_TOL_SOLID, 1.0 * _dpr));
     OccHandle<Graphic3d_ArrayOfSegments> segment = new Graphic3d_ArrayOfSegments(2);
-    segment->AddVertex(m_labelAnchor);
-    segment->AddVertex(*m_leaderTarget);
+    segment->AddVertex(_labelAnchor);
+    segment->AddVertex(*_leaderTarget);
     leader->AddPrimitiveArray(segment);
   }
 }
@@ -514,20 +514,20 @@ void PmiPresentation::ComputeSelection(const OccHandle<SelectMgr_Selection>& sel
     return;
   }
   OccHandle<SelectMgr_EntityOwner> owner = new SelectMgr_EntityOwner(this, 6);
-  for (const auto& polyline : m_polylines) {
+  for (const auto& polyline : _polylines) {
     for (size_t i = 1; i < polyline.size(); ++i) {
       selection->Add(new Select3D_SensitiveSegment(owner, polyline[i - 1], polyline[i]));
     }
   }
-  for (size_t i = 0; i + 2 < m_triangles.size(); i += 3) {
+  for (size_t i = 0; i + 2 < _triangles.size(); i += 3) {
     selection->Add(
-        new Select3D_SensitiveTriangle(owner, m_triangles[i], m_triangles[i + 1], m_triangles[i + 2]));
+        new Select3D_SensitiveTriangle(owner, _triangles[i], _triangles[i + 1], _triangles[i + 2]));
   }
-  if (hasLabel() && m_leaderTarget) {
-    selection->Add(new Select3D_SensitiveSegment(owner, m_labelAnchor, *m_leaderTarget));
+  if (hasLabel() && _leaderTarget) {
+    selection->Add(new Select3D_SensitiveSegment(owner, _labelAnchor, *_leaderTarget));
   }
   if (hasLabel()) {
-    for (const auto& segment : m_segments) {
+    for (const auto& segment : _segments) {
       selection->Add(new Select3D_SensitiveSegment(owner, segment.first, segment.second));
     }
   }
@@ -536,15 +536,15 @@ void PmiPresentation::ComputeSelection(const OccHandle<SelectMgr_Selection>& sel
 // --- PmiArrow --------------------------------------------------------------------------
 
 double PmiArrow::length(double dpr) {
-  return std::round(kArrowLength * dpr);
+  return std::round(ArrowLength * dpr);
 }
 
 double PmiArrow::halfWidth(double dpr) {
-  return std::round(kArrowHalfWidth * dpr);
+  return std::round(ArrowHalfWidth * dpr);
 }
 
 PmiArrow::PmiArrow(const gp_Pnt& tip, const gp_Dir& dir, const gp_Dir& side, double dpr)
-    : m_dir(dir), m_side(side), m_dpr(dpr > 0.0 ? dpr : 1.0) {
+    : _dir(dir), _side(side), _dpr(dpr > 0.0 ? dpr : 1.0) {
   // Local coordinates are device pixels around the tip; orientation stays that of the model.
   SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomPers, tip));
   SetZLayer(Graphic3d_ZLayerId_Topmost);
@@ -558,12 +558,12 @@ void PmiArrow::Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHa
   OccHandle<Graphic3d_Group> group = prs->NewGroup();
   OccHandle<Graphic3d_AspectFillArea3d> fill = new Graphic3d_AspectFillArea3d();
   fill->SetInteriorStyle(Aspect_IS_SOLID);
-  fill->SetInteriorColor(kPmiColor);
+  fill->SetInteriorColor(PmiColor);
   fill->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit);
   fill->SetFaceCulling(Graphic3d_TypeOfBackfacingModel_DoubleSided);
   group->SetGroupPrimitivesAspect(fill);
-  const gp_Vec back = gp_Vec(m_dir) * -length(m_dpr);
-  const gp_Vec wing = gp_Vec(m_side) * halfWidth(m_dpr);
+  const gp_Vec back = gp_Vec(_dir) * -length(_dpr);
+  const gp_Vec wing = gp_Vec(_side) * halfWidth(_dpr);
   OccHandle<Graphic3d_ArrayOfTriangles> triangle = new Graphic3d_ArrayOfTriangles(3);
   triangle->AddVertex(gp_Pnt(0.0, 0.0, 0.0));
   triangle->AddVertex(gp_Pnt(0.0, 0.0, 0.0).Translated(back + wing));
@@ -573,7 +573,7 @@ void PmiArrow::Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHa
 
 // --- PmiScene --------------------------------------------------------------------------
 
-PmiScene::PmiScene(const OccHandle<AIS_InteractiveContext>& context) : m_context(context) {}
+PmiScene::PmiScene(const OccHandle<AIS_InteractiveContext>& context) : _context(context) {}
 
 PmiScene::~PmiScene() {
   clear();
@@ -581,8 +581,8 @@ PmiScene::~PmiScene() {
 
 std::vector<TopLoc_Location> PmiScene::placementsOf(const core::PmiItem& item) const {
   std::vector<TopLoc_Location> placements;
-  if (m_index && !item.ownerPart.IsNull()) {
-    for (const core::AssemblyNode& node : m_index->nodes()) {
+  if (_index && !item.ownerPart.IsNull()) {
+    for (const core::AssemblyNode& node : _index->nodes()) {
       if (node.prototypeLabel == item.ownerPart) {
         placements.push_back(node.location);
       }
@@ -597,53 +597,53 @@ std::vector<TopLoc_Location> PmiScene::placementsOf(const core::PmiItem& item) c
 void PmiScene::setModel(std::shared_ptr<const core::PmiModel> pmi,
                         std::shared_ptr<const core::AssemblyIndex> index, double devicePixelRatio) {
   clear();
-  m_pmi = std::move(pmi);
-  m_index = std::move(index);
-  if (!m_pmi) {
+  _pmi = std::move(pmi);
+  _index = std::move(index);
+  if (!_pmi) {
     return;
   }
-  m_entries.resize(m_pmi->items().size());
-  m_dpr = devicePixelRatio > 0.0 ? devicePixelRatio : 1.0;
+  _entries.resize(_pmi->items().size());
+  _dpr = devicePixelRatio > 0.0 ? devicePixelRatio : 1.0;
   size_t graphical = 0;
-  for (const core::PmiItem& item : m_pmi->items()) {
+  for (const core::PmiItem& item : _pmi->items()) {
     graphical += item.presentation.IsNull() ? 0 : 1;
   }
-  m_semanticLabels = graphical * 2 < m_pmi->items().size() || m_pmi->items().empty();
+  _semanticLabels = graphical * 2 < _pmi->items().size() || _pmi->items().empty();
   // Labels sharing an anchor are stacked (view independent); the rest of the decluttering
   // needs the camera and is done by declutter(), which the owner of the view calls.
   std::vector<std::pair<gp_Pnt, int>> anchors;
-  for (const core::PmiItem& item : m_pmi->items()) {
-    Entry& entry = m_entries[static_cast<size_t>(item.id)];
+  for (const core::PmiItem& item : _pmi->items()) {
+    Entry& entry = _entries[static_cast<size_t>(item.id)];
     for (const TopLoc_Location& placement : placementsOf(item)) {
       OccHandle<PmiPresentation> prs = new PmiPresentation(item, placement, devicePixelRatio);
-      m_objectToPmi[prs.get()] = item.id;
-      m_context->Display(prs, 0, 0, false);
+      _objectToPmi[prs.get()] = item.id;
+      _context->Display(prs, 0, 0, false);
       entry.placements.push_back(prs);
       for (const PmiPresentation::ArrowSpec& spec : prs->arrows()) {
         const gp_Trsf trsf = placement.Transformation();
         OccHandle<PmiArrow> arrow = new PmiArrow(spec.tip.Transformed(trsf), spec.dir.Transformed(trsf),
                                                  spec.side.Transformed(trsf), devicePixelRatio);
-        m_context->Display(arrow, 0, -1, false);
+        _context->Display(arrow, 0, -1, false);
         entry.arrows.push_back(arrow);
       }
       if (prs->hasLabel()) {
         const gp_Pnt anchor = prs->labelAnchor().Transformed(placement.Transformation());
         auto same = std::find_if(anchors.begin(), anchors.end(), [&anchor](const auto& other) {
-          return other.first.Distance(anchor) < kSameAnchorDistance;
+          return other.first.Distance(anchor) < SameAnchorDistance;
         });
         if (same == anchors.end()) {
           anchors.emplace_back(anchor, 0);
           same = std::prev(anchors.end());
         }
         OccHandle<PmiLabel> label = new PmiLabel(item, anchor, same->second++, devicePixelRatio);
-        m_objectToPmi[label.get()] = item.id;
-        m_context->Display(label, 0, 0, false);
+        _objectToPmi[label.get()] = item.id;
+        _context->Display(label, 0, 0, false);
         entry.labels.push_back(label);
       }
     }
   }
-  if (!m_semanticLabels) {
-    for (Entry& entry : m_entries) {
+  if (!_semanticLabels) {
+    for (Entry& entry : _entries) {
       updateDisplay(entry);
     }
   }
@@ -656,26 +656,26 @@ void PmiScene::setModel(std::shared_ptr<const core::PmiModel> pmi,
 // free slot among a fixed candidate list (above/below, then to the sides), joined to its
 // anchor by a connector. Cost: O(n * candidates) with a grid over the placed boxes.
 void PmiScene::declutter(const OccHandle<V3d_View>& view) {
-  if (view.IsNull() || !m_pmi) {
+  if (view.IsNull() || !_pmi) {
     return;
   }
   struct Box {
     double x0, y0, x1, y1; // window pixels, y down
   };
   const auto overlap = [](const Box& a, const Box& b) {
-    const double w = std::min(a.x1, b.x1) - std::max(a.x0, b.x0);
-    const double h = std::min(a.y1, b.y1) - std::max(a.y0, b.y0);
-    return w > 0.0 && h > 0.0 ? w * h : 0.0;
+    const double overlapWidth = std::min(a.x1, b.x1) - std::max(a.x0, b.x0);
+    const double overlapHeight = std::min(a.y1, b.y1) - std::max(a.y0, b.y0);
+    return overlapWidth > 0.0 && overlapHeight > 0.0 ? overlapWidth * overlapHeight : 0.0;
   };
-  constexpr double kCell = 128.0;
+  constexpr double Cell = 128.0;
   std::vector<Box> placed;
   std::unordered_map<long long, std::vector<int>> grid;
   const auto cellKey = [](long long cx, long long cy) { return cx * 1000003LL + cy; };
   const auto forCells = [&](const Box& box, const auto& visit) {
-    for (long long cx = static_cast<long long>(std::floor(box.x0 / kCell));
-         cx <= static_cast<long long>(std::floor(box.x1 / kCell)); ++cx) {
-      for (long long cy = static_cast<long long>(std::floor(box.y0 / kCell));
-           cy <= static_cast<long long>(std::floor(box.y1 / kCell)); ++cy) {
+    for (long long cx = static_cast<long long>(std::floor(box.x0 / Cell));
+         cx <= static_cast<long long>(std::floor(box.x1 / Cell)); ++cx) {
+      for (long long cy = static_cast<long long>(std::floor(box.y0 / Cell));
+           cy <= static_cast<long long>(std::floor(box.y1 / Cell)); ++cy) {
         visit(cellKey(cx, cy));
       }
     }
@@ -698,11 +698,11 @@ void PmiScene::declutter(const OccHandle<V3d_View>& view) {
     return total;
   };
 
-  const double pitch = PmiLabel::stackPitch(m_dpr);
-  const double gap = std::round(6.0 * m_dpr);
-  constexpr int kColumns[] = {0, 1, -1, 2, -2};
-  constexpr int kRows[] = {0, -1, 1, -2, 2, -3, 3};
-  for (Entry& entry : m_entries) {
+  const double pitch = PmiLabel::stackPitch(_dpr);
+  const double gap = std::round(6.0 * _dpr);
+  constexpr int Columns[] = {0, 1, -1, 2, -2};
+  constexpr int Rows[] = {0, -1, 1, -2, 2, -3, 3};
+  for (Entry& entry : _entries) {
     if (!entry.visible) {
       continue;
     }
@@ -720,8 +720,8 @@ void PmiScene::declutter(const OccHandle<V3d_View>& view) {
       double bestOverlap = -1.0;
       double bestDx = 0.0;
       double bestDy = 0.0;
-      for (const int column : kColumns) {
-        for (const int row : kRows) {
+      for (const int column : Columns) {
+        for (const int row : Rows) {
           const double dx = column * (width + gap);
           const double dy = row * pitch;
           const Box box{ax + left + dx - 1.0, ay - (centerY + dy + half) - 1.0, ax + left + dx + width + 1.0,
@@ -746,7 +746,7 @@ void PmiScene::declutter(const OccHandle<V3d_View>& view) {
       forCells(best, [&](long long key) { grid[key].push_back(index); });
       if (std::abs(label->offsetX() - bestDx) > 0.5 || std::abs(label->offsetY() - bestDy) > 0.5) {
         label->setOffset(bestDx, bestDy);
-        m_context->Redisplay(label, false, true);
+        _context->Redisplay(label, false, true);
       }
     }
   }
@@ -754,30 +754,30 @@ void PmiScene::declutter(const OccHandle<V3d_View>& view) {
 
 void PmiScene::clear() {
   removeTargetHighlight();
-  for (Entry& entry : m_entries) {
+  for (Entry& entry : _entries) {
     for (const auto& prs : entry.placements) {
-      m_context->Remove(prs, false);
+      _context->Remove(prs, false);
     }
     for (const auto& label : entry.labels) {
-      m_context->Remove(label, false);
+      _context->Remove(label, false);
     }
     for (const auto& arrow : entry.arrows) {
-      m_context->Remove(arrow, false);
+      _context->Remove(arrow, false);
     }
   }
-  m_entries.clear();
-  m_objectToPmi.clear();
-  m_highlighted.clear();
-  m_pmi.reset();
-  m_index.reset();
+  _entries.clear();
+  _objectToPmi.clear();
+  _highlighted.clear();
+  _pmi.reset();
+  _index.reset();
 }
 
 void PmiScene::setVisible(const std::vector<core::PmiId>& ids, bool visible) {
   for (const core::PmiId id : ids) {
-    if (id < 0 || id >= static_cast<core::PmiId>(m_entries.size())) {
+    if (id < 0 || id >= static_cast<core::PmiId>(_entries.size())) {
       continue;
     }
-    Entry& entry = m_entries[static_cast<size_t>(id)];
+    Entry& entry = _entries[static_cast<size_t>(id)];
     if (entry.visible == visible) {
       continue;
     }
@@ -790,37 +790,37 @@ void PmiScene::setVisible(const std::vector<core::PmiId>& ids, bool visible) {
 // semantic-only parts (leaders, dimension geometry, arrows, labels) also the semantic switch.
 void PmiScene::updateDisplay(Entry& entry) {
   const auto apply = [this](const OccHandle<AIS_InteractiveObject>& object, bool wanted, int selectionMode) {
-    const bool shown = m_context->IsDisplayed(object);
+    const bool shown = _context->IsDisplayed(object);
     if (wanted && !shown) {
-      m_context->Display(object, 0, selectionMode, false);
+      _context->Display(object, 0, selectionMode, false);
     } else if (!wanted && shown) {
-      m_context->Erase(object, false);
+      _context->Erase(object, false);
     }
   };
   for (const auto& prs : entry.placements) {
-    apply(prs, entry.visible && (m_semanticLabels || !prs->hasLabel()), 0);
+    apply(prs, entry.visible && (_semanticLabels || !prs->hasLabel()), 0);
   }
   for (const auto& label : entry.labels) {
-    apply(label, entry.visible && m_semanticLabels, 0);
+    apply(label, entry.visible && _semanticLabels, 0);
   }
   for (const auto& arrow : entry.arrows) {
-    apply(arrow, entry.visible && m_semanticLabels, -1);
+    apply(arrow, entry.visible && _semanticLabels, -1);
   }
 }
 
 void PmiScene::setSemanticLabelsVisible(bool visible) {
-  if (m_semanticLabels == visible) {
+  if (_semanticLabels == visible) {
     return;
   }
-  m_semanticLabels = visible;
-  for (Entry& entry : m_entries) {
+  _semanticLabels = visible;
+  for (Entry& entry : _entries) {
     updateDisplay(entry);
   }
 }
 
 void PmiScene::setOnlyVisible(const std::vector<core::PmiId>& ids) {
   std::vector<core::PmiId> hide;
-  for (size_t i = 0; i < m_entries.size(); ++i) {
+  for (size_t i = 0; i < _entries.size(); ++i) {
     if (std::find(ids.begin(), ids.end(), static_cast<core::PmiId>(i)) == ids.end()) {
       hide.push_back(static_cast<core::PmiId>(i));
     }
@@ -830,14 +830,14 @@ void PmiScene::setOnlyVisible(const std::vector<core::PmiId>& ids) {
 }
 
 bool PmiScene::isVisible(core::PmiId id) const {
-  return id >= 0 && id < static_cast<core::PmiId>(m_entries.size()) &&
-         m_entries[static_cast<size_t>(id)].visible;
+  return id >= 0 && id < static_cast<core::PmiId>(_entries.size()) &&
+         _entries[static_cast<size_t>(id)].visible;
 }
 
 std::vector<core::PmiId> PmiScene::visibleIds() const {
   std::vector<core::PmiId> ids;
-  for (size_t i = 0; i < m_entries.size(); ++i) {
-    if (m_entries[i].visible) {
+  for (size_t i = 0; i < _entries.size(); ++i) {
+    if (_entries[i].visible) {
       ids.push_back(static_cast<core::PmiId>(i));
     }
   }
@@ -845,14 +845,14 @@ std::vector<core::PmiId> PmiScene::visibleIds() const {
 }
 
 core::PmiId PmiScene::pmiOf(const OccHandle<AIS_InteractiveObject>& object) const {
-  const auto it = m_objectToPmi.find(object.get());
-  return it == m_objectToPmi.end() ? core::NoPmi : it->second;
+  const auto it = _objectToPmi.find(object.get());
+  return it == _objectToPmi.end() ? core::NoPmi : it->second;
 }
 
 std::vector<core::PmiId> PmiScene::selectedPmi() const {
   std::vector<core::PmiId> ids;
-  for (m_context->InitSelected(); m_context->MoreSelected(); m_context->NextSelected()) {
-    const core::PmiId id = pmiOf(m_context->SelectedInteractive());
+  for (_context->InitSelected(); _context->MoreSelected(); _context->NextSelected()) {
+    const core::PmiId id = pmiOf(_context->SelectedInteractive());
     if (id != core::NoPmi && std::find(ids.begin(), ids.end(), id) == ids.end()) {
       ids.push_back(id);
     }
@@ -861,17 +861,17 @@ std::vector<core::PmiId> PmiScene::selectedPmi() const {
 }
 
 void PmiScene::removeTargetHighlight() {
-  if (!m_targetHighlight.IsNull()) {
-    m_context->Remove(m_targetHighlight, false);
-    m_targetHighlight.Nullify();
+  if (!_targetHighlight.IsNull()) {
+    _context->Remove(_targetHighlight, false);
+    _targetHighlight.Nullify();
   }
 }
 
 void PmiScene::highlight(const std::vector<core::PmiId>& ids) {
   removeTargetHighlight();
-  m_highlighted = ids;
-  m_context->ClearSelected(false);
-  if (!m_pmi) {
+  _highlighted = ids;
+  _context->ClearSelected(false);
+  if (!_pmi) {
     return;
   }
 
@@ -880,10 +880,10 @@ void PmiScene::highlight(const std::vector<core::PmiId>& ids) {
   builder.MakeCompound(targets);
   bool any = false;
   for (const core::PmiId id : ids) {
-    if (id < 0 || id >= static_cast<core::PmiId>(m_entries.size())) {
+    if (id < 0 || id >= static_cast<core::PmiId>(_entries.size())) {
       continue;
     }
-    const core::PmiItem& item = m_pmi->item(id);
+    const core::PmiItem& item = _pmi->item(id);
     const std::vector<TopLoc_Location> placements = placementsOf(item);
     for (const auto* shapes : {&item.targets, &item.secondTargets}) {
       for (const TopoDS_Shape& shape : *shapes) {
@@ -895,15 +895,15 @@ void PmiScene::highlight(const std::vector<core::PmiId>& ids) {
         }
       }
     }
-    const Entry& entry = m_entries[static_cast<size_t>(id)];
+    const Entry& entry = _entries[static_cast<size_t>(id)];
     for (const auto& prs : entry.placements) {
-      if (m_context->IsDisplayed(prs)) {
-        m_context->AddOrRemoveSelected(prs, false);
+      if (_context->IsDisplayed(prs)) {
+        _context->AddOrRemoveSelected(prs, false);
       }
     }
     for (const auto& label : entry.labels) {
-      if (m_context->IsDisplayed(label)) {
-        m_context->AddOrRemoveSelected(label, false);
+      if (_context->IsDisplayed(label)) {
+        _context->AddOrRemoveSelected(label, false);
       }
     }
   }
@@ -911,18 +911,18 @@ void PmiScene::highlight(const std::vector<core::PmiId>& ids) {
     return;
   }
   OccHandle<AIS_Shape> shape = new AIS_Shape(targets);
-  shape->SetColor(kTargetColor);
+  shape->SetColor(TargetColor);
   shape->SetDisplayMode(AIS_Shaded);
   shape->SetWidth(3.0);
   // Drawn over the coplanar part faces it marks.
   shape->Attributes()->SetupOwnShadingAspect();
   const OccHandle<Graphic3d_AspectFillArea3d>& fill = shape->Attributes()->ShadingAspect()->Aspect();
   fill->SetShadingModel(Graphic3d_TypeOfShadingModel_Unlit); // flat color, readable from any angle
-  fill->SetInteriorColor(kTargetColor);
+  fill->SetInteriorColor(TargetColor);
   fill->SetPolygonOffsets(Aspect_POM_Fill, -2.0f, -2.0f);
   shape->SetZLayer(Graphic3d_ZLayerId_Top);
-  m_targetHighlight = shape;
-  m_context->Display(shape, AIS_Shaded, -1, false); // not selectable
+  _targetHighlight = shape;
+  _context->Display(shape, AIS_Shaded, -1, false); // not selectable
 }
 
 // Places the camera from the view's STEP camera data (eye, view plane, window), all in mm.
@@ -935,13 +935,13 @@ static bool placeSavedViewCamera(const core::PmiSavedView& view, Graphic3d_Camer
   const gp_Dir z = view.viewDirection;
   const gp_Dir x = view.upDirection.Crossed(z);
   const gp_Dir y = z.Crossed(x);
-  const gp_Vec zv(z);
-  const gp_Vec xv(x);
-  const gp_Vec yv(y);
+  const gp_Vec zAxis(z);
+  const gp_Vec xAxis(x);
+  const gp_Vec yAxis(y);
   const gp_Pnt origin = *view.eye;
   const double planeDistance = *view.viewPlaneDistanceMm;
   const gp_Pnt center =
-      origin.Translated(xv * view.windowCenterX + yv * view.windowCenterY + zv * planeDistance);
+      origin.Translated(xAxis * view.windowCenterX + yAxis * view.windowCenterY + zAxis * planeDistance);
   const double aspect = camera.Aspect() > 1e-6 ? camera.Aspect() : 1.0;
   // The window must fit entirely, whatever the viewport's aspect ratio.
   const double extent = std::max(*view.windowHeightMm, *view.windowWidthMm / aspect);
@@ -950,21 +950,21 @@ static bool placeSavedViewCamera(const core::PmiSavedView& view, Graphic3d_Camer
     // Parallel: only the direction and the window matter; the eye sits on the view plane's
     // normal through the window centre.
     camera.SetProjectionType(Graphic3d_Camera::Projection_Orthographic);
-    camera.SetEyeAndCenter(center.Translated(-zv * planeDistance), center);
+    camera.SetEyeAndCenter(center.Translated(-zAxis * planeDistance), center);
     camera.SetUp(y);
     camera.OrthogonalizeUp();
     camera.SetScale(extent);
     return true;
   }
   // Central: rays converge at the projection point (given in the camera frame).
-  const gp_Pnt eye = origin.Translated(xv * view.projectionPoint.X() + yv * view.projectionPoint.Y() +
-                                       zv * view.projectionPoint.Z());
-  const double distance = gp_Vec(eye, center).Dot(zv);
+  const gp_Pnt eye = origin.Translated(xAxis * view.projectionPoint.X() + yAxis * view.projectionPoint.Y() +
+                                       zAxis * view.projectionPoint.Z());
+  const double distance = gp_Vec(eye, center).Dot(zAxis);
   if (distance < 1e-6) {
     return false;
   }
-  constexpr double kRadToDeg = 57.29577951308232;
-  const double fov = std::clamp(2.0 * std::atan(extent * 0.5 / distance) * kRadToDeg, 1.0, 170.0);
+  constexpr double RadToDeg = 57.29577951308232;
+  const double fov = std::clamp(2.0 * std::atan(extent * 0.5 / distance) * RadToDeg, 1.0, 170.0);
   camera.SetProjectionType(Graphic3d_Camera::Projection_Perspective);
   camera.SetEyeAndCenter(eye, center);
   camera.SetUp(y);
@@ -974,7 +974,7 @@ static bool placeSavedViewCamera(const core::PmiSavedView& view, Graphic3d_Camer
 }
 
 void PmiScene::applyView(const core::PmiSavedView& view, const OccHandle<V3d_View>& v3dView) {
-  if (m_pmi) {
+  if (_pmi) {
     setOnlyVisible(view.pmi);
   }
 
@@ -1001,35 +1001,34 @@ void PmiScene::applyView(const core::PmiSavedView& view, const OccHandle<V3d_Vie
     OccHandle<Graphic3d_ClipPlane> clip = new Graphic3d_ClipPlane(plane);
     clip->SetCapping(false);
     v3dView->AddClipPlane(clip);
-    m_clipPlanes.push_back(clip);
+    _clipPlanes.push_back(clip);
   }
 }
 
 void PmiScene::clearViewClipping(const OccHandle<V3d_View>& v3dView) {
-  for (const auto& clip : m_clipPlanes) {
+  for (const auto& clip : _clipPlanes) {
     v3dView->RemoveClipPlane(clip);
   }
-  m_clipPlanes.clear();
+  _clipPlanes.clear();
 }
 
 int PmiScene::presentationCount() const {
   int count = 0;
-  for (const Entry& entry : m_entries) {
+  for (const Entry& entry : _entries) {
     count += static_cast<int>(entry.placements.size());
   }
   return count;
 }
 
 const std::vector<OccHandle<PmiLabel>>& PmiScene::labelsOf(core::PmiId id) const {
-  static const std::vector<OccHandle<PmiLabel>> none;
-  return id >= 0 && id < static_cast<core::PmiId>(m_entries.size())
-             ? m_entries[static_cast<size_t>(id)].labels
-             : none;
+  static const std::vector<OccHandle<PmiLabel>> None;
+  return id >= 0 && id < static_cast<core::PmiId>(_entries.size()) ? _entries[static_cast<size_t>(id)].labels
+                                                                   : None;
 }
 
 int PmiScene::arrowCount() const {
   int count = 0;
-  for (const Entry& entry : m_entries) {
+  for (const Entry& entry : _entries) {
     count += static_cast<int>(entry.arrows.size());
   }
   return count;
