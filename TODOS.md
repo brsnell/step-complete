@@ -36,7 +36,7 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 **Why:** The "runs well on 10-year-old machines" promise (PLAN §2a) is unverified. Every number in [docs/performance.md](docs/performance.md) comes from CI or a modern machine, and the rendering numbers come from software rendering.
 
-**Context:** Targets: 50 MB / ~1,000 parts interactive in ~30 s, and ≥ 15 fps orbiting 5M triangles on the reference machine. The benchmark model generator and import benchmark tools in `tools/` make this repeatable.
+**Context:** Targets: 50 MB / ~1,000 parts interactive in ~30 s, and ≥ 15 fps orbiting 5M triangles on the reference machine. A first hands-on data point: Hidden Line ran on an older laptop (Core i7-4600U, Intel HD 4400, 8 GB, Windows 10) on 2026-11-21, but nothing was timed. The benchmark model generator and import benchmark tools in `tools/` make this repeatable.
 
 **Effort:** M
 **Priority:** P2
@@ -57,20 +57,6 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 **Depends on:** Manual macOS package test.
 
 ## v1.1 (M6)
-
-### Hidden-line display style
-
-**Status:** Built on branch `feature/hidden-line` (View > Hidden Line, `L`). Design: [docs/designs/hidden-line.md](docs/designs/hidden-line.md), drafted, awaiting approval. Remove this entry once it is approved and merged.
-
-**What:** A fourth display style, Hidden Line, next to Shaded, Shaded with Edges and Wireframe: visible edges drawn solid, hidden edges left out.
-
-**Why:** It was a v1 goal (PLAN §1) and was never built. Engineers use it to read a model the way it looks on a drawing.
-
-**Context:** It uses white unlit faces with a GPU silhouette, not OCCT's exact computed mode (see the design). It costs about 1.5× the frame time of Shaded with Edges under software rendering. Check it on the reference machine with the performance item above.
-
-**Effort:** M
-**Priority:** P1
-**Depends on:** Design approved.
 
 ### Search in the assembly tree
 

@@ -1,6 +1,6 @@
 # Hidden-line display style
 
-Status: DRAFT (written with the first implementation on 2026-11-21; awaiting approval)
+Status: APPROVED (2026-11-21)
 
 ## What
 
@@ -43,6 +43,10 @@ Mesa llvmpipe (software): about 80–88 ms per frame against 52–60 ms for Shad
 1.5× the frame time. Switching to it takes 0.3–0.4 s, the same as the other styles. On a real GPU
 the silhouette pass draws each part a second time. That still has to be checked on the reference
 machine (TODOS: performance check).
+
+**Hands-on (2026-11-21):** the maintainer ran it on a Windows 10 laptop with a Core i7-4600U
+(Haswell, 2013), Intel HD Graphics 4400, 8 GB RAM and an SSD, older than the §2a reference
+machine. It works. Frame rates were not measured.
 
 ## Out of scope
 
