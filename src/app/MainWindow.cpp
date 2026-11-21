@@ -591,7 +591,7 @@ void MainWindow::measureMassProperties() {
   QApplication::restoreOverrideCursor();
 
   m_measurementsDock->show();
-  // Adding selects the new row, which draws its witness (see MeasurementsPanel::currentChanged).
+  // Adding emits MeasurementsPanel::displayChanged, so syncMeasurementWitnesses draws the witness.
   m_measurements->addMeasurement(result);
   if (!result.ok) {
     statusBar()->showMessage(QString::fromStdString(result.error), 6000);
