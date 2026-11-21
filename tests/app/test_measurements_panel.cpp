@@ -139,7 +139,13 @@ private Q_SLOTS:
 
     QTest::keyClick(tree, Qt::Key_Delete);
     QCOMPARE(headlines(panel), (std::vector<std::string>{"2 mm", "3 mm"}));
+#ifdef Q_OS_MACOS
     QTest::keyClick(tree, Qt::Key_Backspace); // the Mac delete key
+#else
+    QTest::keyClick(tree, Qt::Key_Backspace); // not a delete key here
+    QCOMPARE(headlines(panel), (std::vector<std::string>{"2 mm", "3 mm"}));
+    QTest::keyClick(tree, Qt::Key_Delete, Qt::KeypadModifier); // numpad Delete
+#endif
     QCOMPARE(headlines(panel), (std::vector<std::string>{"3 mm"}));
     QTest::keyClick(tree, Qt::Key_Delete);
     QVERIFY(panel.measurements().empty());

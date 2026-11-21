@@ -21,6 +21,7 @@ public:
   explicit WitnessPresentation(core::Witness witness, double devicePixelRatio = 1.0);
 
   const core::Witness& witness() const { return m_witness; }
+  double devicePixelRatio() const { return m_dpr; }
 
   // Takes effect on the next Redisplay.
   void setEmphasized(bool emphasized) { m_emphasized = emphasized; }

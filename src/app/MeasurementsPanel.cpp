@@ -16,6 +16,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <numeric>
 
 namespace sc::app {
 
@@ -46,8 +47,13 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
     if (event->type() == QEvent::KeyPress) {
       const auto* key = static_cast<QKeyEvent*>(event);
-      if ((key->key() == Qt::Key_Delete || key->key() == Qt::Key_Backspace) &&
-          key->modifiers() == Qt::NoModifier) {
+      // Backspace is the delete key on Mac keyboards only; numpad Delete carries KeypadModifier.
+#ifdef Q_OS_MACOS
+      const bool deleteKey = key->key() == Qt::Key_Delete || key->key() == Qt::Key_Backspace;
+#else
+      const bool deleteKey = key->key() == Qt::Key_Delete;
+#endif
+      if (deleteKey && (key->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier) {
         m_panel->removeSelected();
         return true;
       }
@@ -211,9 +217,19 @@ void MeasurementsPanel::setShown(int index, bool shown) {
 }
 
 void MeasurementsPanel::setAllShown(bool shown) {
+  std::vector<int> all(m_measurements.size());
+  std::iota(all.begin(), all.end(), 0);
+  setShownRows(all, shown);
+}
+
+// Checks or unchecks several results with one displayChanged, so the 3D view syncs once.
+void MeasurementsPanel::setShownRows(const std::vector<int>& indices, bool shown) {
   bool changed = false;
   m_updating = true;
-  for (int i = 0; i < m_tree->topLevelItemCount(); ++i) {
+  for (const int i : indices) {
+    if (i < 0 || i >= static_cast<int>(m_measurements.size())) {
+      continue;
+    }
     QTreeWidgetItem* item = m_tree->topLevelItem(i);
     if (!hasWitness(m_measurements[static_cast<size_t>(i)]) || m_shown[static_cast<size_t>(i)] == shown) {
       continue;
@@ -334,11 +350,7 @@ void MeasurementsPanel::showContextMenu(const QPoint& pos) {
   show->setCheckable(true);
   show->setChecked(anySelectedShowable && allSelectedShown);
   show->setEnabled(anySelectedShowable);
-  connect(show, &QAction::toggled, this, [this, selected](bool on) {
-    for (const int index : selected) {
-      setShown(index, on);
-    }
-  });
+  connect(show, &QAction::toggled, this, [this, selected](bool on) { setShownRows(selected, on); });
   menu.addAction(tr("Show All"), this, [this] { setAllShown(true); })->setEnabled(anyShowable());
   menu.addAction(tr("Hide All"), this, [this] { setAllShown(false); })->setEnabled(anyShown());
   menu.addSeparator();

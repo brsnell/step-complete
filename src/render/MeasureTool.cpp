@@ -195,9 +195,15 @@ void MeasureTool::setWitnesses(const std::vector<ShownWitness>& witnesses) {
       continue;
     }
     auto it = m_witnesses.find(w.id);
+    const double dpr = m_viewport->devicePixelRatioF();
+    if (it != m_witnesses.end() && it->second->devicePixelRatio() != dpr) {
+      // The window moved to a screen with other scaling: rebuild at the new line widths.
+      context->Remove(it->second, false);
+      m_witnesses.erase(it);
+      it = m_witnesses.end();
+    }
     if (it == m_witnesses.end()) {
-      OccHandle<WitnessPresentation> prs =
-          new WitnessPresentation(w.witness, m_viewport->devicePixelRatioF());
+      OccHandle<WitnessPresentation> prs = new WitnessPresentation(w.witness, dpr);
       prs->setEmphasized(w.emphasized);
       // Display without selection modes: witnesses never take picks.
       context->Display(prs, 0, -1, false);

@@ -31,10 +31,10 @@ public:
   const std::vector<core::Measurement>& measurements() const { return m_measurements; }
 
   // Stable id of the result at index (survives removal of other results).
-  int idAt(int index) const { return m_ids[static_cast<size_t>(index)]; }
+  int idAt(int index) const { return inRange(index) ? m_ids[static_cast<size_t>(index)] : -1; }
   // Whether the result at index is checked to show in the 3D view. Always false
   // for failed results, which have nothing to draw.
-  bool isShown(int index) const { return m_shown[static_cast<size_t>(index)]; }
+  bool isShown(int index) const { return inRange(index) && m_shown[static_cast<size_t>(index)]; }
   void setShown(int index, bool shown);
   void setAllShown(bool shown);
 
@@ -59,6 +59,8 @@ private:
   void exportCsv();
   void showContextMenu(const QPoint& pos);
   void onItemChanged(QTreeWidgetItem* item, int column);
+  void setShownRows(const std::vector<int>& indices, bool shown);
+  bool inRange(int index) const { return index >= 0 && index < static_cast<int>(m_measurements.size()); }
   std::vector<int> selectedIndices() const;
   int indexOfId(int id) const;
   bool anyShowable() const;
