@@ -38,9 +38,9 @@ std::string toUtf8(const TCollection_ExtendedString& text) {
 
 std::optional<LengthUnit> lengthUnitFromStepName(const std::string& name) {
   std::string key;
-  for (const char c : name) {
-    if (std::isalpha(static_cast<unsigned char>(c))) {
-      key += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+  for (const char character : name) {
+    if (std::isalpha(static_cast<unsigned char>(character))) {
+      key += static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
     }
   }
   if (key == "millimetre" || key == "millimeter" || key == "mm") {

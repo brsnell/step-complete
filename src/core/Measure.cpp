@@ -238,20 +238,21 @@ gp_Pnt project(const gp_Lin& line, const gp_Pnt& point) {
 }
 
 void addCenterDistance(const EntityInfo& a, const EntityInfo& b, DistanceResult& result) {
-  const Center ca = centerOf(a);
-  const Center cb = centerOf(b);
-  if (ca.point && cb.point) {
-    result.center1 = *ca.point;
-    result.center2 = *cb.point;
-  } else if (ca.point && cb.line) {
-    result.center1 = *ca.point;
-    result.center2 = project(*cb.line, *ca.point);
-  } else if (ca.line && cb.point) {
-    result.center1 = project(*ca.line, *cb.point);
-    result.center2 = *cb.point;
-  } else if (ca.line && cb.line && ca.line->Direction().IsParallel(cb.line->Direction(), ParallelTolerance)) {
-    result.center1 = ca.line->Location();
-    result.center2 = project(*cb.line, ca.line->Location());
+  const Center centerA = centerOf(a);
+  const Center centerB = centerOf(b);
+  if (centerA.point && centerB.point) {
+    result.center1 = *centerA.point;
+    result.center2 = *centerB.point;
+  } else if (centerA.point && centerB.line) {
+    result.center1 = *centerA.point;
+    result.center2 = project(*centerB.line, *centerA.point);
+  } else if (centerA.line && centerB.point) {
+    result.center1 = project(*centerA.line, *centerB.point);
+    result.center2 = *centerB.point;
+  } else if (centerA.line && centerB.line &&
+             centerA.line->Direction().IsParallel(centerB.line->Direction(), ParallelTolerance)) {
+    result.center1 = centerA.line->Location();
+    result.center2 = project(*centerB.line, centerA.line->Location());
   }
   if (result.center1 && result.center2) {
     result.centerDistance = result.center1->Distance(*result.center2);
@@ -279,50 +280,50 @@ struct Direction {
 };
 
 std::optional<Direction> directionOf(const EntityInfo& info) {
-  Direction d;
+  Direction direction;
   if (info.edge && info.edge->direction) {
-    d.dir = *info.edge->direction;
-    d.line = gp_Lin(info.edge->start, d.dir);
-    d.straightEdge = true;
-    d.start = info.edge->start;
-    d.end = info.edge->end;
-    return d;
+    direction.dir = *info.edge->direction;
+    direction.line = gp_Lin(info.edge->start, direction.dir);
+    direction.straightEdge = true;
+    direction.start = info.edge->start;
+    direction.end = info.edge->end;
+    return direction;
   }
   if (info.edge && info.edge->axis) { // circles, ellipses: their normal axis
-    d.dir = info.edge->axis->Direction();
-    d.line = gp_Lin(*info.edge->axis);
-    return d;
+    direction.dir = info.edge->axis->Direction();
+    direction.line = gp_Lin(*info.edge->axis);
+    return direction;
   }
   if (info.face && info.face->normal) {
-    d.dir = *info.face->normal;
-    return d;
+    direction.dir = *info.face->normal;
+    return direction;
   }
   if (info.face && info.face->axis &&
       (info.face->surface == SurfaceKind::Cylinder || info.face->surface == SurfaceKind::Cone ||
        info.face->surface == SurfaceKind::Torus || info.face->surface == SurfaceKind::Revolution)) {
-    d.dir = info.face->axis->Direction();
-    d.line = gp_Lin(*info.face->axis);
-    return d;
+    direction.dir = info.face->axis->Direction();
+    direction.line = gp_Lin(*info.face->axis);
+    return direction;
   }
   return std::nullopt;
 }
 
 // Intersection of two non-parallel lines, if they meet within tolerance.
-std::optional<gp_Pnt> intersect(const gp_Lin& l1, const gp_Lin& l2, double tolerance) {
-  const gp_Vec d1(l1.Direction());
-  const gp_Vec d2(l2.Direction());
-  const gp_Vec w(l2.Location(), l1.Location());
-  const double b = d1.Dot(d2);
+std::optional<gp_Pnt> intersect(const gp_Lin& line1, const gp_Lin& line2, double tolerance) {
+  const gp_Vec dir1(line1.Direction());
+  const gp_Vec dir2(line2.Direction());
+  const gp_Vec between(line2.Location(), line1.Location());
+  const double b = dir1.Dot(dir2);
   const double denom = 1.0 - b * b;
   if (denom < 1e-12) {
     return std::nullopt;
   }
-  const double d = d1.Dot(w);
-  const double e = d2.Dot(w);
-  const double s = (b * e - d) / denom;
-  const double t = (e - b * d) / denom;
-  const gp_Pnt p1 = l1.Location().Translated(d1 * s);
-  const gp_Pnt p2 = l2.Location().Translated(d2 * t);
+  const double dot1 = dir1.Dot(between);
+  const double dot2 = dir2.Dot(between);
+  const double param1 = (b * dot2 - dot1) / denom;
+  const double param2 = (dot2 - b * dot1) / denom;
+  const gp_Pnt p1 = line1.Location().Translated(dir1 * param1);
+  const gp_Pnt p2 = line2.Location().Translated(dir2 * param2);
   if (p1.Distance(p2) > tolerance) {
     return std::nullopt;
   }
@@ -502,18 +503,18 @@ AngleResult angle(const TopoDS_Shape& a, const TopoDS_Shape& b) {
   }
   const EntityInfo infoA = entityInfo(a);
   const EntityInfo infoB = entityInfo(b);
-  std::optional<Direction> da = directionOf(infoA);
-  std::optional<Direction> db = directionOf(infoB);
-  if (!da || !db) {
+  std::optional<Direction> directionA = directionOf(infoA);
+  std::optional<Direction> directionB = directionOf(infoB);
+  if (!directionA || !directionB) {
     result.error = "Pick straight edges, planar faces, or features with an axis.";
     return result;
   }
   const double tolerance = std::max({infoA.tolerance, infoB.tolerance, Precision::Confusion()});
 
   // Two straight edges meeting at a vertex: interior angle seen from the shared point.
-  if (da->straightEdge && db->straightEdge) {
-    const gp_Pnt endsA[2] = {da->start, da->end};
-    const gp_Pnt endsB[2] = {db->start, db->end};
+  if (directionA->straightEdge && directionB->straightEdge) {
+    const gp_Pnt endsA[2] = {directionA->start, directionA->end};
+    const gp_Pnt endsB[2] = {directionB->start, directionB->end};
     for (int i = 0; i < 2 && !result.apex; ++i) {
       for (int j = 0; j < 2 && !result.apex; ++j) {
         if (endsA[i].Distance(endsB[j]) <= tolerance) {
@@ -531,17 +532,17 @@ AngleResult angle(const TopoDS_Shape& a, const TopoDS_Shape& b) {
     }
   }
 
-  result.direction1 = da->dir;
-  result.direction2 = db->dir;
-  double theta = da->dir.Angle(db->dir);
+  result.direction1 = directionA->dir;
+  result.direction2 = directionB->dir;
+  double theta = directionA->dir.Angle(directionB->dir);
   if (theta > Pi / 2.0) {
     theta = Pi - theta;
     result.direction2.Reverse();
   }
   result.angle = theta;
   result.supplement = Pi - theta;
-  if (da->line && db->line) {
-    result.apex = intersect(*da->line, *db->line, tolerance);
+  if (directionA->line && directionB->line) {
+    result.apex = intersect(*directionA->line, *directionB->line, tolerance);
   }
   result.ok = true;
   return result;

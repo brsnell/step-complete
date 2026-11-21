@@ -105,10 +105,10 @@ public:
     _os << '\n';
   }
   void word(const char* v) { _os << v << '\n'; }
-  void pnt(const gp_Pnt& p) {
-    d(p.X());
-    d(p.Y());
-    d(p.Z());
+  void pnt(const gp_Pnt& point) {
+    d(point.X());
+    d(point.Y());
+    d(point.Z());
   }
   void dir(const gp_Dir& v) {
     d(v.X());
@@ -185,100 +185,100 @@ private:
 
 void writeMeta(std::ostream& os, const Document& document, const std::vector<ImportMessage>& messages,
                int rootCount, int uniqueParts) {
-  MetaWriter w(os);
-  w.word(MetaMagic);
-  w.i(CacheFormatVersion);
-  w.s(document.sourcePath());
-  w.s(document.fileUnitName());
-  w.i(document.fileUnit() ? static_cast<int>(*document.fileUnit()) : -1);
-  w.i(rootCount);
-  w.i(uniqueParts);
-  w.i(static_cast<long long>(document.cameras().size()));
-  for (const StepCamera& c : document.cameras()) {
-    w.s(c.name);
-    w.pnt(c.location);
-    w.dir(c.axis);
-    w.dir(c.refDirection);
-    w.i(c.perspective);
-    w.pnt(c.projectionPoint);
-    w.d(c.viewPlaneDistance);
-    w.opt(c.frontPlaneDistance);
-    w.opt(c.backPlaneDistance);
-    w.i(c.frontPlaneClipping);
-    w.i(c.backPlaneClipping);
-    w.i(c.sidesClipping);
-    w.d(c.windowWidth);
-    w.d(c.windowHeight);
-    w.d(c.windowCenterX);
-    w.d(c.windowCenterY);
+  MetaWriter writer(os);
+  writer.word(MetaMagic);
+  writer.i(CacheFormatVersion);
+  writer.s(document.sourcePath());
+  writer.s(document.fileUnitName());
+  writer.i(document.fileUnit() ? static_cast<int>(*document.fileUnit()) : -1);
+  writer.i(rootCount);
+  writer.i(uniqueParts);
+  writer.i(static_cast<long long>(document.cameras().size()));
+  for (const StepCamera& camera : document.cameras()) {
+    writer.s(camera.name);
+    writer.pnt(camera.location);
+    writer.dir(camera.axis);
+    writer.dir(camera.refDirection);
+    writer.i(camera.perspective);
+    writer.pnt(camera.projectionPoint);
+    writer.d(camera.viewPlaneDistance);
+    writer.opt(camera.frontPlaneDistance);
+    writer.opt(camera.backPlaneDistance);
+    writer.i(camera.frontPlaneClipping);
+    writer.i(camera.backPlaneClipping);
+    writer.i(camera.sidesClipping);
+    writer.d(camera.windowWidth);
+    writer.d(camera.windowHeight);
+    writer.d(camera.windowCenterX);
+    writer.d(camera.windowCenterY);
   }
-  w.i(static_cast<long long>(messages.size()));
-  for (const ImportMessage& m : messages) {
-    w.i(static_cast<int>(m.severity));
-    w.i(m.count);
-    w.s(m.text);
+  writer.i(static_cast<long long>(messages.size()));
+  for (const ImportMessage& message : messages) {
+    writer.i(static_cast<int>(message.severity));
+    writer.i(message.count);
+    writer.s(message.text);
   }
-  w.word("END"); // detects truncated files
+  writer.word("END"); // detects truncated files
 }
 
 bool readMeta(std::istream& is, Document& document, std::vector<ImportMessage>& messages, int& rootCount,
               int& uniqueParts) {
-  MetaReader r(is);
-  if (r.word() != MetaMagic || r.i() != CacheFormatVersion) {
+  MetaReader reader(is);
+  if (reader.word() != MetaMagic || reader.i() != CacheFormatVersion) {
     return false;
   }
-  document.setSourcePath(r.s());
-  std::string unitName = r.s();
-  const int unit = static_cast<int>(r.i());
+  document.setSourcePath(reader.s());
+  std::string unitName = reader.s();
+  const int unit = static_cast<int>(reader.i());
   if (unit < -1 || unit > static_cast<int>(LengthUnit::Foot)) {
     return false;
   }
   document.setFileUnit(std::move(unitName),
                        unit >= 0 ? std::optional<LengthUnit>(static_cast<LengthUnit>(unit)) : std::nullopt);
-  rootCount = static_cast<int>(r.i());
-  uniqueParts = static_cast<int>(r.i());
+  rootCount = static_cast<int>(reader.i());
+  uniqueParts = static_cast<int>(reader.i());
 
-  const long long cameraCount = r.i();
-  if (!r.ok() || cameraCount < 0 || cameraCount > 1000000) {
+  const long long cameraCount = reader.i();
+  if (!reader.ok() || cameraCount < 0 || cameraCount > 1000000) {
     return false;
   }
   std::vector<StepCamera> cameras;
-  for (long long n = 0; n < cameraCount && r.ok(); ++n) {
-    StepCamera c;
-    c.name = r.s();
-    c.location = r.pnt();
-    c.axis = r.dir();
-    c.refDirection = r.dir();
-    c.perspective = r.i() != 0;
-    c.projectionPoint = r.pnt();
-    c.viewPlaneDistance = r.d();
-    c.frontPlaneDistance = r.opt();
-    c.backPlaneDistance = r.opt();
-    c.frontPlaneClipping = r.i() != 0;
-    c.backPlaneClipping = r.i() != 0;
-    c.sidesClipping = r.i() != 0;
-    c.windowWidth = r.d();
-    c.windowHeight = r.d();
-    c.windowCenterX = r.d();
-    c.windowCenterY = r.d();
-    cameras.push_back(std::move(c));
+  for (long long cameraIndex = 0; cameraIndex < cameraCount && reader.ok(); ++cameraIndex) {
+    StepCamera camera;
+    camera.name = reader.s();
+    camera.location = reader.pnt();
+    camera.axis = reader.dir();
+    camera.refDirection = reader.dir();
+    camera.perspective = reader.i() != 0;
+    camera.projectionPoint = reader.pnt();
+    camera.viewPlaneDistance = reader.d();
+    camera.frontPlaneDistance = reader.opt();
+    camera.backPlaneDistance = reader.opt();
+    camera.frontPlaneClipping = reader.i() != 0;
+    camera.backPlaneClipping = reader.i() != 0;
+    camera.sidesClipping = reader.i() != 0;
+    camera.windowWidth = reader.d();
+    camera.windowHeight = reader.d();
+    camera.windowCenterX = reader.d();
+    camera.windowCenterY = reader.d();
+    cameras.push_back(std::move(camera));
   }
-  const long long messageCount = r.i();
-  if (!r.ok() || messageCount < 0 || messageCount > 10000000) {
+  const long long messageCount = reader.i();
+  if (!reader.ok() || messageCount < 0 || messageCount > 10000000) {
     return false;
   }
-  for (long long n = 0; n < messageCount && r.ok(); ++n) {
-    ImportMessage m;
-    const int severity = static_cast<int>(r.i());
+  for (long long messageIndex = 0; messageIndex < messageCount && reader.ok(); ++messageIndex) {
+    ImportMessage message;
+    const int severity = static_cast<int>(reader.i());
     if (severity < 0 || severity > static_cast<int>(ImportMessage::Severity::Error)) {
       return false;
     }
-    m.severity = static_cast<ImportMessage::Severity>(severity);
-    m.count = static_cast<int>(r.i());
-    m.text = r.s();
-    messages.push_back(std::move(m));
+    message.severity = static_cast<ImportMessage::Severity>(severity);
+    message.count = static_cast<int>(reader.i());
+    message.text = reader.s();
+    messages.push_back(std::move(message));
   }
-  if (!r.ok() || r.word() != "END") {
+  if (!reader.ok() || reader.word() != "END") {
     return false;
   }
   document.setCameras(std::move(cameras));
@@ -398,8 +398,8 @@ std::string cacheKey(const std::string& utf8Path, std::string_view variant) {
   if (size > 2 * Block) {
     hashRange(size - Block, Block);
     const std::uint64_t middle = size - 2 * Block;
-    for (int n = 1; n <= SampleBlocks; ++n) {
-      hashRange(Block + middle * static_cast<std::uint64_t>(n) / (SampleBlocks + 1), SampleSize);
+    for (int block = 1; block <= SampleBlocks; ++block) {
+      hashRange(Block + middle * static_cast<std::uint64_t>(block) / (SampleBlocks + 1), SampleSize);
     }
   } else if (size > Block) {
     hashRange(Block, Block);

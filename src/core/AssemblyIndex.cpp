@@ -54,9 +54,9 @@ void appendLayers(const OccHandle<XCAFDoc_LayerTool>& layerTool, const TDF_Label
 
 // Iterates any NCollection map type without naming it (typedef names differ between OCCT 7 and 8).
 template <class Map, class Fn>
-void forEachEntry(const Map& map, Fn&& fn) {
+void forEachEntry(const Map& map, Fn&& visit) {
   for (typename Map::Iterator it(map); it.More(); it.Next()) {
-    fn(it.Key(), it.Value());
+    visit(it.Key(), it.Value());
   }
 }
 
@@ -191,9 +191,9 @@ std::vector<NodeId> AssemblyIndex::subtree(NodeId id) const {
 
 std::vector<NodeId> AssemblyIndex::partsBelow(NodeId id) const {
   std::vector<NodeId> result;
-  for (const NodeId n : subtree(id)) {
-    if (node(n).kind == NodeKind::Part) {
-      result.push_back(n);
+  for (const NodeId nodeId : subtree(id)) {
+    if (node(nodeId).kind == NodeKind::Part) {
+      result.push_back(nodeId);
     }
   }
   return result;
@@ -201,9 +201,10 @@ std::vector<NodeId> AssemblyIndex::partsBelow(NodeId id) const {
 
 int AssemblyIndex::instanceCount(NodeId id) const {
   const TDF_Label& prototype = node(id).prototypeLabel;
-  return static_cast<int>(std::count_if(_nodes.begin(), _nodes.end(), [&prototype](const AssemblyNode& n) {
-    return n.prototypeLabel == prototype;
-  }));
+  return static_cast<int>(
+      std::count_if(_nodes.begin(), _nodes.end(), [&prototype](const AssemblyNode& assemblyNode) {
+        return assemblyNode.prototypeLabel == prototype;
+      }));
 }
 
 std::string AssemblyIndex::displayPath(NodeId id) const {
@@ -235,18 +236,18 @@ TopoDS_Shape AssemblyIndex::worldShape(NodeId id) const {
 
 std::vector<std::pair<std::string, std::string>> AssemblyIndex::attributes(NodeId id) const {
   std::vector<std::pair<std::string, std::string>> result;
-  const AssemblyNode& n = node(id);
-  appendAttributes(n.instanceLabel, result);
-  if (!(n.prototypeLabel == n.instanceLabel)) {
-    appendAttributes(n.prototypeLabel, result);
+  const AssemblyNode& assemblyNode = node(id);
+  appendAttributes(assemblyNode.instanceLabel, result);
+  if (!(assemblyNode.prototypeLabel == assemblyNode.instanceLabel)) {
+    appendAttributes(assemblyNode.prototypeLabel, result);
   }
   return result;
 }
 
 ValidationProperties AssemblyIndex::validationProperties(NodeId id) const {
   ValidationProperties result;
-  const AssemblyNode& n = node(id);
-  for (const TDF_Label* label : {&n.instanceLabel, &n.prototypeLabel}) {
+  const AssemblyNode& assemblyNode = node(id);
+  for (const TDF_Label* label : {&assemblyNode.instanceLabel, &assemblyNode.prototypeLabel}) {
     if (label->IsNull()) {
       continue;
     }
@@ -267,10 +268,10 @@ ValidationProperties AssemblyIndex::validationProperties(NodeId id) const {
 
 std::vector<std::string> AssemblyIndex::layers(NodeId id) const {
   std::vector<std::string> result;
-  const AssemblyNode& n = node(id);
-  OccHandle<XCAFDoc_LayerTool> layerTool = XCAFDoc_DocumentTool::LayerTool(n.instanceLabel);
-  appendLayers(layerTool, n.instanceLabel, result);
-  appendLayers(layerTool, n.prototypeLabel, result);
+  const AssemblyNode& assemblyNode = node(id);
+  OccHandle<XCAFDoc_LayerTool> layerTool = XCAFDoc_DocumentTool::LayerTool(assemblyNode.instanceLabel);
+  appendLayers(layerTool, assemblyNode.instanceLabel, result);
+  appendLayers(layerTool, assemblyNode.prototypeLabel, result);
   return result;
 }
 

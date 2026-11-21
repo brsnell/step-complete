@@ -108,13 +108,13 @@ double lengthUnitInMillimeters(const OccHandle<StepBasic_NamedUnit>& unit, int d
   if (unit.IsNull() || depth > 3) {
     return 0.0;
   }
-  if (const auto si = OccHandle<StepBasic_SiUnit>::DownCast(unit); !si.IsNull()) {
-    if (si->Name() != StepBasic_sunMetre) {
+  if (const auto siUnit = OccHandle<StepBasic_SiUnit>::DownCast(unit); !siUnit.IsNull()) {
+    if (siUnit->Name() != StepBasic_sunMetre) {
       return 0.0;
     }
     int exponent = 0; // power of ten relative to the metre
-    if (si->HasPrefix()) {
-      switch (si->Prefix()) {
+    if (siUnit->HasPrefix()) {
+      switch (siUnit->Prefix()) {
       case StepBasic_spKilo:
         exponent = 3;
         break;

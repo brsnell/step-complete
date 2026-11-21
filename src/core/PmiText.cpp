@@ -34,8 +34,8 @@ constexpr const char* CellSeparator = " | ";
 // --- Number helpers -------------------------------------------------------------------
 
 bool isZeroText(const std::string& text) {
-  for (char c : text) {
-    if (c >= '1' && c <= '9') {
+  for (char character : text) {
+    if (character >= '1' && character <= '9') {
       return false;
     }
   }
@@ -79,12 +79,12 @@ std::string signedDeviation(double value, int decimals, const char* suffix) {
   return result + suffix;
 }
 
-std::string toText(const OccHandle<TCollection_HAsciiString>& s) {
-  if (s.IsNull()) {
+std::string toText(const OccHandle<TCollection_HAsciiString>& ascii) {
+  if (ascii.IsNull()) {
     return {};
   }
-  const char* c = s->ToCString();
-  return c ? std::string(c) : std::string();
+  const char* chars = ascii->ToCString();
+  return chars ? std::string(chars) : std::string();
 }
 
 void appendWord(std::string& text, const std::string& word) {
@@ -374,8 +374,8 @@ std::string formVarianceLetters(XCAFDimTolObjects_DimensionFormVariance variance
   }
   std::string text = letters;
   if (!hole) {
-    for (char& c : text) {
-      c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (char& character : text) {
+      character = static_cast<char>(std::tolower(static_cast<unsigned char>(character)));
     }
   }
   return text;
