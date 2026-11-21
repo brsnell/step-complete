@@ -40,6 +40,20 @@ State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see 
 **Priority:** P2
 **Depends on:** Access to the reference hardware.
 
+## Code conventions
+
+### Rename to the adapted Task Complete naming conventions
+
+**What:** Land PRs 2–6 of [the naming plan](docs/superpowers/plans/2026-11-21-naming-conventions.md): a clang-tidy naming check (report-only first), then the renames in `src/core`, `src/render`, `src/app`, then tests and tools, after which the check fails CI.
+
+**Why:** StepComplete follows the same conventions as Task Complete (approved 2026-11-21). The rules are in `CLAUDE.md`; the code does not follow them yet (`m_` members, `kName` constants, short names).
+
+**Context:** A draft of the rules finds 381 declarations to rename in 54 seconds of clang-tidy. Renames only: no behavior changes, no string literals (settings keys, `objectName`s) touched.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** PR 1 (rules and project docs).
+
 ## Viewport
 
 ### Check the macOS drawable choice on real hardware

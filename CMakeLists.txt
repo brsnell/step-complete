@@ -1,7 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
 
+# The version lives in VERSION (one line, MAJOR.MINOR.PATCH); release tags are v<VERSION>.
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" SC_VERSION LIMIT_COUNT 1)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
+
 project(StepComplete
-  VERSION 1.0.0
+  VERSION ${SC_VERSION}
   DESCRIPTION "Cross-platform STEP viewer with measurement and PMI"
   HOMEPAGE_URL "https://github.com/brsnell/step-complete"
   LANGUAGES CXX)
