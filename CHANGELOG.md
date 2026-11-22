@@ -5,6 +5,11 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-22
+
+Windows installer and portable zip, Linux AppImage. The macOS DMGs are still built but held
+back until they pass a hands-on test on a real Mac (see `TODOS.md`).
+
 ### Added
 - Measure > Check Geometry: checks the selected or visible parts for invalid geometry (OCCT's
   shape checker), open shells (solids with a gap) and edges shorter than 0.001 mm, in the

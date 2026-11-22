@@ -8,7 +8,7 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ### Manual test of the packages on a real Mac
 
-**What:** Install both macOS DMGs (arm64, x64) on a real Mac. Open the NIST PMI models, measure, use a section view and saved views, and export an image. Then publish the DMGs in the next release: add the `package-macos-*` download back to the `release` job in `.github/workflows/release.yml`, and drop the "not in v1.0" notes from `docs/user-guide.md` and `README.md`.
+**What:** Install both macOS DMGs (arm64, x64) on a real Mac. Open the NIST PMI models, measure, use a section view and saved views, and export an image. Then publish the DMGs in the next release: add the `package-macos-*` download back to the `release` job in `.github/workflows/release.yml`, and drop the "not published yet" notes from `docs/user-guide.md` and `README.md`.
 
 **Why:** CI renders with Mesa llvmpipe on Linux only. The viewport, PMI and measurement have never been run by hand on macOS.
 
@@ -58,7 +58,7 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ## v1.1 (M6)
 
-Every v1.1 feature is built (see `CHANGELOG.md`, Unreleased); what is left is the release.
+Shipped as v1.1.0 on 2026-11-22 (see `CHANGELOG.md`).
 
 ## v2 (M7)
 

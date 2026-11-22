@@ -8,8 +8,7 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 **License:** MIT · **Repo:** github.com/brsnell/step-complete
 
 **Status:** M0–M4 are done; M5 (ship v1.0) is in progress, and v1.0.0 shipped for Windows and
-Linux on 2026-11-15. Every v1.1 (M6) feature is built (not yet released); v2 (M7) is drafted
-in §7a. Open work is in
+Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22; v2 (M7) is drafted in §7a. Open work is in
 [TODOS.md](../TODOS.md).
 
 ---
@@ -358,7 +357,7 @@ Collaboration (a v2 candidate in §1) was dropped on 2026-11-21.
 
 Feedback from v1.0 users can reorder v1.1 and v2.
 
-### M6: v1.1 (≈5–7 weeks): ✅ features done (unreleased)
+### M6: v1.1 (≈5–7 weeks): ✅ shipped as v1.1.0 (2026-11-22)
 - ✅ **Hidden-line display style** (View > Hidden Line, `L`): white unlit faces, sharp edges and a
   GPU silhouette for outlines, so the depth buffer hides what is behind
   ([design](designs/hidden-line.md)). OCCT's exact hidden-line removal was not used: it
