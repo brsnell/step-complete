@@ -311,7 +311,15 @@ panel.
 For each of Plane 1, 2 and 3:
 
 - Tick **Plane n** to enable it. Turning the section view on enables Plane 1.
-- **Axis:** X, Y or Z, the axis the plane is perpendicular to.
+- **Axis:** X, Y or Z, the axis the plane is perpendicular to, or **Custom** for any direction.
+  Custom shows **X**, **Y** and **Z** fields for the direction the plane faces; any length works
+  (it is normalized), and all zeros is refused.
+- **Pick Face:** click it, then click a flat face in the 3D view. The plane turns on and lies
+  exactly on that face, facing out of the part, so nothing of that part is cut yet: move the
+  plane back with the slider or its handle to cut into it, or **Flip** to cut the other side. A
+  click on a curved face or empty space keeps waiting; **Esc**, clicking **Pick Face** again or
+  starting a measurement cancels. Picking stops any measurement in progress and leaves the
+  selection as it was.
 - **Flip:** cut away the other side. The side the arrow points to is removed.
 - **Slider / spin box:** position along the plane's normal (mm). Planes start at the middle of
   the model.
@@ -413,7 +421,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `A` | Measure: angle |
 | `R` | Measure: radius / diameter |
 | `Shift+M` | Mass properties |
-| `Esc` | Stop measuring |
+| `Esc` | Stop measuring, or cancel a section plane's face pick |
 | `Delete` | Remove the selected measurements (in the Measurements panel; also `Backspace` on macOS) |
 
 Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + left drag zoom;

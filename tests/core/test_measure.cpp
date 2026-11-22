@@ -429,3 +429,70 @@ TEST(Measure, AllModesRespectInstancePlacement) {
   ASSERT_TRUE(axes.centerDistance);
   EXPECT_NEAR(*axes.centerDistance, 10.0, 1e-6);
 }
+
+// Section plane on a picked face (docs/designs/angled-section-planes.md).
+TEST(Measure, PlaneOfFacePointsOutOfTheMaterial) {
+  const TopoDS_Shape box = BRepPrimAPI_MakeBox(10.0, 20.0, 30.0).Shape();
+  // Each outward normal with its offset (normal . point on the plane).
+  const std::vector<std::pair<gp_Dir, double>> expected = {{gp_Dir(1, 0, 0), 10.0}, {gp_Dir(-1, 0, 0), 0.0},
+                                                           {gp_Dir(0, 1, 0), 20.0}, {gp_Dir(0, -1, 0), 0.0},
+                                                           {gp_Dir(0, 0, 1), 30.0}, {gp_Dir(0, 0, -1), 0.0}};
+  int found = 0;
+  for (TopExp_Explorer it(box, TopAbs_FACE); it.More(); it.Next()) {
+    const std::optional<gp_Pln> plane = planeOfFace(it.Current());
+    ASSERT_TRUE(plane);
+    const gp_Dir normal = plane->Axis().Direction();
+    const double offset = gp_Vec(plane->Location().XYZ()).Dot(gp_Vec(normal));
+    for (const auto& [direction, distance] : expected) {
+      if (normal.IsEqual(direction, 1e-9)) {
+        EXPECT_NEAR(offset, distance, 1e-9);
+        ++found;
+      }
+    }
+    // A reversed face points the other way.
+    const std::optional<gp_Pln> reversed = planeOfFace(it.Current().Reversed());
+    ASSERT_TRUE(reversed);
+    EXPECT_TRUE(reversed->Axis().Direction().IsOpposite(normal, 1e-9));
+  }
+  EXPECT_EQ(found, 6);
+}
+
+TEST(Measure, PlaneOfFaceFollowsThePlacement) {
+  const TopoDS_Shape box = BRepPrimAPI_MakeBox(10.0, 20.0, 30.0).Shape();
+  gp_Trsf rotation;
+  rotation.SetRotation(gp_Ax1(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1)), 30.0 * M_PI / 180.0);
+  gp_Trsf translation;
+  translation.SetTranslation(gp_Vec(5.0, 0.0, 0.0));
+  const TopLoc_Location placement(translation * rotation);
+  const gp_Dir rotatedX(std::cos(M_PI / 6.0), std::sin(M_PI / 6.0), 0.0);
+  bool seen = false;
+  for (TopExp_Explorer it(box, TopAbs_FACE); it.More(); it.Next()) {
+    const std::optional<gp_Pln> local = planeOfFace(it.Current());
+    ASSERT_TRUE(local);
+    if (!local->Axis().Direction().IsEqual(gp_Dir(1, 0, 0), 1e-9)) {
+      continue;
+    }
+    const std::optional<gp_Pln> world = planeOfFace(toWorld(it.Current(), placement));
+    ASSERT_TRUE(world);
+    EXPECT_TRUE(world->Axis().Direction().IsEqual(rotatedX, 1e-9));
+    // The face x = 10 rotated by 30 degrees, then moved 5 along X.
+    const double offset = gp_Vec(world->Location().XYZ()).Dot(gp_Vec(world->Axis().Direction()));
+    EXPECT_NEAR(offset, 10.0 + 5.0 * std::cos(M_PI / 6.0), 1e-9);
+    seen = true;
+  }
+  EXPECT_TRUE(seen);
+}
+
+TEST(Measure, PlaneOfFaceRejectsCurvedFacesAndOtherShapes) {
+  const TopoDS_Shape cylinder = BRepPrimAPI_MakeCylinder(3.0, 10.0).Shape();
+  int planar = 0, curved = 0;
+  for (TopExp_Explorer it(cylinder, TopAbs_FACE); it.More(); it.Next()) {
+    (planeOfFace(it.Current()) ? planar : curved) += 1;
+  }
+  EXPECT_EQ(planar, 2); // the end caps
+  EXPECT_EQ(curved, 1); // the side
+  EXPECT_FALSE(planeOfFace(cylinder));
+  EXPECT_FALSE(planeOfFace(TopoDS_Shape()));
+  TopExp_Explorer edges(cylinder, TopAbs_EDGE);
+  EXPECT_FALSE(planeOfFace(edges.Current()));
+}

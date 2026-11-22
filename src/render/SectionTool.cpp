@@ -2,6 +2,8 @@
 
 #include "render/SceneManager.h"
 
+#include "core/Measure.h"
+
 #include <Graphic3d_ArrayOfPolylines.hxx>
 #include <Graphic3d_ArrayOfTriangles.hxx>
 #include <Graphic3d_AspectFillArea3d.hxx>
@@ -155,6 +157,7 @@ SectionTool::SectionTool(OcctViewport* viewport, SceneManager* scene, QObject* p
   _planes[1].normal = gp_Dir(0, 1, 0);
   _planes[2].normal = gp_Dir(0, 0, 1);
   viewport->setDragHandler(this);
+  connect(viewport, &OcctViewport::selectionChanged, this, &SectionTool::onSelectionChanged);
 }
 
 SectionTool::~SectionTool() {
@@ -221,6 +224,9 @@ bool SectionTool::isActive() const {
 }
 
 void SectionTool::reset() {
+  if (isPicking()) {
+    endPick(false, false); // the old model's selection means nothing now
+  }
   for (int i = 0; i < MaxPlanes; ++i) {
     _planes[static_cast<size_t>(i)].enabled = false;
     apply(i);
@@ -232,6 +238,71 @@ void SectionTool::setHandlesVisible(bool visible) {
   for (int i = 0; i < MaxPlanes; ++i) {
     updateHandle(i);
   }
+}
+
+void SectionTool::pickFace(int index) {
+  if (index < 0 || index >= MaxPlanes || _scene == nullptr || !_scene->model()) {
+    return;
+  }
+  if (!isPicking()) {
+    _selectionBeforePick = _scene->selectedParts();
+  }
+  _pickIndex = index;
+  // Before the selection modes: the caller may stop the measure tool, which sets modes too.
+  Q_EMIT pickStarted(index);
+  _updatingSelection = true;
+  _scene->setSelectionModes(SceneManager::subShapeModes(false, false, true));
+  _viewport->setAccumulatingSelection(false);
+  _updatingSelection = false;
+  _viewport->invalidateScene();
+}
+
+void SectionTool::cancelPick() {
+  if (isPicking()) {
+    endPick(false);
+  }
+}
+
+void SectionTool::endPick(bool picked, bool restoreSelection) {
+  const int index = _pickIndex;
+  _pickIndex = -1;
+  _updatingSelection = true;
+  _scene->setSelectionModes({});
+  if (restoreSelection) {
+    _scene->select(_selectionBeforePick);
+  }
+  _updatingSelection = false;
+  _selectionBeforePick.clear();
+  _viewport->invalidateScene();
+  Q_EMIT pickEnded(index, picked);
+}
+
+void SectionTool::onSelectionChanged() {
+  if (!isPicking() || _updatingSelection) {
+    return;
+  }
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
+  context->InitSelected();
+  if (!context->MoreSelected()) {
+    return; // a click on empty space clears the selection: keep waiting
+  }
+  const std::optional<SceneManager::PickedEntity> entity = _scene->pickedEntity(context->SelectedOwner());
+  const std::optional<gp_Pln> face = entity ? core::measure::planeOfFace(entity->worldShape) : std::nullopt;
+  if (!face) {
+    _updatingSelection = true;
+    context->ClearSelected(false);
+    _updatingSelection = false;
+    _viewport->invalidateScene();
+    Q_EMIT pickRejected();
+    return;
+  }
+  const int index = _pickIndex;
+  SectionPlane plane = _planes[static_cast<size_t>(index)];
+  plane.enabled = true;
+  plane.normal = face->Axis().Direction();
+  plane.offset = gp_Vec(face->Location().XYZ()).Dot(gp_Vec(plane.normal));
+  endPick(true);
+  setPlane(index, plane);
 }
 
 void SectionTool::apply(int index) {

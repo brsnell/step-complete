@@ -58,18 +58,6 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ## v1.1 (M6)
 
-### Section planes at any angle
-
-**What:** Besides X, Y and Z, let a section plane lie on a picked planar face, or use a typed normal.
-
-**Why:** Real parts are rarely cut usefully along the world axes alone. Other viewers offer both options.
-
-**Context:** `SectionPlane` in `src/render/SectionTool.h` already takes any `gp_Dir normal`, and the drag handles move along it; only the Section panel (`SectionPanel`, `SectionModel`) limits the choice to X/Y/Z. Picking reuses the measure tool's face picking.
-
-**Effort:** S
-**Priority:** P2
-**Depends on:** Design approved.
-
 ### User saved views
 
 **What:** Save the current camera, part visibility and section planes under a name and restore them later, listed next to the PMI saved views.

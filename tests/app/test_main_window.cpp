@@ -9,6 +9,7 @@
 #include "app/MeasurementsPanel.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
+#include "render/SectionTool.h"
 
 #include <QAction>
 #include <QApplication>
@@ -278,6 +279,46 @@ private Q_SLOTS:
     QVERIFY(QFileInfo(path).size() > 84 + 50); // an STL header and at least one triangle
     QVERIFY2(_window->statusBar()->currentMessage().startsWith(QStringLiteral("Exported 5 part")),
              qPrintable(_window->statusBar()->currentMessage()));
+  }
+
+  // A section plane's face pick and measuring never run together, and Esc cancels a pick.
+  void sectionFacePickAndMeasuringExcludeEachOther() {
+    openFixture();
+    auto* section = _window->findChild<sc::render::SectionTool*>();
+    QAction* distance = menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Distance"));
+    QVERIFY(section != nullptr);
+    QVERIFY(distance != nullptr);
+
+    distance->trigger();
+    QVERIFY(_tool->isActive());
+    section->pickFace(0); // stops measuring first
+    QVERIFY(section->isPicking());
+    QVERIFY(!_tool->isActive());
+    QVERIFY(_window->statusBar()->currentMessage().contains(QStringLiteral("plane 1")));
+
+    distance->trigger(); // starting a measurement cancels the pick
+    QVERIFY(_tool->isActive());
+    QVERIFY(!section->isPicking());
+
+    menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Stop Measuring"))->trigger();
+    QVERIFY(!_tool->isActive());
+    section->pickFace(1);
+    QVERIFY(section->isPicking());
+    QAction* cancel = nullptr;
+    for (QAction* action : _window->actions()) {
+      if (action->shortcut() == QKeySequence(Qt::Key_Escape) && action->isEnabled()) {
+        QVERIFY2(cancel == nullptr, "two enabled Esc actions would be ambiguous");
+        cancel = action;
+      }
+    }
+    QVERIFY(cancel != nullptr); // Esc is live while a plane waits for a face
+    auto* viewport = _window->findChild<sc::render::OcctViewport*>();
+    _window->activateWindow();
+    viewport->setFocus();
+    QTRY_VERIFY(QApplication::focusWidget() == viewport);
+    QTest::keyClick(viewport, Qt::Key_Escape);
+    QTRY_VERIFY(!section->isPicking());
+    QVERIFY(!cancel->isEnabled());
   }
 
 private:

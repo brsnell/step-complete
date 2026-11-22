@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/AssemblyIndex.h"
 #include "core/OccHandle.h"
 #include "render/OcctViewport.h"
 
@@ -13,6 +14,7 @@
 #include <QObject>
 
 #include <array>
+#include <vector>
 
 namespace sc::render {
 
@@ -59,19 +61,42 @@ public:
   void setHandlesVisible(bool visible);
   bool handlesVisible() const { return _handlesVisible; }
 
+  // --- Plane on a picked face (docs/designs/angled-section-planes.md) ---------------
+  // Makes faces pickable; the next click on a flat face puts plane 'index' on it (enabled,
+  // through the face, normal pointing out of the material). pickStarted is emitted before faces
+  // become pickable, so a caller can stop other tools that set selection modes (the measure
+  // tool). Calling it while picking switches to another plane. The selection from before the
+  // pick comes back when it ends.
+  void pickFace(int index);
+  // Ends a pick without changing the plane. No-op when not picking.
+  void cancelPick();
+  bool isPicking() const { return _pickIndex >= 0; }
+  int pickingPlane() const { return _pickIndex; }
+
   // DragHandler: dragging a handle moves its plane along the normal.
   bool beginDrag(const OccHandle<AIS_InteractiveObject>& detected,
                  const NCollection_Vec2<int>& pixel) override;
   void drag(const NCollection_Vec2<int>& from, const NCollection_Vec2<int>& to) override;
   void endDrag() override;
 
+public Q_SLOTS:
+  // Connected to OcctViewport::selectionChanged; public for tests.
+  void onSelectionChanged();
+
 Q_SIGNALS:
   void planeChanged(int index);
+  void pickStarted(int index);
+  // The click was not on a flat face; the pick goes on.
+  void pickRejected();
+  // The pick ended: 'picked' when a face set the plane, false when cancelled.
+  void pickEnded(int index, bool picked);
 
 private:
   void apply(int index);
   void updateClipSequence();
   void updateHandle(int index);
+  // Restores the selection modes and the selection; 'restoreSelection' false after a model change.
+  void endPick(bool picked, bool restoreSelection = true);
   // Model units per pixel of mouse movement along the plane's normal on screen.
   double offsetPerPixel(int index, NCollection_Vec2<double>& screenDirection) const;
 
@@ -83,6 +108,10 @@ private:
   std::array<OccHandle<SectionHandle>, MaxPlanes> _handles;
   OccHandle<Graphic3d_SequenceOfHClipPlane> _sequence;
   bool _handlesVisible = true;
+
+  int _pickIndex = -1;
+  std::vector<core::NodeId> _selectionBeforePick;
+  bool _updatingSelection = false;
 
   int _dragIndex = -1;
   double _dragStartOffset = 0.0;

@@ -232,6 +232,38 @@ void MainWindow::createDocks() {
     _viewport->invalidateScene();
   });
 
+  // Plane on a picked face (docs/designs/angled-section-planes.md). One tool owns clicks at a
+  // time: a pick stops measuring, and starting a measurement cancels a pick (setMeasureMode).
+  connect(_sectionTool, &render::SectionTool::pickStarted, this, [this](int index) {
+    if (_measureTool->isActive()) {
+      setMeasureMode(-1); // before the tool makes faces pickable
+    }
+    statusBar()->showMessage(tr("Click a flat face for plane %1 (Esc cancels).").arg(index + 1));
+    updateActions();
+  });
+  connect(_sectionTool, &render::SectionTool::pickRejected, this, [this] {
+    statusBar()->showMessage(
+        tr("Pick a flat face for plane %1 (Esc cancels).").arg(_sectionTool->pickingPlane() + 1));
+  });
+  connect(_sectionTool, &render::SectionTool::pickEnded, this, [this](int index, bool picked) {
+    if (picked) {
+      statusBar()->showMessage(tr("Plane %1 is on the picked face.").arg(index + 1), 5000);
+      if (_sectionAction != nullptr) {
+        const QSignalBlocker blocker(_sectionAction);
+        _sectionAction->setChecked(_sectionTool->isActive());
+      }
+    } else {
+      statusBar()->clearMessage();
+    }
+    _viewport->invalidateScene();
+    updateActions();
+  });
+  _cancelPickAction = new QAction(tr("Cancel Face Pick"), this);
+  _cancelPickAction->setShortcut(Qt::Key_Escape); // never enabled together with Stop Measuring
+  _cancelPickAction->setEnabled(false);
+  connect(_cancelPickAction, &QAction::triggered, _sectionTool, &render::SectionTool::cancelPick);
+  addAction(_cancelPickAction);
+
   _measurements = new MeasurementsPanel(this);
   _measurementsDock = new QDockWidget(tr("Measurements"), this);
   _measurementsDock->setObjectName(QStringLiteral("MeasurementsDock"));
@@ -539,6 +571,7 @@ void MainWindow::setMeasureMode(int mode) {
     action->setChecked(newMode && action->data().toInt() == mode);
   }
   if (newMode) {
+    _sectionTool->cancelPick(); // one tool owns clicks at a time
     // Measuring works on sub-shapes: drop the part selection first.
     _syncingSelection = true;
     _treeView->clearSelection();
@@ -648,6 +681,9 @@ void MainWindow::updateActions() {
   _showAllPmiAction->setEnabled(_pmi && !_pmi->isEmpty());
   _semanticLabelsAction->setEnabled(_pmi && !_pmi->isEmpty());
   _sectionAction->setEnabled(hasModel);
+  if (_cancelPickAction != nullptr) {
+    _cancelPickAction->setEnabled(_sectionTool->isPicking());
+  }
   if (_stopMeasureAction != nullptr) {
     _stopMeasureAction->setEnabled(_measureTool->isActive());
     _massPropertiesAction->setEnabled(hasModel);
@@ -980,7 +1016,7 @@ bool MainWindow::expandToMatches(const QModelIndex& parent) {
 }
 
 void MainWindow::onViewportSelectionChanged() {
-  if (_syncingSelection || _measureTool->isActive()) {
+  if (_syncingSelection || _measureTool->isActive() || _sectionTool->isPicking()) {
     return;
   }
   _syncingSelection = true;

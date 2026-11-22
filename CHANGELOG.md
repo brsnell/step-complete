@@ -6,6 +6,9 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- Section planes at any angle: each plane's axis list has **Custom**, with X, Y and Z fields for
+  the plane's direction, and a **Pick Face** button puts the plane on a clicked flat face
+  (facing out of the part; `Esc` cancels).
 - File > Export Geometry: saves the visible or selected parts as STL (one file, or one file per
   unique part), OBJ with colors, or glTF/GLB with colors and the assembly structure. Mesh
   quality As displayed, Fine, Extra fine or a custom tolerance; finer meshes are built on a copy,

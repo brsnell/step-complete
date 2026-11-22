@@ -70,11 +70,32 @@ public:
   }
   bool handlesVisible() const override { return _handles; }
   void setHandlesVisible(bool v) override { _handles = v; }
+  void pickFace(int i) override {
+    _picking = i;
+    Q_EMIT pickChanged();
+  }
+  void cancelPick() override {
+    _picking = -1;
+    Q_EMIT pickChanged();
+  }
+  int pickingPlane() const override { return _picking; }
+  // What SectionTool does when the pick lands on a flat face.
+  void finishPick(const gp_Dir& normal, double offset) {
+    const int i = _picking;
+    _picking = -1;
+    Q_EMIT pickChanged();
+    SectionPlane picked = plane(i);
+    picked.enabled = true;
+    picked.normal = normal;
+    picked.offset = offset;
+    setPlane(i, picked);
+  }
 
 private:
   std::array<SectionPlane, 3> _planes;
   gp_XYZ _size{100, 60, 20};
   bool _handles = true;
+  int _picking = -1;
 };
 
 } // namespace
@@ -104,7 +125,16 @@ private:
   QCheckBox* hatch(int row) const { return byText(row, QStringLiteral("Hatch")); }
   QComboBox* axis(int row) const { return _panel->findChildren<QComboBox*>().at(row); }
   QSlider* slider(int row) const { return _panel->findChildren<QSlider*>().at(row); }
-  QDoubleSpinBox* spin(int row) const { return _panel->findChildren<QDoubleSpinBox*>().at(row); }
+  QDoubleSpinBox* spin(int row) const {
+    return _panel->findChildren<QDoubleSpinBox*>(QStringLiteral("sectionOffset")).at(row);
+  }
+  QDoubleSpinBox* normal(int row, char axisName) const {
+    return _panel->findChildren<QDoubleSpinBox*>(QStringLiteral("sectionNormal%1").arg(QLatin1Char(axisName)))
+        .at(row);
+  }
+  QPushButton* pick(int row) const {
+    return _panel->findChildren<QPushButton*>(QStringLiteral("sectionPickFace")).at(row);
+  }
   QPushButton* flip(int row) const {
     int seen = -1;
     for (QPushButton* b : _panel->findChildren<QPushButton*>()) {
@@ -142,7 +172,8 @@ private Q_SLOTS:
       QVERIFY(!enable(i)->isChecked());
       QVERIFY(!cap(i)->isHidden());
       QCOMPARE(axis(i)->currentIndex(), i);
-      QCOMPARE(axis(i)->count(), 3); // no "Custom" for axis-aligned planes
+      QCOMPARE(axis(i)->count(), 4);                       // X, Y, Z and Custom
+      QVERIFY(!normal(i, 'X')->isVisibleTo(_panel.get())); // the custom fields show only for Custom
     }
     QCOMPARE(spin(0)->value(), 50.0); // setBounds centers the planes
     QCOMPARE(slider(0)->value(), SectionPanel::SliderSteps / 2);
@@ -259,15 +290,16 @@ private Q_SLOTS:
     QVERIFY(!hatch(2)->isChecked());
     QCOMPARE(_changed->count(), 0);
 
-    // A non-axis normal shows "Custom"; going back to an axis removes it.
+    // A non-axis normal shows "Custom" with its fields; going back to an axis shows the axis.
     plane.normal = gp_Dir(1, 1, 0);
     _tool->setPlane(2, plane);
-    QCOMPARE(axis(2)->count(), 4);
     QCOMPARE(axis(2)->currentText(), QStringLiteral("Custom"));
+    QVERIFY(normal(2, 'X')->isVisibleTo(_panel.get()));
+    QCOMPARE(normal(2, 'X')->value(), 0.707);
     plane.normal = gp_Dir(0, 1, 0);
     _tool->setPlane(2, plane);
-    QCOMPARE(axis(2)->count(), 3);
     QCOMPARE(axis(2)->currentIndex(), 1);
+    QVERIFY(!normal(2, 'X')->isVisibleTo(_panel.get()));
     QCOMPARE(_changed->count(), 0);
   }
 
@@ -302,6 +334,63 @@ private Q_SLOTS:
     _panel->refresh();
     QCOMPARE(spin(0)->value(), 5.0);
     QCOMPARE(_changed->count(), 0);
+  }
+
+  // --- Section planes at any angle (docs/designs/angled-section-planes.md) ---------------
+
+  void customShowsTheNormalFieldsAndSetsANormalizedDirection() {
+    enable(0)->setChecked(true);
+    axis(0)->setCurrentIndex(3);
+    axis(0)->activated(3);
+    QVERIFY(normal(0, 'X')->isVisibleTo(_panel.get()));
+    QVERIFY(_tool->plane(0).normal.IsEqual(gp_Dir(1, 0, 0), 1e-9)); // unchanged until edited
+    QCOMPARE(axis(0)->currentText(), QStringLiteral("Custom"));
+    _changed->clear();
+    normal(0, 'Y')->setValue(1.0); // (1, 1, 0)
+    QVERIFY(_tool->plane(0).normal.IsEqual(gp_Dir(1, 1, 0), 1e-9));
+    QCOMPARE(_changed->count() >= 1, true);
+    QCOMPARE(axis(0)->currentText(), QStringLiteral("Custom"));
+    // The offset stays inside the range along the new direction.
+    const auto [low, high] = _tool->offsetRange(0);
+    QVERIFY(_tool->plane(0).offset >= low - 1e-9 && _tool->plane(0).offset <= high + 1e-9);
+
+    // Choosing an axis again hides the fields.
+    axis(0)->setCurrentIndex(2);
+    axis(0)->activated(2);
+    QVERIFY(_tool->plane(0).normal.IsEqual(gp_Dir(0, 0, 1), 1e-9));
+    QVERIFY(!normal(0, 'X')->isVisibleTo(_panel.get()));
+  }
+
+  void aZeroNormalIsRefused() {
+    enable(1)->setChecked(true);
+    axis(1)->setCurrentIndex(3);
+    axis(1)->activated(3);
+    _changed->clear();
+    normal(1, 'Y')->setValue(0.0); // (0, 0, 0): no direction
+    QVERIFY(_tool->plane(1).normal.IsEqual(gp_Dir(0, 1, 0), 1e-9));
+    QCOMPARE(normal(1, 'Y')->value(), 1.0); // the field is put back
+    QCOMPARE(_changed->count(), 0);
+  }
+
+  void pickFaceAsksTheModelAndShowsThePickedPlane() {
+    QVERIFY(!enable(2)->isChecked());
+    QVERIFY(pick(2)->isEnabled()); // usable while the plane is off
+    pick(2)->click();
+    QCOMPARE(_tool->pickingPlane(), 2);
+    QVERIFY(pick(2)->isChecked());
+    QVERIFY(!pick(0)->isChecked());
+    pick(2)->click(); // again: cancel
+    QCOMPARE(_tool->pickingPlane(), -1);
+    QVERIFY(!pick(2)->isChecked());
+
+    pick(2)->click();
+    _tool->finishPick(gp_Dir(0, 1, 1), 10.0);
+    QVERIFY(!pick(2)->isChecked());
+    QVERIFY(enable(2)->isChecked());
+    QCOMPARE(axis(2)->currentText(), QStringLiteral("Custom"));
+    QCOMPARE(normal(2, 'Y')->value(), 0.707);
+    QCOMPARE(normal(2, 'Z')->value(), 0.707);
+    QCOMPARE(spin(2)->value(), 10.0);
   }
 
   void grabScreenshot() {
