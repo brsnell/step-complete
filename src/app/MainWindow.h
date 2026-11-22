@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/UserViews.h"
 #include "core/AssemblyIndex.h"
 #include "core/GeometryExport.h"
 #include "core/Measurement.h"
@@ -58,6 +59,13 @@ public:
   // File > Export Geometry does once its dialogs are answered. 'path' is the file, or the folder
   // for one STL per part. Does nothing while another export runs.
   void exportGeometryTo(const QString& path, const core::GeometryExportOptions& options, bool selectedOnly);
+
+  // --- User saved views (docs/designs/user-saved-views.md) ---------------------------
+  // What View > Saved Views does: save the current camera, hidden parts and section planes
+  // under a name (replacing a view of that name), and restore a view by its position.
+  bool saveCurrentViewAs(const QString& name);
+  void restoreUserView(int index);
+  const std::vector<UserView>& userViews() const { return _userViews; }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -122,6 +130,12 @@ private:
   void exportImage();
   void exportGeometry();
   void onExportFinished();
+
+  void saveCurrentView();
+  void manageSavedViews();
+  void rebuildSavedViewsMenu();
+  void loadUserViews(const QString& modelPath);
+  void writeUserViews();
   void showPreferences();
   void applyViewPreferences(const ViewPreferences& preferences);
   void showAbout();
@@ -151,6 +165,12 @@ private:
   QAction* _antialiasingAction = nullptr;
   QAction* _exportImageAction = nullptr;
   QAction* _exportGeometryAction = nullptr;
+  QAction* _perspectiveAction = nullptr;
+  QMenu* _savedViewsMenu = nullptr;
+  ModelDataStore _modelStore{ModelDataStore::defaultDirectory()};
+  QString _modelPath;     // the open model's file, for its saved views
+  QJsonObject _modelData; // everything the store keeps for it (views and later features)
+  std::vector<UserView> _userViews;
   MeasurementsPanel* _measurements = nullptr;
   QDockWidget* _measurementsDock = nullptr;
   QActionGroup* _measureGroup = nullptr;

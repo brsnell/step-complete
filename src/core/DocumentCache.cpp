@@ -355,37 +355,15 @@ bool hasTriangulatedFaces(const OccHandle<TDocStd_Document>& doc) {
 
 } // namespace
 
-std::string cacheKey(const std::string& utf8Path, std::string_view variant) {
-  std::error_code ec;
-  const fs::path path = pathFromUtf8(utf8Path);
-  const std::uint64_t size = fs::file_size(path, ec);
-  if (ec) {
-    return {};
-  }
-  const auto mtime = fs::last_write_time(path, ec);
-  if (ec) {
-    return {};
-  }
+namespace {
+
+// Hashes a file's sampled content: the first and last megabyte and blocks in between (hashing a
+// whole 500 MB file on a hard disk would defeat the purpose). The caller hashes the size.
+bool hashSampledContent(Fnv1a64& hash, const fs::path& path, std::uint64_t size) {
   std::ifstream in(path, std::ios::binary);
   if (!in) {
-    return {};
+    return false;
   }
-
-  Fnv1a64 hash;
-  hash.addU64(CacheFormatVersion);
-  hash.add(AppVersion);
-  hash.add(OCC_VERSION_COMPLETE);
-  hash.add(variant);
-  {
-    // Mesh parameters of the pre-mesher: a default drawer, like the viewer's.
-    OccHandle<Prs3d_Drawer> drawer = new Prs3d_Drawer();
-    hash.addDouble(drawer->DeviationCoefficient());
-    hash.addDouble(drawer->DeviationAngle());
-    hash.addDouble(drawer->MaximalChordialDeviation());
-  }
-  hash.addU64(size);
-  hash.addU64(static_cast<std::uint64_t>(mtime.time_since_epoch().count()));
-
   std::vector<char> buffer;
   const auto hashRange = [&](std::uint64_t offset, size_t length) {
     length = static_cast<size_t>(std::min<std::uint64_t>(length, size > offset ? size - offset : 0));
@@ -409,6 +387,57 @@ std::string cacheKey(const std::string& utf8Path, std::string_view variant) {
     }
   } else if (size > Block) {
     hashRange(Block, Block);
+  }
+  return true;
+}
+
+} // namespace
+
+std::string cacheKey(const std::string& utf8Path, std::string_view variant) {
+  std::error_code ec;
+  const fs::path path = pathFromUtf8(utf8Path);
+  const std::uint64_t size = fs::file_size(path, ec);
+  if (ec) {
+    return {};
+  }
+  const auto mtime = fs::last_write_time(path, ec);
+  if (ec) {
+    return {};
+  }
+
+  Fnv1a64 hash;
+  hash.addU64(CacheFormatVersion);
+  hash.add(AppVersion);
+  hash.add(OCC_VERSION_COMPLETE);
+  hash.add(variant);
+  {
+    // Mesh parameters of the pre-mesher: a default drawer, like the viewer's.
+    OccHandle<Prs3d_Drawer> drawer = new Prs3d_Drawer();
+    hash.addDouble(drawer->DeviationCoefficient());
+    hash.addDouble(drawer->DeviationAngle());
+    hash.addDouble(drawer->MaximalChordialDeviation());
+  }
+  // Same order as before the content hashing was shared, so existing cache entries keep their keys.
+  hash.addU64(size);
+  hash.addU64(static_cast<std::uint64_t>(mtime.time_since_epoch().count()));
+  if (!hashSampledContent(hash, path, size)) {
+    return {};
+  }
+  return toHex(hash.value());
+}
+
+std::string fileFingerprint(const std::string& utf8Path) {
+  std::error_code ec;
+  const fs::path path = pathFromUtf8(utf8Path);
+  const std::uint64_t size = fs::file_size(path, ec);
+  if (ec) {
+    return {};
+  }
+  Fnv1a64 hash;
+  hash.add(std::string_view("step-complete-file-fingerprint-1"));
+  hash.addU64(size);
+  if (!hashSampledContent(hash, path, size)) {
+    return {};
   }
   return toHex(hash.value());
 }

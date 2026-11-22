@@ -11,8 +11,11 @@
 #include "render/OcctViewport.h"
 #include "render/SectionTool.h"
 
+#include <gp_Dir.hxx>
+
 #include <QAction>
 #include <QApplication>
+#include <QDir>
 #include <QDockWidget>
 #include <QFileInfo>
 #include <QLineEdit>
@@ -52,6 +55,9 @@ class MainWindowTest : public QObject {
 private Q_SLOTS:
   void initTestCase() {
     QStandardPaths::setTestModeEnabled(true); // keep QSettings (recent files) out of the user's profile
+    // Saved views live in the (test-mode) app data folder, keyed by file content: every run writes
+    // the same fixture, so start each run without the previous run's views.
+    QDir(sc::app::ModelDataStore::defaultDirectory()).removeRecursively();
     auto fixture = sc::test::buildFixtureAssembly(false);
     _path = QString::fromStdString(sc::test::tempPath("main_window_fixture.step"));
     QVERIFY(sc::test::writeStep(fixture, _path.toStdString()));
@@ -319,6 +325,84 @@ private Q_SLOTS:
     QTest::keyClick(viewport, Qt::Key_Escape);
     QTRY_VERIFY(!section->isPicking());
     QVERIFY(!cancel->isEnabled());
+  }
+
+  // View > Saved Views (docs/designs/user-saved-views.md): a saved view brings back the camera,
+  // the hidden parts and the section planes, and is still there when the file is opened again.
+  void savedViewsRestoreCameraPartsAndSectionsAndPersist() {
+    openFixture();
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    auto* viewport = _window->findChild<sc::render::OcctViewport*>();
+    auto* section = _window->findChild<sc::render::SectionTool*>();
+    QAction* hide = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("&Hide"));
+    QAction* showAll = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("Show &All"));
+    QVERIFY(tree && viewport && section && hide && showAll);
+    // Looked up each time: closing the file rebuilds the tree, so an old index would dangle.
+    const auto plateRow = [tree] {
+      QAbstractItemModel* model = tree->model();
+      const QModelIndex fixture = model->index(0, 0);
+      for (int row = 0; row < model->rowCount(fixture); ++row) {
+        if (model->index(row, 0, fixture).data().toString() == QStringLiteral("Base plate")) {
+          return model->index(row, 0, fixture);
+        }
+      }
+      return QModelIndex();
+    };
+    const auto plateShown = [&plateRow] {
+      const QModelIndex plate = plateRow();
+      return plate.isValid() && plate.data(Qt::CheckStateRole).toInt() == Qt::Checked;
+    };
+    QVERIFY(plateRow().isValid());
+
+    // Hide the plate, cut along Y and look from the side in perspective.
+    tree->selectionModel()->select(plateRow(),
+                                   QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    hide->trigger();
+    QVERIFY(!plateShown());
+    sc::render::SectionPlane cut = section->plane(1);
+    cut.enabled = true;
+    cut.normal = gp_Dir(0, 1, 0);
+    cut.offset = 12.5;
+    section->setPlane(1, cut);
+    viewport->setStandardView(V3d_Xpos);
+    viewport->setPerspective(true);
+    const sc::render::CameraState saved = viewport->cameraState();
+    QVERIFY(_window->saveCurrentViewAs(QStringLiteral("  Side cut  ")));
+    QCOMPARE(_window->userViews().size(), size_t(1));
+    QCOMPARE(_window->userViews().front().name, QStringLiteral("Side cut"));
+
+    // Change all three, then restore.
+    showAll->trigger();
+    section->reset();
+    viewport->setPerspective(false);
+    viewport->setStandardView(V3d_Zpos);
+    QVERIFY(plateShown());
+    _window->restoreUserView(0);
+    QVERIFY(!plateShown());
+    QVERIFY(section->plane(1).enabled);
+    QVERIFY(section->plane(1).normal.IsEqual(gp_Dir(0, 1, 0), 1e-9));
+    QCOMPARE(section->plane(1).offset, 12.5);
+    QVERIFY(!section->plane(0).enabled);
+    const sc::render::CameraState restored = viewport->cameraState();
+    QVERIFY(restored.perspective);
+    QVERIFY(restored.eye.IsEqual(saved.eye, 1e-6));
+    QVERIFY(restored.center.IsEqual(saved.center, 1e-6));
+    QVERIFY(restored.up.IsEqual(saved.up, 1e-9));
+    QVERIFY(_window->statusBar()->currentMessage().contains(QStringLiteral("Side cut")));
+
+    // The same name replaces the view rather than adding one.
+    QVERIFY(_window->saveCurrentViewAs(QStringLiteral("side CUT")));
+    QCOMPARE(_window->userViews().size(), size_t(1));
+
+    // Close and open the file again: the view is still there and still works.
+    _close->trigger();
+    QVERIFY(_window->userViews().empty());
+    openFixture();
+    QCOMPARE(_window->userViews().size(), size_t(1));
+    QVERIFY(plateRow().isValid());
+    QVERIFY(plateShown());
+    _window->restoreUserView(0);
+    QVERIFY(!plateShown());
   }
 
 private:

@@ -134,6 +134,17 @@ the model.
 - **Standard Views:** Front `1`, Back `2`, Top `3`, Bottom `4`, Left `5`, Right `6`,
   Isometric `0`. Z is up; Front looks along +Y.
 - **Perspective Projection** (`P`): toggles between orthographic (default) and perspective.
+- **Saved Views:** your own views of the model.
+  - **Save Current View...** (`Ctrl+Shift+V`) stores the camera, which parts are hidden and the
+    section planes under a name ("View 1" by default; the same name replaces that view).
+  - Choosing a saved view from the list brings all three back. Display style, transparency and
+    PMI are not part of a saved view.
+  - **Manage Saved Views...** renames (edit the name in place), deletes and reorders them.
+
+  Views belong to the file's content and are kept in STEP Complete's data folder, not next to
+  the model: they come back whenever the same file is opened, even after it is copied, renamed or
+  moved. A file re-exported in place keeps its views; parts that no longer exist are skipped.
+  The views a STEP file's PMI declares are in the PMI panel (section 7).
 - **Display style:** Shaded (`S`), Shaded with Edges (`E`), Wireframe (`W`), Hidden Line (`L`).
   Hidden Line draws the faces in white with the sharp edges and outlines in dark lines, like a
   drawing; edges behind faces are hidden. Selected parts still light up in the selection color,
@@ -402,6 +413,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `Ctrl+O` | Open file |
 | `Ctrl+W` | Close model |
 | `Ctrl+Shift+E` | Export image |
+| `Ctrl+Shift+V` | Save the current view (View > Saved Views) |
 | `Ctrl+Q` | Quit |
 | `Ctrl+F` | Find part (filter the Assembly tree) |
 | `F` | Fit all |
@@ -427,7 +439,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + left drag zoom;
 left click select; Shift + click add to selection; right click context menu.
 
-Menu items without shortcuts: Open Recent, Export Geometry, Preferences, Show All PMI, PMI Labels from Semantics,
+Menu items without shortcuts: Open Recent, Export Geometry, Manage Saved Views, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 
 ## 12. Troubleshooting

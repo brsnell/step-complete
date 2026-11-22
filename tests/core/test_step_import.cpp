@@ -26,6 +26,8 @@
 
 #include <gtest/gtest.h>
 
+#include <set>
+
 #include <algorithm>
 #include <fstream>
 #include <iterator>
@@ -437,4 +439,32 @@ TEST(StepImport, PremeshesPartsForTheViewer) {
     }
     EXPECT_TRUE(hasTriangulation) << index.node(part).name;
   }
+}
+
+// Saved views find their hidden parts again by path id (docs/designs/user-saved-views.md).
+TEST(AssemblyIndex, PathIdsFindEveryNodeAgain) {
+  const core::AssemblyIndex index(test::buildFixtureAssembly());
+  const std::vector<std::string> ids = index.pathIds();
+  ASSERT_EQ(ids.size(), index.nodes().size());
+  std::set<std::string> unique(ids.begin(), ids.end());
+  EXPECT_EQ(unique.size(), ids.size()); // both pins of both pairs have their own id
+  for (const core::AssemblyNode& node : index.nodes()) {
+    const std::string& id = ids[static_cast<size_t>(node.id)];
+    EXPECT_EQ(index.pathId(node.id), id);
+    EXPECT_EQ(index.nodeForPathId(id), node.id);
+    if (node.parent != core::NoNode) {
+      EXPECT_EQ(id.rfind(ids[static_cast<size_t>(node.parent)] + "/", 0), 0U) << id;
+    }
+  }
+  EXPECT_EQ(index.nodeForPathId("9:9:9"), core::NoNode);
+  EXPECT_EQ(index.nodeForPathId(""), core::NoNode);
+  EXPECT_TRUE(index.pathId(core::NoNode).empty());
+
+  // Another import of the same file gives the same ids.
+  const std::string path = test::tempPath("path_ids.step");
+  ASSERT_TRUE(test::writeStep(test::buildFixtureAssembly(false), path));
+  const core::ImportResult first = core::importStep(path, {});
+  const core::ImportResult second = core::importStep(path, {});
+  ASSERT_TRUE(first.ok && second.ok);
+  EXPECT_EQ(core::AssemblyIndex(first.document).pathIds(), core::AssemblyIndex(second.document).pathIds());
 }

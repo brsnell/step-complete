@@ -8,6 +8,8 @@
 
 #include "render/OcctViewport.h"
 
+#include <Graphic3d_Camera.hxx>
+
 #include "core/OccCompat.h"
 
 #include <AIS_ViewCube.hxx>
@@ -578,6 +580,40 @@ void OcctViewport::setPerspective(bool enabled) {
 
 bool OcctViewport::isPerspective() const {
   return _view->Camera()->ProjectionType() == Graphic3d_Camera::Projection_Perspective;
+}
+
+CameraState OcctViewport::cameraState() const {
+  CameraState state;
+  if (_view.IsNull()) {
+    return state;
+  }
+  const OccHandle<Graphic3d_Camera>& camera = _view->Camera();
+  state.eye = camera->Eye();
+  state.center = camera->Center();
+  state.up = camera->Up();
+  state.perspective = camera->ProjectionType() == Graphic3d_Camera::Projection_Perspective;
+  state.scale = camera->Scale();
+  state.fieldOfView = camera->FOVy();
+  return state;
+}
+
+void OcctViewport::setCameraState(const CameraState& state) {
+  if (_view.IsNull() || state.eye.Distance(state.center) < 1e-9) {
+    return;
+  }
+  const OccHandle<Graphic3d_Camera>& camera = _view->Camera();
+  camera->SetProjectionType(state.perspective ? Graphic3d_Camera::Projection_Perspective
+                                              : Graphic3d_Camera::Projection_Orthographic);
+  camera->SetEyeAndCenter(state.eye, state.center);
+  camera->SetUp(state.up);
+  // In perspective, the scale is the eye's distance (already set); setting it would move the eye.
+  if (state.perspective) {
+    camera->SetFOVy(state.fieldOfView);
+  } else if (state.scale > 0.0) {
+    camera->SetScale(state.scale);
+  }
+  _view->AutoZFit();
+  invalidateScene();
 }
 
 void OcctViewport::setMsaaSamples(int samples) {

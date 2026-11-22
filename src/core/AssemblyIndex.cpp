@@ -189,6 +189,50 @@ std::vector<NodeId> AssemblyIndex::subtree(NodeId id) const {
   return result;
 }
 
+std::vector<std::string> AssemblyIndex::pathIds() const {
+  std::vector<std::string> ids(_nodes.size());
+  // Nodes are stored in tree order, so a parent's id is always ready before its children's.
+  for (const AssemblyNode& node : _nodes) {
+    TCollection_AsciiString entry;
+    TDF_Tool::Entry(node.instanceLabel, entry);
+    std::string& id = ids[static_cast<size_t>(node.id)];
+    if (node.parent != NoNode) {
+      id = ids[static_cast<size_t>(node.parent)] + '/';
+    }
+    id += entry.ToCString();
+  }
+  return ids;
+}
+
+std::string AssemblyIndex::pathId(NodeId id) const {
+  if (id < 0 || static_cast<size_t>(id) >= _nodes.size()) {
+    return {};
+  }
+  std::vector<NodeId> chain;
+  for (NodeId current = id; current != NoNode; current = node(current).parent) {
+    chain.push_back(current);
+  }
+  std::string out;
+  for (auto it = chain.rbegin(); it != chain.rend(); ++it) {
+    TCollection_AsciiString entry;
+    TDF_Tool::Entry(node(*it).instanceLabel, entry);
+    if (!out.empty()) {
+      out += '/';
+    }
+    out += entry.ToCString();
+  }
+  return out;
+}
+
+NodeId AssemblyIndex::nodeForPathId(const std::string& id) const {
+  if (id.empty()) {
+    return NoNode;
+  }
+  const std::vector<std::string> ids = pathIds();
+  const auto it = std::find(ids.begin(), ids.end(), id);
+  return it == ids.end() ? NoNode : static_cast<NodeId>(it - ids.begin());
+}
+
 std::vector<NodeId> AssemblyIndex::partsBelow(NodeId id) const {
   std::vector<NodeId> result;
   for (const NodeId nodeId : subtree(id)) {

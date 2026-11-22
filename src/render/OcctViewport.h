@@ -11,6 +11,7 @@
 #include <V3d_Viewer.hxx>
 
 #include <QOpenGLWidget>
+#include <gp_Dir.hxx>
 #include <gp_Pnt.hxx>
 
 #include <QImage>
@@ -63,6 +64,17 @@ public:
   virtual void endDrag() = 0;
 };
 
+// A camera as a saved view stores it: where it is and what it looks at, without the window's
+// aspect ratio (a restored view keeps its centre and scale in a differently shaped window).
+struct CameraState {
+  gp_Pnt eye{0.0, 0.0, 1.0};
+  gp_Pnt center{0.0, 0.0, 0.0};
+  gp_Dir up{0.0, 1.0, 0.0};
+  bool perspective = false;
+  double scale = 1.0;        // orthographic: height of the view in model units (mm)
+  double fieldOfView = 45.0; // perspective: vertical angle in degrees
+};
+
 class OcctViewport : public QOpenGLWidget, public AIS_ViewController {
   Q_OBJECT
 
@@ -96,6 +108,9 @@ public:
   void setStandardView(V3d_TypeOfOrientation orientation);
   void setPerspective(bool enabled);
   bool isPerspective() const;
+  // The camera now, and back to a stored one (saved views). No-ops before OpenGL is ready.
+  CameraState cameraState() const;
+  void setCameraState(const CameraState& state);
   void setMsaaSamples(int samples);
   int msaaSamples() const;
   void setShowFrameRate(bool enabled);

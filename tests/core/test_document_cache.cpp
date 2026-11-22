@@ -316,3 +316,29 @@ TEST(DocumentCache, PruneRespectsMaxBytesAndDropsLeastRecentlyUsed) {
   EXPECT_EQ(tiny.totalBytes(), 0u);
   fs::remove_all(dir);
 }
+
+// Saved views key their data by fileFingerprint (docs/designs/user-saved-views.md).
+TEST(DocumentCache, FingerprintIgnoresTheModificationTimeAndFollowsTheContent) {
+  const fs::path dir = freshDir("fingerprint");
+  const fs::path file = dir / "model.stp";
+  std::ofstream(file, std::ios::binary) << std::string(3 * 1024 * 1024, 'a') << "tail";
+  const std::string first = core::fileFingerprint(file.string());
+  ASSERT_FALSE(first.empty());
+  EXPECT_NE(first, core::cacheKey(file.string()));
+
+  // Touched (newer modification time): the cache key changes, the fingerprint does not.
+  const std::string keyBefore = core::cacheKey(file.string());
+  fs::last_write_time(file, fs::last_write_time(file) + std::chrono::hours(1));
+  EXPECT_NE(core::cacheKey(file.string()), keyBefore);
+  EXPECT_EQ(core::fileFingerprint(file.string()), first);
+
+  // A copy elsewhere has the same fingerprint.
+  const fs::path copy = dir / "renamed copy.stp";
+  fs::copy_file(file, copy);
+  EXPECT_EQ(core::fileFingerprint(copy.string()), first);
+
+  // Other content does not, even at the same size.
+  std::ofstream(copy, std::ios::binary | std::ios::trunc) << std::string(3 * 1024 * 1024, 'a') << "TAIL";
+  EXPECT_NE(core::fileFingerprint(copy.string()), first);
+  EXPECT_TRUE(core::fileFingerprint((dir / "missing.stp").string()).empty());
+}

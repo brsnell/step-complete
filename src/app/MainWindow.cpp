@@ -11,6 +11,7 @@
 #include "app/PmiPanel.h"
 #include "app/PreferencesDialog.h"
 #include "app/PropertiesPanel.h"
+#include "app/SavedViewsDialog.h"
 #include "app/SectionPanel.h"
 #include "core/Memory.h"
 #include "core/OcctInfo.h"
@@ -36,6 +37,7 @@
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QHeaderView>
+#include <QInputDialog>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -55,6 +57,7 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <unordered_map>
 #include <utility>
 
 namespace sc::app {
@@ -363,10 +366,14 @@ void MainWindow::createActions() {
             [this, orientation] { _viewport->setStandardView(orientation); });
   }
 
-  QAction* perspective = viewMenu->addAction(tr("&Perspective Projection"));
-  perspective->setCheckable(true);
-  perspective->setShortcut(Qt::Key_P);
-  connect(perspective, &QAction::toggled, _viewport, &render::OcctViewport::setPerspective);
+  _perspectiveAction = viewMenu->addAction(tr("&Perspective Projection"));
+  _perspectiveAction->setCheckable(true);
+  _perspectiveAction->setShortcut(Qt::Key_P);
+  connect(_perspectiveAction, &QAction::toggled, _viewport, &render::OcctViewport::setPerspective);
+
+  _savedViewsMenu = viewMenu->addMenu(tr("Sa&ved Views"));
+  connect(_savedViewsMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildSavedViewsMenu);
+  rebuildSavedViewsMenu(); // so its actions (and their shortcuts) exist before it is first shown
 
   viewMenu->addSeparator();
   _styleGroup = new QActionGroup(this);
@@ -839,6 +846,7 @@ void MainWindow::onImportFinished() {
     _emptyHint->hide();
     setWindowTitle(QStringLiteral("%1 — %2").arg(fileName, QString::fromUtf8(core::AppName)));
     addRecentFile(job->path());
+    loadUserViews(job->path());
     _viewport->fitAll();
     _viewport->invalidateScene();
 
@@ -879,6 +887,10 @@ void MainWindow::closeModel() {
   _messages->clear();
   _transparentParts.clear();
   _unitStatus->clear();
+  _modelPath.clear();
+  _modelData = QJsonObject();
+  _userViews.clear();
+  rebuildSavedViewsMenu();
   _emptyHint->show();
   setWindowTitle(QString::fromUtf8(core::AppName));
   _viewport->invalidateScene();
@@ -1414,6 +1426,185 @@ void MainWindow::onExportFinished() {
   job->deleteLater();
   _export = nullptr;
   updateActions();
+}
+
+// ---------------------------------------------------------------------------------
+// User saved views (docs/designs/user-saved-views.md)
+// ---------------------------------------------------------------------------------
+
+void MainWindow::rebuildSavedViewsMenu() {
+  _savedViewsMenu->clear();
+  const bool hasModel = _scene->model() != nullptr;
+  QAction* save = _savedViewsMenu->addAction(tr("&Save Current View..."), this, &MainWindow::saveCurrentView);
+  save->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_V));
+  save->setEnabled(hasModel);
+  if (!_userViews.empty()) {
+    _savedViewsMenu->addSeparator();
+  }
+  for (int i = 0; i < static_cast<int>(_userViews.size()); ++i) {
+    // "&1 Front flange": the first nine get a mnemonic number.
+    const QString label =
+        i < 9 ? QStringLiteral("&%1 %2").arg(i + 1).arg(_userViews[static_cast<size_t>(i)].name)
+              : _userViews[static_cast<size_t>(i)].name;
+    _savedViewsMenu->addAction(label, this, [this, i] { restoreUserView(i); });
+  }
+  _savedViewsMenu->addSeparator();
+  QAction* manage =
+      _savedViewsMenu->addAction(tr("&Manage Saved Views..."), this, &MainWindow::manageSavedViews);
+  manage->setEnabled(hasModel && !_userViews.empty());
+}
+
+void MainWindow::loadUserViews(const QString& modelPath) {
+  _modelPath = modelPath;
+  const ModelDataStore::Loaded loaded = _modelStore.load(modelPath);
+  _modelData = loaded.data;
+  _userViews = userViewsFromJson(_modelData.value(QStringLiteral("views")).toArray());
+  if (!loaded.ok) {
+    statusBar()->showMessage(tr("The saved views of this model could not be read (%1).").arg(loaded.error),
+                             8000);
+  }
+  rebuildSavedViewsMenu();
+}
+
+void MainWindow::writeUserViews() {
+  if (_modelPath.isEmpty()) {
+    return;
+  }
+  _modelData.insert(QStringLiteral("views"), toJson(_userViews));
+  QString error;
+  if (!_modelStore.save(_modelPath, _modelData, &error)) {
+    QMessageBox::warning(this, tr("Saved Views"),
+                         tr("The saved views could not be written.\n\n%1").arg(error));
+  }
+  rebuildSavedViewsMenu();
+}
+
+void MainWindow::saveCurrentView() {
+  if (!_scene->model()) {
+    return;
+  }
+  // The first free "View N".
+  QString suggested;
+  for (int n = 1;; ++n) {
+    suggested = tr("View %1").arg(n);
+    const bool taken = std::any_of(_userViews.begin(), _userViews.end(), [&](const UserView& view) {
+      return view.name.compare(suggested, Qt::CaseInsensitive) == 0;
+    });
+    if (!taken) {
+      break;
+    }
+  }
+  bool ok = false;
+  const QString name =
+      QInputDialog::getText(this, tr("Save Current View"), tr("Name:"), QLineEdit::Normal, suggested, &ok)
+          .trimmed();
+  if (!ok) {
+    return;
+  }
+  if (name.isEmpty()) {
+    statusBar()->showMessage(tr("A saved view needs a name."), 5000);
+    return;
+  }
+  const bool exists = std::any_of(_userViews.begin(), _userViews.end(), [&](const UserView& view) {
+    return view.name.compare(name, Qt::CaseInsensitive) == 0;
+  });
+  if (exists &&
+      QMessageBox::question(this, tr("Save Current View"),
+                            tr("A view named \"%1\" exists. Replace it?").arg(name)) != QMessageBox::Yes) {
+    return;
+  }
+  saveCurrentViewAs(name);
+}
+
+bool MainWindow::saveCurrentViewAs(const QString& name) {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  const QString trimmed = name.trimmed();
+  if (!index || trimmed.isEmpty()) {
+    return false;
+  }
+  UserView view;
+  view.name = trimmed;
+  view.camera = _viewport->cameraState();
+  const std::vector<std::string> ids = index->pathIds();
+  for (const core::NodeId part : index->partInstances()) {
+    if (!_scene->isVisible(part)) {
+      view.hiddenParts.append(QString::fromStdString(ids[static_cast<size_t>(part)]));
+    }
+  }
+  for (int i = 0; i < render::SectionTool::MaxPlanes; ++i) {
+    view.sections[static_cast<size_t>(i)] = _sectionTool->plane(i);
+  }
+  const auto existing = std::find_if(_userViews.begin(), _userViews.end(), [&](const UserView& other) {
+    return other.name.compare(trimmed, Qt::CaseInsensitive) == 0;
+  });
+  if (existing != _userViews.end()) {
+    *existing = std::move(view);
+  } else {
+    _userViews.push_back(std::move(view));
+  }
+  writeUserViews();
+  statusBar()->showMessage(tr("Saved view \"%1\".").arg(trimmed), 5000);
+  return true;
+}
+
+void MainWindow::restoreUserView(int index) {
+  const std::shared_ptr<const core::AssemblyIndex>& model = _scene->model();
+  if (!model || index < 0 || index >= static_cast<int>(_userViews.size())) {
+    return;
+  }
+  const UserView& view = _userViews[static_cast<size_t>(index)];
+
+  // Parts: show all, then hide the stored ones that still exist.
+  std::unordered_map<std::string, core::NodeId> byId;
+  const std::vector<std::string> ids = model->pathIds();
+  for (const core::NodeId part : model->partInstances()) {
+    byId.emplace(ids[static_cast<size_t>(part)], part);
+  }
+  std::vector<core::NodeId> hidden;
+  int missing = 0;
+  for (const QString& id : view.hiddenParts) {
+    const auto it = byId.find(id.toStdString());
+    if (it == byId.end()) {
+      ++missing;
+    } else {
+      hidden.push_back(it->second);
+    }
+  }
+  _scene->showAll();
+  _scene->setVisible(hidden, false);
+  afterVisibilityChange();
+
+  // Section planes, and the section view on or off to match.
+  for (int i = 0; i < render::SectionTool::MaxPlanes; ++i) {
+    _sectionTool->setPlane(i, view.sections[static_cast<size_t>(i)]);
+  }
+  _sectionPanel->refresh();
+  if (_sectionAction != nullptr) {
+    const QSignalBlocker blocker(_sectionAction);
+    _sectionAction->setChecked(_sectionTool->isActive());
+  }
+
+  // Camera last: AutoZFit sees the restored parts.
+  _viewport->setCameraState(view.camera);
+  {
+    const QSignalBlocker blocker(_perspectiveAction);
+    _perspectiveAction->setChecked(view.camera.perspective);
+  }
+  _viewport->invalidateScene();
+
+  QString message = tr("Restored view \"%1\".").arg(view.name);
+  if (missing > 0) {
+    message += QLatin1Char(' ') + tr("%n hidden part(s) are no longer in the model.", nullptr, missing);
+  }
+  statusBar()->showMessage(message, 6000);
+}
+
+void MainWindow::manageSavedViews() {
+  SavedViewsDialog dialog(_userViews, this);
+  if (dialog.exec() == QDialog::Accepted) {
+    _userViews = dialog.views();
+    writeUserViews();
+  }
 }
 
 void MainWindow::showPreferences() {

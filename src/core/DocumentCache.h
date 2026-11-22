@@ -28,6 +28,12 @@ struct CachedImport {
 // Returns an empty string if the file cannot be read.
 std::string cacheKey(const std::string& utf8Path, std::string_view variant = {});
 
+// A key for data the user keeps about a model (saved views, ...): the file's size and sampled
+// content only, the same sampling as cacheKey. Unlike cacheKey it ignores the modification time
+// and the app, OCCT and cache versions, so copies, moves, touches and upgrades keep it. Returns an
+// empty string if the file cannot be read.
+std::string fileFingerprint(const std::string& utf8Path);
+
 // On-disk cache of imported documents: <dir>/<key>.cbf (the XCAF document as
 // BinXCAF, including triangulations) and <dir>/<key>.meta (what lives outside
 // OCAF: source path, file unit, cameras, import messages).

@@ -58,25 +58,13 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ## v1.1 (M6)
 
-### User saved views
-
-**What:** Save the current camera, part visibility and section planes under a name and restore them later, listed next to the PMI saved views.
-
-**Why:** Saved views are only available when the file's PMI supplies them. Users want their own for repeat inspections and screenshots.
-
-**Context:** The design has to choose where they are stored: per file in the app's settings or cache (keyed by the open-file cache's file hash), or in a sidecar file that can be shared. Markup (v2) will need the same storage choice, so decide both together.
-
-**Effort:** M
-**Priority:** P2
-**Depends on:** Design approved.
-
 ### Material density for mass properties
 
 **What:** Set a density per part (typed in, or chosen from a short list of common materials such as steel, aluminium, ABS) and report mass next to volume in **Measure > Mass Properties**. Use the file's material and density when it declares them.
 
 **Why:** Mass properties are computed at unit density only, so the app cannot answer "how heavy is this assembly".
 
-**Context:** `Measure` / `Measurement` in `src/core` compute volume and inertia; mass and inertia scale with density. Multi-part results must sum mass per part, not volume times one density. The design decides where per-part densities are stored (the same question as user saved views). Mass needs units (g, kg, lb) in the Measure menu and in CSV export.
+**Context:** `Measure` / `Measurement` in `src/core` compute volume and inertia; mass and inertia scale with density. Multi-part results must sum mass per part, not volume times one density. Per-part densities go in the per-file store user saved views introduced (`ModelDataStore`, [design](docs/designs/user-saved-views.md)), under their own key. Mass needs units (g, kg, lb) in the Measure menu and in CSV export.
 
 **Effort:** S
 **Priority:** P2
@@ -162,11 +150,11 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 **Why:** Listed as a v2 candidate (PLAN §1). Reviewers need to point at things.
 
-**Context:** It must never write into the STEP file. Notes have to stay attached when the same file is reopened, so they need a stable reference to the geometry (assembly path plus face). Shares the storage decision with user saved views.
+**Context:** It must never write into the STEP file. Notes have to stay attached when the same file is reopened, so they need a stable reference to the geometry (assembly path plus face). Store it per file with `ModelDataStore` (as user saved views do), under its own key; a shareable export can sit on top of the same JSON.
 
 **Effort:** L
 **Priority:** P3
-**Depends on:** Design approved; user saved views (storage decision).
+**Depends on:** Design approved.
 
 ## Deferred
 

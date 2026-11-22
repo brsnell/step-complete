@@ -370,9 +370,9 @@ Feedback from v1.0 users can reorder v1.1 and v2.
   finer on a private copy ([design](designs/geometry-export.md)). Writing STEP stays a non-goal.
 - ✅ **Section planes at any angle**: Custom (a typed normal) in each plane's axis list, and Pick
   Face to put a plane on a clicked flat face ([design](designs/angled-section-planes.md)).
-- **User saved views.** Save the camera, visibility and section planes under a name and restore
-  them later, next to the PMI saved views. The design decides where they are stored (per file,
-  keyed by the open-file cache's file hash, or a sidecar file).
+- ✅ **User saved views** (View > Saved Views): the camera, hidden parts and section planes under a
+  name. Per-file data lives in the app data folder, keyed by the file's content
+  ([design](designs/user-saved-views.md)); material densities and markup reuse that store.
 - **Material density for mass properties.** Mass properties are computed at unit density today.
   Add a density per part (typed in, or picked from a short list of common materials), and use
   the file's material when it declares one. Report mass next to volume.
