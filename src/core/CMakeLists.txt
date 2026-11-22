@@ -28,6 +28,9 @@ add_library(sc_core STATIC
   PmiText.cpp
   PmiModel.h
   PmiModel.cpp
+  ProgressBridge.h
+  GeometryExport.h
+  GeometryExport.cpp
 )
 add_library(sc::core ALIAS sc_core)
 

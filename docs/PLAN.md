@@ -365,9 +365,9 @@ Feedback from v1.0 users can reorder v1.1 and v2.
 - ✅ **Search in the assembly tree** (View > Find Part..., `Ctrl+F`): a filter box above the
   Assembly tree that matches part and product names, keeps the path to each match and expands to
   it ([design](designs/assembly-search.md)).
-- **Geometry export.** File > Export Geometry: STL (per part or merged), OBJ and glTF/GLB with
-  colors, from the existing mesh and XCAF document. This is the first file the app writes besides
-  images and CSV; writing STEP stays a non-goal.
+- ✅ **Geometry export** (File > Export Geometry...): STL (merged or one file per unique part), OBJ
+  with colors and glTF/GLB with colors and the assembly tree, at the display's mesh quality or
+  finer on a private copy ([design](designs/geometry-export.md)). Writing STEP stays a non-goal.
 - **Section planes at any angle.** `SectionPlane` already takes any normal; the Section panel
   only offers X, Y and Z. Add "plane on a picked planar face" and a custom normal.
 - **User saved views.** Save the camera, visibility and section planes under a name and restore

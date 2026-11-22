@@ -19,10 +19,12 @@
 #if OCC_VERSION_HEX >= 0x080000
 #include <NCollection_HSequence.hxx>
 #include <NCollection_IndexedDataMap.hxx>
+#include <NCollection_Map.hxx>
 #include <NCollection_Sequence.hxx>
 #else
 #include <TColStd_HSequenceOfExtendedString.hxx>
 #include <TColStd_IndexedDataMapOfStringString.hxx>
+#include <TColStd_MapOfAsciiString.hxx>
 #include <TColStd_SequenceOfAsciiString.hxx>
 #include <TDF_LabelSequence.hxx>
 #endif
@@ -34,11 +36,13 @@ using LabelSequence = NCollection_Sequence<TDF_Label>;
 using AsciiStringSequence = NCollection_Sequence<TCollection_AsciiString>;
 using HExtendedStringSequence = NCollection_HSequence<TCollection_ExtendedString>;
 using StringStringMap = NCollection_IndexedDataMap<TCollection_AsciiString, TCollection_AsciiString>;
+using AsciiStringMap = NCollection_Map<TCollection_AsciiString>;
 #else
 using LabelSequence = TDF_LabelSequence;
 using AsciiStringSequence = TColStd_SequenceOfAsciiString;
 using HExtendedStringSequence = TColStd_HSequenceOfExtendedString;
 using StringStringMap = TColStd_IndexedDataMapOfStringString;
+using AsciiStringMap = TColStd_MapOfAsciiString;
 #endif
 
 // Message of an OCCT exception (GetMessageString() is deprecated in OCCT 8).

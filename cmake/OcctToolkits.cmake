@@ -5,7 +5,7 @@
 # Defines interface targets:
 #   sc::occt_foundation  - kernel, math, geometry, topology
 #   sc::occt_visual      - V3d/AIS viewer and OpenGL driver
-#   sc::occt_data        - XCAF document and STEP import
+#   sc::occt_data        - XCAF document, STEP import and mesh export (OBJ, glTF)
 
 if(NOT OpenCASCADE_VERSION)
   set(OpenCASCADE_VERSION "${OpenCASCADE_MAJOR_VERSION}.${OpenCASCADE_MINOR_VERSION}.${OpenCASCADE_MAINTENANCE_VERSION}")
@@ -18,10 +18,11 @@ endif()
 set(_sc_occt_foundation TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo TKPrim
                         TKShHealing TKMesh TKBO)
 set(_sc_occt_visual     TKService TKV3d TKOpenGl)
-set(_sc_occt_data       TKCDF TKLCAF TKCAF TKXSBase TKXCAF TKBinL TKBin TKBinXCAF)
+set(_sc_occt_data       TKCDF TKLCAF TKCAF TKXSBase TKXCAF TKBinL TKBin TKBinXCAF TKRWMesh)
 
 if(OpenCASCADE_VERSION VERSION_GREATER_EQUAL 7.8)
-  list(APPEND _sc_occt_data TKDE TKDESTEP)
+  # 7.8 also moved the OBJ and glTF writers out of TKRWMesh.
+  list(APPEND _sc_occt_data TKDE TKDESTEP TKDEOBJ TKDEGLTF)
 else()
   list(APPEND _sc_occt_data TKSTEPBase TKSTEPAttr TKSTEP209 TKSTEP TKXDESTEP)
 endif()

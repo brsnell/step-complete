@@ -27,6 +27,7 @@
 #include <fstream>
 #include <map>
 #include <mutex>
+#include <sstream>
 
 namespace sc::core {
 
@@ -294,26 +295,23 @@ OccHandle<XCAFApp_Application> xcafApplication() {
   return app;
 }
 
-bool writeBinXCAF(const OccHandle<TDocStd_Document>& doc, const fs::path& file) {
+bool writeBinXCAF(const OccHandle<TDocStd_Document>& doc, std::ostream& out, bool withTriangles = true) {
   // The application's own SaveAs would write without triangulations; drive the
   // storage driver directly so they are included.
   OccHandle<BinXCAFDrivers_DocumentStorageDriver> driver = new BinXCAFDrivers_DocumentStorageDriver();
-  driver->SetWithTriangles(Message::DefaultMessenger(), true);
-  std::ofstream out(file, std::ios::binary | std::ios::trunc);
-  if (!out) {
-    return false;
-  }
+  driver->SetWithTriangles(Message::DefaultMessenger(), withTriangles);
   driver->Write(doc, out);
   out.flush();
   return out.good();
 }
 
-OccHandle<TDocStd_Document> readBinXCAF(const fs::path& file) {
+bool writeBinXCAF(const OccHandle<TDocStd_Document>& doc, const fs::path& file) {
+  std::ofstream out(file, std::ios::binary | std::ios::trunc);
+  return out && writeBinXCAF(doc, out);
+}
+
+OccHandle<TDocStd_Document> readBinXCAF(std::istream& in) {
   OccHandle<XCAFApp_Application> app = xcafApplication();
-  std::ifstream in(file, std::ios::binary);
-  if (!in) {
-    return {};
-  }
   OccHandle<TDocStd_Document> doc;
   const PCDM_ReaderStatus status = app->Open(in, doc);
   if (status != PCDM_RS_OK || doc.IsNull()) {
@@ -323,6 +321,14 @@ OccHandle<TDocStd_Document> readBinXCAF(const fs::path& file) {
     return {};
   }
   return doc;
+}
+
+OccHandle<TDocStd_Document> readBinXCAF(const fs::path& file) {
+  std::ifstream in(file, std::ios::binary);
+  if (!in) {
+    return {};
+  }
+  return readBinXCAF(in);
 }
 
 // An entry without any triangulation would silently force meshing on the UI thread. The
@@ -550,6 +556,31 @@ void DocumentCache::prune() const {
     fs::remove(entryPath(key, ".meta.tmp"), ec);
     total -= std::min(total, entry.bytes);
   }
+}
+
+DocumentPtr copyDocument(const Document& source, bool withTriangulations) {
+  if (source.ocaf().IsNull()) {
+    return {};
+  }
+  try {
+    std::stringstream buffer(std::ios::in | std::ios::out | std::ios::binary);
+    if (!writeBinXCAF(source.ocaf(), buffer, withTriangulations)) {
+      return {};
+    }
+    buffer.seekg(0);
+    OccHandle<TDocStd_Document> doc = readBinXCAF(buffer);
+    if (doc.IsNull()) {
+      return {};
+    }
+    auto copy = std::make_shared<Document>(doc);
+    copy->setSourcePath(source.sourcePath());
+    copy->setFileUnit(source.fileUnitName(), source.fileUnit());
+    copy->setCameras(source.cameras());
+    return copy;
+  } catch (const Standard_Failure&) {
+  } catch (const std::exception&) {
+  }
+  return {};
 }
 
 } // namespace sc::core

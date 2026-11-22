@@ -11,6 +11,7 @@ as the LGPL requires.
 | FreeType (used by OCCT for text) | FreeType License (FTL) | https://freetype.org |
 | Fontconfig (Linux, used by OCCT) | MIT-style | https://www.freedesktop.org/wiki/Software/fontconfig/ |
 | zlib (reads compressed `.stpz` files) | zlib license | https://zlib.net |
+| RapidJSON (header-only, built into OCCT's glTF writer) | MIT | https://github.com/Tencent/rapidjson |
 | STIX Two Math (font, embedded in the executable) | SIL Open Font License 1.1 | https://github.com/stipub/stixfonts |
 
 Full license texts are in `resources/licenses/`, embedded in the executable, and shown in

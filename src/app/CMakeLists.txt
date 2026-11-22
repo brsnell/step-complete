@@ -18,6 +18,10 @@ add_library(sc_app STATIC
   PmiPanel.cpp
   ExportImageDialog.h
   ExportImageDialog.cpp
+  ExportGeometryDialog.h
+  ExportGeometryDialog.cpp
+  ExportJob.h
+  ExportJob.cpp
   PreferencesDialog.h
   PreferencesDialog.cpp
   SectionModel.h
@@ -93,7 +97,8 @@ qt_add_resources(sc_app sc_app_licenses
     "${PROJECT_SOURCE_DIR}/resources/licenses/GPL-3.0.txt"
     "${PROJECT_SOURCE_DIR}/resources/licenses/FTL.txt"
     "${PROJECT_SOURCE_DIR}/resources/licenses/fontconfig.txt"
-    "${PROJECT_SOURCE_DIR}/resources/licenses/zlib.txt")
+    "${PROJECT_SOURCE_DIR}/resources/licenses/zlib.txt"
+    "${PROJECT_SOURCE_DIR}/resources/licenses/RapidJSON.txt")
 qt_add_resources(sc_app sc_app_font_license
   PREFIX "/licenses"
   BASE "${PROJECT_SOURCE_DIR}/resources/fonts"

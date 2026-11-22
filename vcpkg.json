@@ -10,7 +10,7 @@
     {
       "name": "opencascade",
       "default-features": false,
-      "features": [ "freetype" ]
+      "features": [ "freetype", "rapidjson" ]
     }
   ],
   "overrides": [
