@@ -4,10 +4,11 @@
 #include "app/ExportGeometryDialog.h"
 
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDoubleSpinBox>
 #include <QRadioButton>
 #include <QSettings>
-#include <QStandardPaths>
+#include <QTemporaryDir>
 #include <QTest>
 
 using sc::app::ExportGeometryDialog;
@@ -26,13 +27,34 @@ void choose(QComboBox* combo, const char* value) {
 class ExportGeometryDialogTest : public QObject {
   Q_OBJECT
 
-private Q_SLOTS:
-  void initTestCase() { QStandardPaths::setTestModeEnabled(true); }
+private:
+  QTemporaryDir _settingsDir;
+  QString _organization;
+  QString _application;
+  QSettings::Format _format = QSettings::NativeFormat;
 
-  void init() {
-    QSettings settings;
-    settings.remove(QStringLiteral("exportGeometry"));
+private Q_SLOTS:
+  // A default QSettings needs an organization name: without one it reads and writes nothing (on
+  // Windows the registry writes are dropped silently). As in the preferences test, use an INI file
+  // in a temporary folder, and put the process-wide values back afterwards (the binary is shared).
+  void initTestCase() {
+    QVERIFY(_settingsDir.isValid());
+    _organization = QCoreApplication::organizationName();
+    _application = QCoreApplication::applicationName();
+    _format = QSettings::defaultFormat();
+    QCoreApplication::setOrganizationName(QStringLiteral("StepCompleteTest"));
+    QCoreApplication::setApplicationName(QStringLiteral("export-geometry-test"));
+    QSettings::setDefaultFormat(QSettings::IniFormat);
+    QSettings::setPath(QSettings::IniFormat, QSettings::UserScope, _settingsDir.path());
   }
+
+  void cleanupTestCase() {
+    QCoreApplication::setOrganizationName(_organization);
+    QCoreApplication::setApplicationName(_application);
+    QSettings::setDefaultFormat(_format);
+  }
+
+  void init() { QSettings().clear(); }
 
   void defaultsAreOneStlAsDisplayedInMillimetres() {
     ExportGeometryDialog dialog(false);
