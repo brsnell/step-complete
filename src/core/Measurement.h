@@ -37,6 +37,7 @@ int picksRequired(MeasureMode mode);
 struct MeasureDisplayOptions {
   LengthUnit lengthUnit = LengthUnit::Millimeter;
   AngleUnit angleUnit = AngleUnit::Degree;
+  MassUnit massUnit = MassUnit::Kilogram;
   int decimals = 3;
   int angleDecimals = 2;
 };
@@ -98,10 +99,15 @@ struct MassItem {
   std::string name;                             // display path, for the entity list
   std::optional<ValidationProperties> declared; // what the STEP file claims (prototype coordinates)
   TopLoc_Location location;                     // instance placement: maps declared.centroid to world
+  std::optional<double> density;                // kg/m³, from the user or the file
+  std::string material;                         // its name, may be empty
 };
 
-// Mass properties (unit density) of the combined items: volume, area, centroid, principal
-// moments of inertia, bounding boxes. With exactly one item that carries declared validation
+// Mass properties of the combined items: volume, area, centroid, principal moments of inertia,
+// bounding boxes. When every item with volume has a density, each counts with its own: the
+// headline is the mass and the centroid and moments are the centre of mass and mass moments.
+// Otherwise the values are for unit density, with a "Mass" row saying how many parts lack one
+// (docs/designs/material-density.md). With exactly one item that carries declared validation
 // properties, the file's claims are compared with the computed values. The witness is the
 // axis-aligned bounding box with a marker at the centroid.
 Measurement computeMassProperties(const std::vector<MassItem>& items, const MeasureDisplayOptions& options);

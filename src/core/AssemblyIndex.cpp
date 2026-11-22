@@ -4,13 +4,17 @@
 
 #include <TDF_Tool.hxx>
 
+#include <TCollection_HAsciiString.hxx>
 #include <TDataStd_Name.hxx>
 #include <TDataStd_NamedData.hxx>
+#include <TDataStd_TreeNode.hxx>
+#include <XCAFDoc.hxx>
 #include <XCAFDoc_Area.hxx>
 #include <XCAFDoc_Centroid.hxx>
 #include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_LayerTool.hxx>
+#include <XCAFDoc_MaterialTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include <XCAFDoc_Volume.hxx>
 
@@ -231,6 +235,66 @@ NodeId AssemblyIndex::nodeForPathId(const std::string& id) const {
   const std::vector<std::string> ids = pathIds();
   const auto it = std::find(ids.begin(), ids.end(), id);
   return it == ids.end() ? NoNode : static_cast<NodeId>(it - ids.begin());
+}
+
+std::string AssemblyIndex::prototypeId(NodeId id) const {
+  if (id < 0 || static_cast<size_t>(id) >= _nodes.size()) {
+    return {};
+  }
+  TCollection_AsciiString entry;
+  TDF_Tool::Entry(node(id).prototypeLabel, entry);
+  return entry.ToCString();
+}
+
+namespace {
+
+// The material a shape label refers to, with a positive density.
+std::optional<Material> materialOf(const TDF_Label& shapeLabel) {
+  OccHandle<TDataStd_TreeNode> reference;
+  if (shapeLabel.IsNull() || !shapeLabel.FindAttribute(XCAFDoc::MaterialRefGUID(), reference) ||
+      !reference->HasFather()) {
+    return std::nullopt;
+  }
+  const TDF_Label materialLabel = reference->Father()->Label();
+  OccHandle<TCollection_HAsciiString> name, description, densityName, densityType;
+  double density = 0.0;
+  if (!XCAFDoc_DocumentTool::MaterialTool(materialLabel)
+           ->GetMaterial(materialLabel, name, description, density, densityName, densityType)) {
+    return std::nullopt;
+  }
+  // GetDensityForShape hands the density over in g/mm³ whatever the file's length unit (checked
+  // by a STEP round trip in millimetres and inches); g/mm³ is 1e6 kg/m³.
+  const double gramsPerMm3 = XCAFDoc_MaterialTool::GetDensityForShape(shapeLabel);
+  if (gramsPerMm3 <= 0.0) {
+    return std::nullopt;
+  }
+  return Material{name.IsNull() ? std::string() : std::string(name->ToCString()), gramsPerMm3 * 1e6};
+}
+
+} // namespace
+
+std::optional<Material> AssemblyIndex::fileMaterial(NodeId id) const {
+  if (id < 0 || static_cast<size_t>(id) >= _nodes.size()) {
+    return std::nullopt;
+  }
+  const AssemblyNode& entry = node(id);
+  std::optional<Material> material = materialOf(entry.instanceLabel);
+  if (!material) {
+    material = materialOf(entry.prototypeLabel);
+  }
+  if (material) {
+    // OCCT's reader (STEPCAFControl_Reader::ReadMaterials) takes the name of whichever descriptive
+    // item it meets last among all the product's properties, so a part with user-defined
+    // attributes can get an attribute's name ("Part number") as its material name (seen with
+    // OCCT 8). The density is read from the measure item and stays right; drop such a name.
+    for (const auto& [key, value] : attributes(id)) {
+      if (key == material->name) {
+        material->name.clear();
+        break;
+      }
+    }
+  }
+  return material;
 }
 
 std::vector<NodeId> AssemblyIndex::partsBelow(NodeId id) const {

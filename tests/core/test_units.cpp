@@ -82,3 +82,11 @@ TEST(Units, FormatsSignificantDigits) {
   EXPECT_EQ(sc::core::formatSignificant(1.5e-9, 6), "1.5e-09");
   EXPECT_EQ(sc::core::formatSignificant(-0.0, 6), "0");
 }
+
+TEST(Units, FormatMass) {
+  EXPECT_EQ(formatMass(1.2346, MassUnit::Kilogram, 3), "1.235 kg");
+  EXPECT_EQ(formatMass(0.35, MassUnit::Gram, 1), "350.0 g");
+  EXPECT_EQ(formatMass(0.45359237, MassUnit::Pound, 2), "1.00 lb");
+  EXPECT_DOUBLE_EQ(kilogramsPer(MassUnit::Pound), 0.45359237);
+  EXPECT_EQ(symbol(MassUnit::Gram), "g");
+}

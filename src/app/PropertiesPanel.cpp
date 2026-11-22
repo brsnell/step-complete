@@ -170,6 +170,19 @@ void PropertiesPanel::rebuild() {
     if (!node.visibleInFile) {
       addRow(group, tr("Hidden in file"), tr("Yes"));
     }
+    if (node.kind == core::NodeKind::Part && _materialLookup) {
+      const std::optional<PartMaterial> part = _materialLookup(id);
+      QString text = tr("None (Measure > Set Material)");
+      if (part) {
+        const QString name =
+            part->material.name.empty() ? tr("Unnamed") : QString::fromStdString(part->material.name);
+        text = tr("%1, %2 kg/m\u00B3").arg(name).arg(part->material.density, 0, 'f', 1);
+        if (part->fromFile) {
+          text += QLatin1Char(' ') + tr("(from the file)");
+        }
+      }
+      addRow(group, tr("Material"), text);
+    }
     const auto attributes = _index->attributes(id);
     if (!attributes.empty()) {
       QTreeWidgetItem* attributeGroup = addGroup(tr("Attributes"));

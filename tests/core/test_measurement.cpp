@@ -1,5 +1,6 @@
 // Interactive measurement pipeline: picks -> formatted result + witness geometry.
 
+#include "core/Measure.h"
 #include "core/Measurement.h"
 
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -395,4 +396,75 @@ TEST(MassProperties, InchDisplayOptions) {
   // 250000 mm^5 / 25.4^5: keeps its precision instead of rounding to 0.024 (= 0.0236467).
   EXPECT_TRUE(contains(detail(measurement, "Principal moments (unit density)"), "0.0236467 in\xE2\x81\xB5"))
       << detail(measurement, "Principal moments (unit density)");
+}
+
+// Material density (docs/designs/material-density.md).
+TEST(MassProperties, EachPartCountsWithItsOwnDensity) {
+  // Two 10 x 20 x 30 boxes (6000 mm³ each), the second 100 mm along X and three times as dense.
+  const MassItem a = boxItem("A");
+  const MassItem b = boxItem("B", gp_Vec(100, 0, 0));
+  const measure::MassProperties mass =
+      measure::massProperties({a.worldShape, b.worldShape}, {1000.0, 3000.0});
+  ASSERT_TRUE(mass.ok);
+  ASSERT_TRUE(mass.hasMass);
+  EXPECT_NEAR(mass.volume, 12000.0, 1e-6);
+  EXPECT_NEAR(mass.mass, 0.006 + 0.018, 1e-12);                    // kg
+  EXPECT_NEAR(mass.centroid.X(), (5.0 * 1 + 105.0 * 3) / 4, 1e-9); // pulled toward the dense box
+  EXPECT_NEAR(mass.centroid.Y(), 10.0, 1e-9);
+  // About X through the centre of mass: both boxes are centred on it in Y and Z.
+  EXPECT_NEAR(mass.inertia(1, 1), 0.024 * (20.0 * 20.0 + 30.0 * 30.0) / 12.0, 1e-9); // kg mm²
+
+  // Without densities nothing changes: unit density, no mass.
+  const measure::MassProperties plain = measure::massProperties({a.worldShape, b.worldShape});
+  EXPECT_FALSE(plain.hasMass);
+  EXPECT_NEAR(plain.volume, 12000.0, 1e-6);
+  EXPECT_NEAR(plain.centroid.X(), 55.0, 1e-9);
+}
+
+TEST(MassProperties, MassIsTheHeadlineWhenEveryPartHasAMaterial) {
+  MassItem a = boxItem("A");
+  MassItem b = boxItem("B", gp_Vec(100, 0, 0));
+  a.density = 7850.0;
+  a.material = "Steel";
+  b.density = 7850.0;
+  b.material = "Steel";
+  MeasureDisplayOptions options;
+  const Measurement kilograms = computeMassProperties({a, b}, options);
+  ASSERT_TRUE(kilograms.ok) << kilograms.error;
+  EXPECT_EQ(kilograms.headline, "0.094 kg"); // 12000 mm³ of steel
+  EXPECT_EQ(detail(kilograms, "Mass"), "0.094 kg");
+  EXPECT_EQ(detail(kilograms, "Density"), "7850.0 kg/m\xC2\xB3");
+  EXPECT_EQ(detail(kilograms, "Material"), "Steel");
+  EXPECT_EQ(detail(kilograms, "Center of mass"), "55.000, 10.000, 15.000 mm");
+  EXPECT_NE(detail(kilograms, "Principal moments").find("kg\xC2\xB7mm\xC2\xB2"), std::string::npos);
+  EXPECT_EQ(detail(kilograms, "Volume"), "12000.000 mm\xC2\xB3"); // still there
+
+  options.massUnit = MassUnit::Gram;
+  EXPECT_EQ(computeMassProperties({a, b}, options).headline, "94.200 g");
+  options.massUnit = MassUnit::Pound;
+  options.decimals = 4;
+  EXPECT_EQ(computeMassProperties({a, b}, options).headline, "0.2077 lb");
+
+  // Different materials: no single density or name to show.
+  b.density = 2700.0;
+  b.material = "Aluminium";
+  const Measurement mixed = computeMassProperties({a, b}, {});
+  EXPECT_EQ(mixed.headline, "0.063 kg"); // 0.0471 + 0.0162
+  EXPECT_EQ(detail(mixed, "Density"), "<missing Density>");
+  EXPECT_EQ(detail(mixed, "Material"), "<missing Material>");
+}
+
+TEST(MassProperties, NoMassUntilEveryPartHasAMaterial) {
+  MassItem a = boxItem("A");
+  MassItem b = boxItem("B", gp_Vec(100, 0, 0));
+  a.density = 7850.0;
+  const Measurement partial = computeMassProperties({a, b}, {});
+  ASSERT_TRUE(partial.ok);
+  EXPECT_EQ(partial.headline, "12000.000 mm\xC2\xB3"); // the unit-density result, as before
+  EXPECT_EQ(detail(partial, "Mass"), "no material for 1 of 2 parts");
+  EXPECT_EQ(detail(partial, "Centroid"), "55.000, 10.000, 15.000 mm");
+  EXPECT_EQ(detail(partial, "Center of mass"), "<missing Center of mass>");
+
+  a.density.reset();
+  EXPECT_EQ(detail(computeMassProperties({a, b}, {}), "Mass"), "no material set (Measure > Set Material)");
 }

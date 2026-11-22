@@ -24,6 +24,12 @@ enum class LengthUnit {
   Foot,
 };
 
+enum class MassUnit {
+  Gram,
+  Kilogram,
+  Pound,
+};
+
 enum class AngleUnit {
   Degree,
   Radian,
@@ -36,6 +42,9 @@ double fromMillimeters(double mm, LengthUnit unit);
 double toMillimeters(double value, LengthUnit unit);
 
 std::string_view symbol(LengthUnit unit);
+std::string_view symbol(MassUnit unit); // "g", "kg", "lb"
+// Kilograms per one unit, e.g. 0.45359237 for Pound.
+double kilogramsPer(MassUnit unit);
 std::string_view symbol(AngleUnit unit);
 std::string_view displayName(LengthUnit unit);
 
@@ -50,8 +59,10 @@ std::string formatNumber(double value, int decimals);
 // magnitude (e.g. moments of inertia): "650000", "0.0237683", "1.5e-09".
 std::string formatSignificant(double value, int digits);
 std::string formatLength(double mm, LengthUnit unit, int decimals);
-std::string formatArea(double mm2, LengthUnit unit, int decimals);     // "mm²"
-std::string formatVolume(double mm3, LengthUnit unit, int decimals);   // "mm³"
+std::string formatArea(double mm2, LengthUnit unit, int decimals);   // "mm²"
+std::string formatVolume(double mm3, LengthUnit unit, int decimals); // "mm³"
+// Fixed-point like the other quantities: "1.235 kg", "350.000 g".
+std::string formatMass(double kilograms, MassUnit unit, int decimals);
 std::string formatAngle(double radians, AngleUnit unit, int decimals); // "45.00°"
 
 } // namespace sc::core

@@ -58,25 +58,13 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ## v1.1 (M6)
 
-### Material density for mass properties
-
-**What:** Set a density per part (typed in, or chosen from a short list of common materials such as steel, aluminium, ABS) and report mass next to volume in **Measure > Mass Properties**. Use the file's material and density when it declares them.
-
-**Why:** Mass properties are computed at unit density only, so the app cannot answer "how heavy is this assembly".
-
-**Context:** `Measure` / `Measurement` in `src/core` compute volume and inertia; mass and inertia scale with density. Multi-part results must sum mass per part, not volume times one density. Per-part densities go in the per-file store user saved views introduced (`ModelDataStore`, [design](docs/designs/user-saved-views.md)), under their own key. Mass needs units (g, kg, lb) in the Measure menu and in CSV export.
-
-**Effort:** S
-**Priority:** P2
-**Depends on:** Design approved.
-
 ### BOM / parts-list export
 
 **What:** File > Export Parts List: a CSV with one row per unique part (quantity, name, product name, path), optionally with volume, mass and bounding box.
 
 **Why:** A bill of materials is a common thing to pull out of a STEP assembly, and other viewers offer it.
 
-**Context:** The assembly index in `src/core` already counts instances per part (shown in the Properties panel). Reuse the Measurements panel's CSV writing (UTF-8 with BOM). Mass columns depend on material density; without it they are left out.
+**Context:** The assembly index in `src/core` already counts instances per part (shown in the Properties panel). Reuse the Measurements panel's CSV writing (UTF-8 with BOM). Mass columns use the part's material (`MainWindow::materialOf`: the user's, else the file's); parts without one leave the mass empty.
 
 **Effort:** S
 **Priority:** P2

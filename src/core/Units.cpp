@@ -126,6 +126,34 @@ std::string formatArea(double mm2, LengthUnit unit, int decimals) {
   return text;
 }
 
+std::string_view symbol(MassUnit unit) {
+  switch (unit) {
+  case MassUnit::Gram:
+    return "g";
+  case MassUnit::Kilogram:
+    return "kg";
+  case MassUnit::Pound:
+    return "lb";
+  }
+  return "kg";
+}
+
+double kilogramsPer(MassUnit unit) {
+  switch (unit) {
+  case MassUnit::Gram:
+    return 0.001;
+  case MassUnit::Kilogram:
+    return 1.0;
+  case MassUnit::Pound:
+    return 0.45359237; // exact, by definition
+  }
+  return 1.0;
+}
+
+std::string formatMass(double kilograms, MassUnit unit, int decimals) {
+  return formatNumber(kilograms / kilogramsPer(unit), decimals) + " " + std::string(symbol(unit));
+}
+
 std::string formatVolume(double mm3, LengthUnit unit, int decimals) {
   const double factor = millimetersPer(unit);
   std::string text = formatNumber(mm3 / (factor * factor * factor), decimals);
