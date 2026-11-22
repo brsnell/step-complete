@@ -3,6 +3,8 @@
 
 #include <QApplication>
 
+#include <cstdio>
+
 int runPmiPanelTests(int argc, char** argv);
 int runSectionPanelTests(int argc, char** argv);
 int runAboutDialogTests(int argc, char** argv);
@@ -11,6 +13,13 @@ int runAssemblyFilterTests(int argc, char** argv);
 int runExportGeometryDialogTests(int argc, char** argv);
 
 int main(int argc, char** argv) {
+  // Keep a failure readable in CI logs. Unbuffered output survives a crash or abort (on Windows a
+  // pipe is fully buffered), and without a console Qt on Windows would send its own warnings and
+  // fatal messages to the debugger instead of stderr.
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+  if (qEnvironmentVariableIsEmpty("QT_FORCE_STDERR_LOGGING")) {
+    qputenv("QT_FORCE_STDERR_LOGGING", "1");
+  }
   qputenv("QT_QPA_PLATFORM", "offscreen");
   QApplication app(argc, argv);
   int failures = 0;
