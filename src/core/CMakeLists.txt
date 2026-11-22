@@ -31,6 +31,8 @@ add_library(sc_core STATIC
   ProgressBridge.h
   GeometryExport.h
   GeometryExport.cpp
+  PartsList.h
+  PartsList.cpp
 )
 add_library(sc::core ALIAS sc_core)
 

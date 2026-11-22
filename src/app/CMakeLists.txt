@@ -28,6 +28,8 @@ add_library(sc_app STATIC
   SavedViewsDialog.cpp
   MaterialDialog.h
   MaterialDialog.cpp
+  PartsListDialog.h
+  PartsListDialog.cpp
   PreferencesDialog.h
   PreferencesDialog.cpp
   SectionModel.h

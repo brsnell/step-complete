@@ -5,6 +5,7 @@
 #include "core/AssemblyIndex.h"
 #include "core/GeometryExport.h"
 #include "core/Measurement.h"
+#include "core/PartsList.h"
 #include "core/PmiModel.h"
 
 #include <QMainWindow>
@@ -61,6 +62,11 @@ public:
   // File > Export Geometry does once its dialogs are answered. 'path' is the file, or the folder
   // for one STL per part. Does nothing while another export runs.
   void exportGeometryTo(const QString& path, const core::GeometryExportOptions& options, bool selectedOnly);
+
+  // What File > Export Parts List does once its dialogs are answered: write the CSV bill of
+  // materials of all (or the visible) parts to 'path'. Returns false on cancel or failure (a
+  // failure is shown in a message box).
+  bool exportPartsListTo(const QString& path, const core::PartsListOptions& options, bool visibleOnly);
 
   // --- User saved views (docs/designs/user-saved-views.md) ---------------------------
   // What View > Saved Views does: save the current camera, hidden parts and section planes
@@ -139,6 +145,7 @@ private:
   void exportImage();
   void exportGeometry();
   void onExportFinished();
+  void exportPartsList();
 
   void saveCurrentView();
   void manageSavedViews();
@@ -177,6 +184,7 @@ private:
   QAction* _antialiasingAction = nullptr;
   QAction* _exportImageAction = nullptr;
   QAction* _exportGeometryAction = nullptr;
+  QAction* _exportPartsListAction = nullptr;
   QAction* _perspectiveAction = nullptr;
   QMenu* _savedViewsMenu = nullptr;
   ModelDataStore _modelStore{ModelDataStore::defaultDirectory()};

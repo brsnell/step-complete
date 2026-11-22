@@ -58,18 +58,6 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ## v1.1 (M6)
 
-### BOM / parts-list export
-
-**What:** File > Export Parts List: a CSV with one row per unique part (quantity, name, product name, path), optionally with volume, mass and bounding box.
-
-**Why:** A bill of materials is a common thing to pull out of a STEP assembly, and other viewers offer it.
-
-**Context:** The assembly index in `src/core` already counts instances per part (shown in the Properties panel). Reuse the Measurements panel's CSV writing (UTF-8 with BOM). Mass columns use the part's material (`MainWindow::materialOf`: the user's, else the file's); parts without one leave the mass empty.
-
-**Effort:** S
-**Priority:** P2
-**Depends on:** Design approved.
-
 ### Geometry validity check
 
 **What:** Measure > Check Geometry: run OCCT's shape checker on the selected or visible parts and list the problems (invalid faces, open shells, gaps, tiny edges), each highlighted in 3D when selected.
