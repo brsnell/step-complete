@@ -9,6 +9,7 @@
 #include "app/ImportJob.h"
 #include "app/MaterialDialog.h"
 #include "app/MeasurementsPanel.h"
+#include "app/PartsListDialog.h"
 #include "app/PmiPanel.h"
 #include "app/PreferencesDialog.h"
 #include "app/PropertiesPanel.h"
@@ -51,6 +52,7 @@
 #include <QPlainTextEdit>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QSaveFile>
 #include <QSettings>
 #include <QStatusBar>
 #include <QTimer>
@@ -332,6 +334,9 @@ void MainWindow::createActions() {
   _exportImageAction->setStatusTip(tr("Save the current 3D view as a PNG or JPEG image"));
   _exportGeometryAction = fileMenu->addAction(tr("Export &Geometry..."), this, &MainWindow::exportGeometry);
   _exportGeometryAction->setStatusTip(tr("Save the visible or selected parts as STL, OBJ or glTF"));
+  _exportPartsListAction =
+      fileMenu->addAction(tr("Export &Parts List..."), this, &MainWindow::exportPartsList);
+  _exportPartsListAction->setStatusTip(tr("Save a bill of materials (one row per part) as CSV"));
   QAction* preferences = fileMenu->addAction(tr("&Preferences..."), this, &MainWindow::showPreferences);
   preferences->setMenuRole(QAction::PreferencesRole); // application menu on macOS
   fileMenu->addSeparator();
@@ -713,6 +718,7 @@ void MainWindow::updateActions() {
   const bool hasSelection = hasModel && !selectedNodes().empty();
   _closeAction->setEnabled(hasModel);
   _exportGeometryAction->setEnabled(hasModel && !_export);
+  _exportPartsListAction->setEnabled(hasModel);
   _hideAction->setEnabled(hasSelection);
   _isolateAction->setEnabled(hasSelection);
   _transparentAction->setEnabled(hasSelection);
@@ -1464,6 +1470,111 @@ void MainWindow::onExportFinished() {
   job->deleteLater();
   _export = nullptr;
   updateActions();
+}
+
+// ---------------------------------------------------------------------------------
+// Parts list (docs/designs/parts-list-export.md)
+// ---------------------------------------------------------------------------------
+
+void MainWindow::exportPartsList() {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!index) {
+    return;
+  }
+  PartsListDialog dialog(this);
+  if (dialog.exec() != QDialog::Accepted) {
+    return;
+  }
+  QSettings settings;
+  const QString dirKey = QStringLiteral("partsList/directory");
+  const QString source = QString::fromStdString(index->document()->sourcePath());
+  const QString baseName = source.isEmpty() ? QStringLiteral("model") : QFileInfo(source).completeBaseName();
+  const QString dir =
+      settings.value(dirKey, settings.value(QStringLiteral("export/directory"), QDir::homePath())).toString();
+  QString path = QFileDialog::getSaveFileName(
+      this, tr("Export Parts List"),
+      dir + QLatin1Char('/') + baseName + tr(" parts") + QStringLiteral(".csv"), tr("CSV files (*.csv)"));
+  if (path.isEmpty()) {
+    return;
+  }
+  if (!path.endsWith(QStringLiteral(".csv"), Qt::CaseInsensitive)) {
+    path += QStringLiteral(".csv");
+  }
+  settings.setValue(dirKey, QFileInfo(path).absolutePath());
+  core::PartsListOptions options;
+  options.volume = dialog.volume();
+  options.mass = dialog.mass();
+  options.boundingBox = dialog.boundingBox();
+  exportPartsListTo(path, options, dialog.visibleOnly());
+}
+
+bool MainWindow::exportPartsListTo(const QString& path, const core::PartsListOptions& requested,
+                                   bool visibleOnly) {
+  const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
+  if (!index) {
+    return false;
+  }
+  core::PartsListOptions options = requested;
+  options.lengthUnit = _measureOptions.lengthUnit;
+  options.massUnit = _measureOptions.massUnit;
+  options.decimals = _measureOptions.decimals;
+
+  std::vector<core::NodeId> parts;
+  for (const core::NodeId part : index->partInstances()) {
+    if (!visibleOnly || _scene->isVisible(part)) {
+      parts.push_back(part);
+    }
+  }
+  if (parts.empty()) {
+    QMessageBox::information(this, tr("Export Parts List"), tr("No parts are visible."));
+    return false;
+  }
+
+  // Volumes and sizes can take a while on a big model: a progress dialog with Cancel, updated
+  // from the computation (on this thread).
+  QProgressDialog progressDialog(tr("Measuring parts..."), tr("Cancel"), 0, 100, this);
+  progressDialog.setWindowTitle(tr("Export Parts List"));
+  progressDialog.setWindowModality(Qt::WindowModal);
+  progressDialog.setMinimumDuration(500);
+  core::CancelToken cancel;
+  const auto onProgress = [&](double fraction, std::string_view) {
+    progressDialog.setValue(static_cast<int>(fraction * 100.0));
+    QCoreApplication::processEvents();
+    if (progressDialog.wasCanceled()) {
+      cancel.cancel();
+    }
+  };
+  const core::PartsList list = core::buildPartsList(
+      *index, parts, options,
+      [this](core::NodeId part) -> std::optional<core::Material> {
+        const std::optional<PropertiesPanel::PartMaterial> material = materialOf(part);
+        return material ? std::optional<core::Material>(material->material) : std::nullopt;
+      },
+      onProgress, &cancel);
+  progressDialog.close();
+  if (list.cancelled || !list.ok) {
+    statusBar()->showMessage(tr("Export of the parts list was cancelled."), 5000);
+    return false;
+  }
+
+  QSaveFile file(path);
+  bool written = file.open(QIODevice::WriteOnly);
+  if (written) {
+    file.write("\xEF\xBB\xBF"); // UTF-8 with BOM, as the Measurements export: spreadsheets show mm³
+    file.write(QByteArray::fromStdString(core::toCsv(list, options)));
+    written = file.commit();
+  }
+  if (!written) {
+    QMessageBox::warning(this, tr("Export Parts List"),
+                         tr("Could not write %1.\n\n%2").arg(path, file.errorString()));
+    return false;
+  }
+  statusBar()->showMessage(tr("Exported %n part(s)", nullptr, static_cast<int>(list.rows.size())) +
+                               QLatin1Char(' ') +
+                               tr("(%n instance(s))", nullptr, static_cast<int>(parts.size())) +
+                               QLatin1Char(' ') + tr("to %1").arg(QDir::toNativeSeparators(path)),
+                           8000);
+  return true;
 }
 
 // ---------------------------------------------------------------------------------

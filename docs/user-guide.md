@@ -398,6 +398,30 @@ bar shows the file and its size. A cancelled or failed export leaves no partial 
 views do not cut the export: parts are written whole. PMI, edges and measurements are not
 exported. The dialog remembers its choices.
 
+### Parts list (BOM)
+
+**File > Export Parts List...** saves a bill of materials as a CSV file that opens in any
+spreadsheet.
+
+1. Choose the **Parts**: **All parts**, or **Visible parts only** (hidden parts, including those the
+   file hides, are left out).
+2. Choose the optional **Columns**: **Volume**, **Material and mass**, and **Size (bounding box)**.
+3. Click **Export...** and choose the file.
+
+There is one row per unique part, in the order the parts appear in the Assembly tree:
+- **Item** and **Quantity** (how many instances).
+- **Part** (the product name) and **Instance names** (instance names that differ from it).
+- **Used in** (the assemblies the part sits in).
+- One column per attribute the file declares, such as Part number or Revision.
+- With the optional columns: **Material used** and its **Density**, **Volume each**, **Mass each**
+  and **Mass total** (from each part's material, see Mass properties in section 6), and
+  **Size X/Y/Z** (the part's own bounding box).
+
+A **Total** row ends the list. It gives the total quantity, and the total mass when every part
+has a material. Units follow the Measure menu's length and mass units and precision, and the
+headers name them. Text from the file that a spreadsheet would treat as a formula (starting with
+`=`, `+`, `-` or `@`) is written with a leading apostrophe, so it shows as text.
+
 ## 10. Preferences
 
 **File > Preferences...** (on macOS it appears in the application menu). Changes preview live;
@@ -449,7 +473,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + left drag zoom;
 left click select; Shift + click add to selection; right click context menu.
 
-Menu items without shortcuts: Open Recent, Export Geometry, Manage Saved Views, Set Material,
+Menu items without shortcuts: Open Recent, Export Geometry, Export Parts List, Manage Saved Views, Set Material,
 Clear Material, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 

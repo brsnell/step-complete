@@ -18,6 +18,7 @@
 #include <QApplication>
 #include <QDir>
 #include <QDockWidget>
+#include <QFile>
 #include <QFileInfo>
 #include <QLineEdit>
 #include <QMenu>
@@ -464,6 +465,56 @@ private Q_SLOTS:
     _window->setMaterial({reopened}, std::nullopt);
     QVERIFY(!_window->materialOf(reopened).has_value());
     QCOMPARE(detail(measurePlate(), "Mass"), std::string("no material set (Measure > Set Material)"));
+  }
+
+  // File > Export Parts List (docs/designs/parts-list-export.md): the fixture's bill of materials,
+  // and only the visible parts when asked.
+  void exportPartsListWritesOneRowPerPart() {
+    openFixture();
+    QAction* exportList =
+        menuAction(*_window, QStringLiteral("&File"), QStringLiteral("Export &Parts List..."));
+    QVERIFY(exportList != nullptr);
+    QVERIFY(exportList->isEnabled());
+    const auto readLines = [](const QString& path) {
+      QFile file(path);
+      if (!file.open(QIODevice::ReadOnly)) {
+        return QStringList();
+      }
+      QByteArray bytes = file.readAll();
+      if (!bytes.startsWith("\xEF\xBB\xBF")) {
+        return QStringList(QStringLiteral("<no BOM>"));
+      }
+      return QString::fromUtf8(bytes.mid(3)).split(QLatin1Char('\n'), Qt::SkipEmptyParts);
+    };
+
+    const QString all = QString::fromStdString(sc::test::tempPath("parts_all.csv"));
+    QVERIFY(_window->exportPartsListTo(all, sc::core::PartsListOptions(), false));
+    const QStringList rows = readLines(all);
+    QCOMPARE(rows.size(), 4); // header, plate, pin, total
+    QVERIFY2(rows[0].startsWith(QStringLiteral("Item,Quantity,Part,Instance names,Used in,")),
+             qPrintable(rows[0]));
+    QVERIFY2(rows[1].startsWith(QStringLiteral("1,1,Base plate,")), qPrintable(rows[1]));
+    QVERIFY2(rows[2].startsWith(QStringLiteral("2,4,Pin ")), qPrintable(rows[2]));
+    QVERIFY2(rows[3].startsWith(QStringLiteral("Total,5,")), qPrintable(rows[3]));
+    QVERIFY(_window->statusBar()->currentMessage().contains(QStringLiteral("2 part")));
+
+    // Hide the plate: the visible-only list has the pins alone.
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    QAbstractItemModel* model = tree->model();
+    const QModelIndex fixture = model->index(0, 0);
+    for (int row = 0; row < model->rowCount(fixture); ++row) {
+      const QModelIndex child = model->index(row, 0, fixture);
+      if (child.data().toString() == QStringLiteral("Base plate")) {
+        tree->selectionModel()->select(child,
+                                       QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+      }
+    }
+    menuAction(*_window, QStringLiteral("&View"), QStringLiteral("&Hide"))->trigger();
+    const QString visible = QString::fromStdString(sc::test::tempPath("parts_visible.csv"));
+    QVERIFY(_window->exportPartsListTo(visible, sc::core::PartsListOptions(), true));
+    const QStringList visibleRows = readLines(visible);
+    QCOMPARE(visibleRows.size(), 3);
+    QVERIFY2(visibleRows[1].startsWith(QStringLiteral("1,4,Pin ")), qPrintable(visibleRows[1]));
   }
 
 private:

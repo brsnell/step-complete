@@ -376,9 +376,9 @@ Feedback from v1.0 users can reorder v1.1 and v2.
 - ✅ **Material density for mass properties** (Measure > Set Material): per-part densities (a
   preset or custom, or the file's material); mass, center of mass and mass moments, each part
   weighted by its own density ([design](designs/material-density.md)).
-- **BOM / parts-list export.** Export the assembly tree as CSV: one row per unique part, with
-  quantity, name, product name, path and, optionally, volume, mass and bounding box. Uses the
-  same UTF-8-with-BOM CSV writer as the Measurements panel.
+- ✅ **Parts-list export** (File > Export Parts List): a CSV bill of materials, one row per unique
+  part with quantity, names, where used, file attributes and optional material, volume, mass and
+  size ([design](designs/parts-list-export.md)).
 - **Geometry validity check.** Measure > Check Geometry: run OCCT's shape checker on the
   selected or visible parts and list the problems (invalid faces, open shells, gaps, small
   edges), with each problem highlighted in 3D when selected. Shows why a measurement or a

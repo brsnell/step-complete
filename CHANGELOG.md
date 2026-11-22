@@ -6,6 +6,9 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- File > Export Parts List: a CSV bill of materials, one row per unique part with its quantity,
+  names, where it is used and the file's attributes, optionally with material, volume, mass and
+  size, and a total row. All parts or only the visible ones.
 - Measure > Set Material / Clear Material: give parts a material (a preset or a custom density);
   mass properties then report the mass, center of mass and mass moments of inertia, each part
   with its own density. Materials the STEP file declares are used too. Measure > Mass Unit picks
