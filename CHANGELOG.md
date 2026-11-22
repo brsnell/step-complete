@@ -6,6 +6,9 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- View > Saved Views: save the camera, the hidden parts and the section planes under a name
+  (`Ctrl+Shift+V`), restore them from the list, and rename, delete or reorder them. Views are
+  kept per file content in the app's data folder, so they survive copies, renames and re-exports.
 - Section planes at any angle: each plane's axis list has **Custom**, with X, Y and Z fields for
   the plane's direction, and a **Pick Face** button puts the plane on a clicked flat face
   (facing out of the part; `Esc` cancels).

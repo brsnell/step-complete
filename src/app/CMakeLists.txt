@@ -22,6 +22,10 @@ add_library(sc_app STATIC
   ExportGeometryDialog.cpp
   ExportJob.h
   ExportJob.cpp
+  UserViews.h
+  UserViews.cpp
+  SavedViewsDialog.h
+  SavedViewsDialog.cpp
   PreferencesDialog.h
   PreferencesDialog.cpp
   SectionModel.h

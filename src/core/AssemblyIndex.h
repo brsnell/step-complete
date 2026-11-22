@@ -91,6 +91,15 @@ public:
   TopoDS_Shape prototypeShape(NodeId id) const;
   TopoDS_Shape worldShape(NodeId id) const;
 
+  // A stable id for a node: the XCAF label entries of the instances from the root down to it,
+  // joined with '/' ("0:1:1:4/0:1:1:4:2"). The same file imports to the same entries, so the id
+  // finds the node again in a later session (saved views). Empty for an unknown node.
+  std::string pathId(NodeId id) const;
+  // The id of every node, by NodeId: built in one pass, for looking up many ids at once.
+  std::vector<std::string> pathIds() const;
+  // The node with this id, or NoNode (the file changed, or the id is from another model).
+  NodeId nodeForPathId(const std::string& id) const;
+
   // Layers assigned to the instance or its prototype.
   std::vector<std::string> layers(NodeId id) const;
 
