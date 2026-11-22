@@ -97,7 +97,9 @@ All tests live under `tests/`, run by ctest (`tests/CMakeLists.txt`):
   images) and `app.main_window` (`MainWindow` wiring).
 
 CI (`.github/workflows/ci.yml`) runs `ctest -LE render` on Linux, Windows and macOS, and the
-`render` label under Xvfb + Mesa llvmpipe on Linux only. A clang-format check runs on every
+`render` label under Xvfb + Mesa llvmpipe on Linux only. Pull requests reuse the vcpkg binary cache saved on `main`
+(caches from other branches are not visible to them); scheduled runs on `main` keep it from being
+evicted, so a pull request rebuilds OCCT only when it changes `vcpkg.json` or the triplets. A clang-format check runs on every
 push; format with `clang-format -i` (`.clang-format`, 110 columns).
 
 ## Releasing

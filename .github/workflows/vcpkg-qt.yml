@@ -1,6 +1,10 @@
 # Checks the Visual-Studio-only Windows setup from the README: OCCT *and* Qt from
 # vcpkg via the vcpkg-qt preset. It builds Qt from source (about an hour without a
 # cache), so it runs only when the dependency setup changes, or on request.
+#
+# It also runs on main for those changes and once a week: pull requests can only restore
+# caches saved on their own branch or on main, and GitHub evicts a cache after 7 days without
+# use. Without a cache on main, every dependency pull request builds Qt from source again.
 name: Windows vcpkg-qt
 
 on:
@@ -10,11 +14,21 @@ on:
       - CMakePresets.json
       - cmake/triplets/**
       - .github/workflows/vcpkg-qt.yml
+  push:
+    branches: [main]
+    paths: # the same as pull_request above
+      - vcpkg.json
+      - CMakePresets.json
+      - cmake/triplets/**
+      - .github/workflows/vcpkg-qt.yml
+  schedule:
+    - cron: "17 4 * * 1"
   workflow_dispatch:
 
 concurrency:
   group: vcpkg-qt-${{ github.ref }}
-  cancel-in-progress: true
+  # Only pull requests cancel an older run: a run on main may be building the shared cache.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   # Keep in sync with ci.yml.

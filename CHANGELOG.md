@@ -32,6 +32,10 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
   new result arrives.
 
 ### Internal
+- CI keeps main's vcpkg caches warm: CI also runs on main on Mondays and Thursdays, the Windows
+  vcpkg-Qt check runs on main (for dependency changes and weekly), and runs on main are no longer
+  cancelled by a newer push. A pull request can only use caches from its own branch or main, and
+  an evicted OCCT build cost every job 50 to 75 minutes.
 - Release builds enable OCCT's `rapidjson` feature (vcpkg), which its glTF writer needs. RapidJSON
   (MIT) is listed in `THIRD_PARTY_NOTICES.md` and Help > About > Licenses.
 - The code follows the naming conventions in `CLAUDE.md` (adapted from Task Complete), checked
