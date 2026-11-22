@@ -90,6 +90,13 @@ public:
   // view cube, which stay whole). Null or empty removes clipping.
   void setClipPlanes(const OccHandle<Graphic3d_SequenceOfHClipPlane>& planes);
 
+  // --- Geometry check -------------------------------------------------------------
+  // Draws one faulty face, edge or vertex (world coordinates) in red on top of the
+  // model, replacing the previous one; a null shape clears it. Not selectable.
+  void showIssue(const TopoDS_Shape& worldShape);
+  void clearIssue();
+  bool hasIssue() const { return !_issue.IsNull(); }
+
   // World bounding box of the visible parts below the nodes (void if none).
   Bnd_Box boundingBox(const std::vector<core::NodeId>& nodes) const;
 
@@ -123,6 +130,7 @@ private:
   DisplayStyle _style = DisplayStyle::ShadedWithEdges;
   std::vector<int> _selectionModes;
   OccHandle<Graphic3d_SequenceOfHClipPlane> _clipPlanes;
+  OccHandle<AIS_InteractiveObject> _issue; // the geometry check's red highlight
 };
 
 } // namespace sc::render

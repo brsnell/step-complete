@@ -6,6 +6,10 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- Measure > Check Geometry: checks the selected or visible parts for invalid geometry (OCCT's
+  shape checker), open shells (solids with a gap) and edges shorter than 0.001 mm, in the
+  background with Cancel. The Geometry Check panel lists each problem; selecting one highlights
+  it in red in the 3D view and double-clicking zooms to it.
 - File > Export Parts List: a CSV bill of materials, one row per unique part with its quantity,
   names, where it is used and the file's attributes, optionally with material, volume, mass and
   size, and a total row. All parts or only the visible ones.

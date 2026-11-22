@@ -43,6 +43,8 @@ class AssemblyTreeModel;
 class ImportJob;
 class MeasurementsPanel;
 class ExportJob;
+class GeometryCheckJob;
+class GeometryCheckPanel;
 class PmiPanel;
 class SectionPanel;
 struct ViewPreferences;
@@ -81,6 +83,13 @@ public:
   void setMaterial(const std::vector<core::NodeId>& nodes, const std::optional<core::Material>& material);
   // A part's material: the user's, else the one the file declares.
   std::optional<PropertiesPanel::PartMaterial> materialOf(core::NodeId part) const;
+
+  // --- Geometry check (docs/designs/geometry-check.md) --------------------------------
+  // What Measure > Check Geometry does: check the selected parts (every visible part when
+  // nothing is selected) in the background and list the problems in the Geometry Check panel.
+  // Does nothing while a check runs.
+  void checkGeometry();
+  bool isCheckingGeometry() const;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -131,6 +140,12 @@ private:
   void declutterPmi();
   void onPickProgress(int picked, int required);
   void applyMeasureOptions();
+
+  // The visible parts below the selection, or every visible part when the selection is empty.
+  std::vector<core::NodeId> visiblePartsOf(const std::vector<core::NodeId>& selection) const;
+  void onGeometryCheckFinished();
+  void showGeometryIssue(int index, bool zoom);
+  void stopGeometryCheck(); // cancels a running check and clears the panel and highlight
 
   void setSectionView(bool on);
 
@@ -199,6 +214,11 @@ private:
   QActionGroup* _measureGroup = nullptr;
   QAction* _stopMeasureAction = nullptr;
   QAction* _massPropertiesAction = nullptr;
+  QAction* _checkGeometryAction = nullptr;
+  GeometryCheckPanel* _geometryCheck = nullptr;
+  QDockWidget* _geometryCheckDock = nullptr;
+  QPointer<GeometryCheckJob> _geometryCheckJob;
+  std::shared_ptr<const core::AssemblyIndex> _checkedIndex; // the model the listed problems are in
   core::MeasureDisplayOptions _measureOptions;
   QDockWidget* _messagesDock = nullptr;
   QLabel* _emptyHint = nullptr;

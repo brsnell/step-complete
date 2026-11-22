@@ -5,6 +5,8 @@
 
 #include "app/AssemblyTreeModel.h"
 #include "app/ExportJob.h"
+#include "app/GeometryCheckJob.h"
+#include "app/GeometryCheckPanel.h"
 #include "app/ImportJob.h"
 #include "app/MainWindow.h"
 #include "app/MeasurementsPanel.h"
@@ -515,6 +517,39 @@ private Q_SLOTS:
     const QStringList visibleRows = readLines(visible);
     QCOMPARE(visibleRows.size(), 3);
     QVERIFY2(visibleRows[1].startsWith(QStringLiteral("1,4,Pin ")), qPrintable(visibleRows[1]));
+  }
+
+  // Measure > Check Geometry (docs/designs/geometry-check.md): the fixture checks clean in the
+  // background, the panel and status bar say so, and closing the model clears the panel.
+  void checkGeometryRunsInTheBackground() {
+    QAction* check = menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("Check &Geometry"));
+    QVERIFY(check != nullptr);
+    QVERIFY(!check->isEnabled()); // no model yet
+    openFixture();
+    QVERIFY(check->isEnabled());
+
+    auto* dock = _window->findChild<QDockWidget*>(QStringLiteral("GeometryCheckDock"));
+    auto* panel = _window->findChild<sc::app::GeometryCheckPanel*>();
+    QVERIFY(dock != nullptr && panel != nullptr);
+    check->trigger();
+    QVERIFY(_window->isCheckingGeometry());
+    QVERIFY(!check->isEnabled()); // one check at a time
+    QVERIFY(dock->isVisible());
+    QTRY_VERIFY_WITH_TIMEOUT(!_window->isCheckingGeometry(), 60000);
+    QTRY_VERIFY(_window->findChild<sc::app::GeometryCheckJob*>() == nullptr);
+    // 3 visible instances (the second pin pair is hidden) of 2 parts.
+    QCOMPARE(panel->summary(), QStringLiteral("No problems found in 2 parts."));
+    QCOMPARE(panel->rowCount(), 0);
+    QCOMPARE(_window->statusBar()->currentMessage(), QStringLiteral("No problems found in 2 parts."));
+    QVERIFY(check->isEnabled());
+
+    // A check still running when the model closes is cancelled, and the panel is cleared.
+    check->trigger();
+    _close->trigger();
+    QVERIFY(!_window->isCheckingGeometry());
+    QVERIFY(_window->findChild<sc::app::GeometryCheckJob*>() == nullptr);
+    QVERIFY(panel->summary().startsWith(QStringLiteral("Measure > Check Geometry")));
+    QVERIFY(!check->isEnabled());
   }
 
 private:

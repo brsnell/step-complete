@@ -3,11 +3,14 @@
 #include <AIS_ConnectedInteractive.hxx>
 #include <AIS_DisplayMode.hxx>
 #include <AIS_Shape.hxx>
+#include <Graphic3d_ZLayerId.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <Prs3d_LineAspect.hxx>
+#include <Quantity_NameOfColor.hxx>
 #include <StdSelect_BRepOwner.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <TDF_Tool.hxx>
+#include <TopExp_Explorer.hxx>
 #include <XCAFPrs_AISObject.hxx>
 #include <XCAFPrs_Style.hxx>
 
@@ -114,6 +117,7 @@ SceneManager::~SceneManager() {
 }
 
 void SceneManager::clear() {
+  clearIssue();
   for (const PartEntry& part : _parts) {
     if (!part.object.IsNull()) {
       _context->Remove(part.object, false);
@@ -123,6 +127,28 @@ void SceneManager::clear() {
   _objectToPart.clear();
   _prototypes.clear();
   _index.reset();
+}
+
+void SceneManager::showIssue(const TopoDS_Shape& worldShape) {
+  clearIssue();
+  if (worldShape.IsNull()) {
+    return;
+  }
+  OccHandle<AIS_Shape> issue = new AIS_Shape(worldShape);
+  issue->SetColor(Quantity_NOC_RED);
+  issue->SetWidth(3.0);
+  issue->SetZLayer(Graphic3d_ZLayerId_Topmost); // drawn over the part it belongs to
+  const bool hasFaces = TopExp_Explorer(worldShape, TopAbs_FACE).More();
+  _context->Display(issue, hasFaces ? AIS_Shaded : AIS_WireFrame, -1, false);
+  _context->Deactivate(issue);
+  _issue = issue;
+}
+
+void SceneManager::clearIssue() {
+  if (!_issue.IsNull()) {
+    _context->Remove(_issue, false);
+    _issue.Nullify();
+  }
 }
 
 void SceneManager::setModel(std::shared_ptr<const core::AssemblyIndex> index) {
