@@ -6,6 +6,8 @@
 #include "app/ExportGeometryDialog.h"
 #include "app/ExportImageDialog.h"
 #include "app/ExportJob.h"
+#include "app/GeometryCheckJob.h"
+#include "app/GeometryCheckPanel.h"
 #include "app/ImportJob.h"
 #include "app/MaterialDialog.h"
 #include "app/MeasurementsPanel.h"
@@ -24,6 +26,9 @@
 #include "render/SceneManager.h"
 #include "render/SceneStyle.h"
 #include "render/SectionTool.h"
+
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
 
 #include <QAction>
 #include <QActionGroup>
@@ -146,11 +151,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 }
 
 MainWindow::~MainWindow() {
-  delete _import; // cancels and waits for a running import
+  delete _import;           // cancels and waits for a running import
+  delete _geometryCheckJob; // likewise for a running geometry check
   // The panel and its dock still emit while child widgets are torn down; nothing may reach
   // syncMeasurementWitnesses once the tool is gone.
   disconnect(_measurements, nullptr, this, nullptr);
   disconnect(_measurementsDock->toggleViewAction(), nullptr, this, nullptr);
+  disconnect(_geometryCheck, nullptr, this, nullptr);
+  disconnect(_geometryCheckDock->toggleViewAction(), nullptr, this, nullptr);
   disconnect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this, nullptr);
   delete _measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
@@ -287,6 +295,27 @@ void MainWindow::createDocks() {
   // Closing the panel hides the results' witnesses; reopening it shows them again.
   connect(_measurementsDock->toggleViewAction(), &QAction::toggled, this,
           &MainWindow::syncMeasurementWitnesses);
+
+  _geometryCheck = new GeometryCheckPanel(this);
+  _geometryCheckDock = new QDockWidget(tr("Geometry Check"), this);
+  _geometryCheckDock->setObjectName(QStringLiteral("GeometryCheckDock"));
+  _geometryCheckDock->setWidget(_geometryCheck);
+  addDockWidget(Qt::BottomDockWidgetArea, _geometryCheckDock);
+  tabifyDockWidget(_messagesDock, _geometryCheckDock);
+  _geometryCheckDock->hide();
+  connect(_geometryCheck, &GeometryCheckPanel::issueChosen, this,
+          [this](int index) { showGeometryIssue(index, false); });
+  connect(_geometryCheck, &GeometryCheckPanel::issueActivated, this,
+          [this](int index) { showGeometryIssue(index, true); });
+  connect(_geometryCheck, &GeometryCheckPanel::cancelRequested, this, [this] {
+    if (_geometryCheckJob) {
+      _geometryCheckJob->cancel();
+    }
+  });
+  connect(_geometryCheck, &GeometryCheckPanel::rerunRequested, this, &MainWindow::checkGeometry);
+  // The highlight belongs to the panel: closing it removes the highlight, reopening restores it.
+  connect(_geometryCheckDock->toggleViewAction(), &QAction::toggled, this,
+          [this] { showGeometryIssue(_geometryCheck->currentIndex(), false); });
 }
 
 void MainWindow::declutterPmi() {
@@ -524,6 +553,11 @@ void MainWindow::createMeasureMenu() {
       menu->addAction(tr("C&lear Material"), this, [this] { setMaterial(selectedNodes(), std::nullopt); });
   _clearMaterialAction->setStatusTip(tr("Remove the material set on the selected parts"));
   menu->addSeparator();
+  _checkGeometryAction = menu->addAction(tr("Check &Geometry"), this, &MainWindow::checkGeometry);
+  _checkGeometryAction->setStatusTip(
+      tr("Look for invalid geometry, open shells and tiny edges in the selected parts (all visible parts "
+         "when nothing is selected)"));
+  menu->addSeparator();
   _stopMeasureAction = menu->addAction(tr("&Stop Measuring"), this, [this] { setMeasureMode(-1); });
   _stopMeasureAction->setShortcut(Qt::Key_Escape);
 
@@ -591,6 +625,7 @@ void MainWindow::createMeasureMenu() {
   }
   menu->addSeparator();
   menu->addAction(_measurementsDock->toggleViewAction());
+  menu->addAction(_geometryCheckDock->toggleViewAction());
 }
 
 void MainWindow::applyMeasureOptions() {
@@ -657,16 +692,12 @@ void MainWindow::onMeasured(const core::Measurement& measurement) {
 // While a pick mode is active the selection holds sub-shape picks and the tree selection is
 // cleared, so that case also measures all parts rather than guessing from the picks. Hidden
 // parts are always skipped: what you see is what gets measured.
-void MainWindow::measureMassProperties() {
-  const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
-  if (!index) {
-    statusBar()->showMessage(tr("Open a model to measure."), 4000);
-    return;
-  }
-  const std::vector<core::NodeId> selection =
-      _measureTool->isActive() ? std::vector<core::NodeId>{} : selectedNodes();
-
+std::vector<core::NodeId> MainWindow::visiblePartsOf(const std::vector<core::NodeId>& selection) const {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
   std::vector<core::NodeId> parts;
+  if (!index) {
+    return parts;
+  }
   if (selection.empty()) {
     parts = index->partInstances();
   } else {
@@ -680,6 +711,107 @@ void MainWindow::measureMassProperties() {
   parts.erase(
       std::remove_if(parts.begin(), parts.end(), [this](core::NodeId id) { return !_scene->isVisible(id); }),
       parts.end());
+  return parts;
+}
+
+void MainWindow::checkGeometry() {
+  const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
+  if (!index) {
+    statusBar()->showMessage(tr("Open a model to check its geometry."), 4000);
+    return;
+  }
+  if (_geometryCheckJob) {
+    return;
+  }
+  const std::vector<core::NodeId> selection =
+      _measureTool->isActive() ? std::vector<core::NodeId>{} : selectedNodes();
+  std::vector<core::NodeId> parts = visiblePartsOf(selection);
+  if (parts.empty()) {
+    statusBar()->showMessage(selection.empty() ? tr("There are no visible parts to check.")
+                                               : tr("The selection has no visible parts."),
+                             5000);
+    return;
+  }
+  _scene->clearIssue();
+  _checkedIndex.reset();
+  _geometryCheckDock->show();
+  _geometryCheckDock->raise();
+  _geometryCheck->setRunning(0, QString());
+  _geometryCheckJob = new GeometryCheckJob(index, std::move(parts), this);
+  connect(_geometryCheckJob, &GeometryCheckJob::progress, _geometryCheck, &GeometryCheckPanel::setRunning);
+  connect(_geometryCheckJob, &GeometryCheckJob::finished, this, &MainWindow::onGeometryCheckFinished);
+  statusBar()->showMessage(tr("Checking geometry..."));
+  _geometryCheckJob->start();
+  updateActions();
+  _viewport->invalidateScene();
+}
+
+bool MainWindow::isCheckingGeometry() const {
+  return !_geometryCheckJob.isNull();
+}
+
+void MainWindow::onGeometryCheckFinished() {
+  GeometryCheckJob* job = _geometryCheckJob;
+  if (job == nullptr) {
+    return;
+  }
+  const core::GeometryCheckResult& result = job->result();
+  if (job->index() == _scene->model()) {
+    _checkedIndex = job->index();
+    _geometryCheck->setResult(result, *_checkedIndex);
+    statusBar()->showMessage(GeometryCheckPanel::summaryOf(result), 10000);
+  } else {
+    _geometryCheck->clear(); // the model changed while the check ran
+  }
+  job->deleteLater();
+  _geometryCheckJob = nullptr;
+  updateActions();
+}
+
+void MainWindow::showGeometryIssue(int index, bool zoom) {
+  const std::vector<core::GeometryIssue>& issues = _geometryCheck->issues();
+  const bool panelOpen = _geometryCheckDock->toggleViewAction()->isChecked();
+  if (!panelOpen || !_checkedIndex || _checkedIndex != _scene->model() || index < 0 ||
+      index >= static_cast<int>(issues.size())) {
+    _scene->clearIssue();
+    _viewport->invalidateScene();
+    return;
+  }
+  const core::GeometryIssue& issue = issues[static_cast<size_t>(index)];
+  const TopoDS_Shape worldShape = issue.shape.Moved(_checkedIndex->node(issue.part).location);
+  _scene->showIssue(worldShape);
+  if (zoom) {
+    Bnd_Box box;
+    BRepBndLib::Add(worldShape, box);
+    if (!box.IsVoid()) {
+      // A tiny edge would fill the screen: show at least a little of the part around it.
+      const Bnd_Box partBox = _scene->boundingBox({issue.part});
+      if (!partBox.IsVoid()) {
+        box.Enlarge(0.05 * std::sqrt(partBox.SquareExtent()));
+      }
+      _viewport->view()->FitAll(box, 0.05, false);
+    }
+  }
+  _viewport->invalidateScene();
+}
+
+void MainWindow::stopGeometryCheck() {
+  delete _geometryCheckJob; // cancels and waits; its result is not wanted
+  _checkedIndex.reset();
+  _geometryCheck->clear();
+  _scene->clearIssue();
+}
+
+void MainWindow::measureMassProperties() {
+  const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
+  if (!index) {
+    statusBar()->showMessage(tr("Open a model to measure."), 4000);
+    return;
+  }
+  const std::vector<core::NodeId> selection =
+      _measureTool->isActive() ? std::vector<core::NodeId>{} : selectedNodes();
+
+  const std::vector<core::NodeId> parts = visiblePartsOf(selection);
   if (parts.empty()) {
     statusBar()->showMessage(selection.empty() ? tr("There are no visible parts to measure.")
                                                : tr("The selection has no visible parts."),
@@ -737,6 +869,7 @@ void MainWindow::updateActions() {
   if (_stopMeasureAction != nullptr) {
     _stopMeasureAction->setEnabled(_measureTool->isActive());
     _massPropertiesAction->setEnabled(hasModel);
+    _checkGeometryAction->setEnabled(hasModel && !_geometryCheckJob);
     for (QAction* action : _measureGroup->actions()) {
       action->setEnabled(hasModel);
     }
@@ -842,6 +975,7 @@ void MainWindow::onImportFinished() {
     // Replace the previous model only once the new one loaded successfully.
     std::shared_ptr<const core::AssemblyIndex> index = job->index();
     _transparentParts.clear();
+    stopGeometryCheck(); // problems belong to the previous model
     _measureTool->reset();
     _measurements->clear(); // results belong to the previous model
     _pmiScene->clearViewClipping(_viewport->view());
@@ -915,6 +1049,7 @@ void MainWindow::onImportFinished() {
 }
 
 void MainWindow::closeModel() {
+  stopGeometryCheck();
   setMeasureMode(-1);
   _measureTool->reset();
   _measurements->clear();

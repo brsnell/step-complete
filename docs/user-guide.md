@@ -270,6 +270,28 @@ Right-clicking the list opens a menu with **Copy**, **Remove**, **Show in 3D Vie
 
 Results and their witnesses are cleared when another file is opened or the model is closed.
 
+### Geometry check
+
+**Measure > Check Geometry** looks for bad geometry in the selected parts (assemblies expand to
+their parts), or in every visible part when nothing is selected. Each part definition is checked
+once, however many instances it has. It runs in the background: the **Geometry Check** panel
+(bottom dock, next to Import Messages) shows the progress and a **Cancel** button. It reports:
+
+- **Invalid geometry:** OCCT's full shape check, such as a self-intersecting wire, a curve that
+  does not lie on its face or a face without a surface. The detail names the problem.
+- **Open shell:** a solid whose shell has free edges, so it has a gap and its volume and mass are
+  wrong. The highlight is the edges around the gap. Sheet bodies (shells that are not solids)
+  are open on purpose and are not reported.
+- **Tiny edge:** an edge shorter than 0.001 mm (degenerate edges, such as the pole of a sphere,
+  do not count). Such edges break meshing and picking.
+
+The summary says "No problems found in 12 parts." or "7 problems in 2 of 12 parts.", and the
+status bar repeats it. Each row lists the part (with ×N when N instances share it), the kind of
+problem and the detail. Selecting a row draws the faulty face, edge or vertex in red on top of
+the model; double-clicking zooms to it. A part lists at most 200 problems, but the summary counts
+them all. **Check Again** reruns the check on the current selection. Closing the panel hides the
+highlight; opening another file or closing the model clears the panel.
+
 ### Units
 
 Under **Measure** choose **Length Unit** (micrometer, millimeter, centimeter, meter, inch, foot),
@@ -474,7 +496,7 @@ Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + le
 left click select; Shift + click add to selection; right click context menu.
 
 Menu items without shortcuts: Open Recent, Export Geometry, Export Parts List, Manage Saved Views, Set Material,
-Clear Material, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
+Clear Material, Check Geometry, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 
 ## 12. Troubleshooting

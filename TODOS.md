@@ -58,17 +58,7 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 ## v1.1 (M6)
 
-### Geometry validity check
-
-**What:** Measure > Check Geometry: run OCCT's shape checker on the selected or visible parts and list the problems (invalid faces, open shells, gaps, tiny edges), each highlighted in 3D when selected.
-
-**Why:** Bad geometry from the exporting CAD system is why a measurement, a mass property or a section cap can come out wrong. Today the user has no way to tell.
-
-**Context:** `BRepCheck_Analyzer` reports per sub-shape status; `ShapeAnalysis` finds open shells and small edges. Run it off the GUI thread with progress and cancel, since large assemblies take time. The Import Messages panel holds translator messages only; the results probably belong in a panel of their own.
-
-**Effort:** M
-**Priority:** P2
-**Depends on:** Design approved.
+Every v1.1 feature is built (see `CHANGELOG.md`, Unreleased); what is left is the release.
 
 ## v2 (M7)
 

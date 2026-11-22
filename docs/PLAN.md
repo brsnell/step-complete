@@ -8,7 +8,8 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 **License:** MIT · **Repo:** github.com/brsnell/step-complete
 
 **Status:** M0–M4 are done; M5 (ship v1.0) is in progress, and v1.0.0 shipped for Windows and
-Linux on 2026-11-15. v1.1 (M6) and v2 (M7) are drafted in §7a. Open work is in
+Linux on 2026-11-15. Every v1.1 (M6) feature is built (not yet released); v2 (M7) is drafted
+in §7a. Open work is in
 [TODOS.md](../TODOS.md).
 
 ---
@@ -357,7 +358,7 @@ Collaboration (a v2 candidate in §1) was dropped on 2026-11-21.
 
 Feedback from v1.0 users can reorder v1.1 and v2.
 
-### M6: v1.1 (≈5–7 weeks): 📝 drafted
+### M6: v1.1 (≈5–7 weeks): ✅ features done (unreleased)
 - ✅ **Hidden-line display style** (View > Hidden Line, `L`): white unlit faces, sharp edges and a
   GPU silhouette for outlines, so the depth buffer hides what is behind
   ([design](designs/hidden-line.md)). OCCT's exact hidden-line removal was not used: it
@@ -379,10 +380,9 @@ Feedback from v1.0 users can reorder v1.1 and v2.
 - ✅ **Parts-list export** (File > Export Parts List): a CSV bill of materials, one row per unique
   part with quantity, names, where used, file attributes and optional material, volume, mass and
   size ([design](designs/parts-list-export.md)).
-- **Geometry validity check.** Measure > Check Geometry: run OCCT's shape checker on the
-  selected or visible parts and list the problems (invalid faces, open shells, gaps, small
-  edges), with each problem highlighted in 3D when selected. Shows why a measurement or a
-  section cap can be wrong.
+- ✅ **Geometry validity check** (Measure > Check Geometry): invalid geometry, open shells and
+  tiny edges in the selected or visible parts, listed in a panel and highlighted in 3D when
+  selected ([design](designs/geometry-check.md)).
 
 ### M7: v2 (≈5–7 months): 📝 drafted
 - **Clash and interference detection.** Find parts that intersect or touch, with an optional

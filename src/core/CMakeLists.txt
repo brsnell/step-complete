@@ -33,6 +33,8 @@ add_library(sc_core STATIC
   GeometryExport.cpp
   PartsList.h
   PartsList.cpp
+  GeometryCheck.h
+  GeometryCheck.cpp
 )
 add_library(sc::core ALIAS sc_core)
 

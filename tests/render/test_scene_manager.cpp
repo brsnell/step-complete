@@ -9,6 +9,9 @@
 #include "render/OcctViewport.h"
 #include "render/SceneManager.h"
 
+#include <BRepPrimAPI_MakeBox.hxx>
+#include <TopExp_Explorer.hxx>
+
 #include <QtTest>
 
 #include <memory>
@@ -180,6 +183,40 @@ private Q_SLOTS:
     const QImage shaded = render();
     QVERIFY2(sc::test::changedPixelFraction(shadedEdges, shaded) > 0.002,
              "edges are not toggled on instances");
+  }
+
+  // Measure > Check Geometry: a problem is drawn in red on top, not selectable, and goes away
+  // on clearIssue and with the model.
+  void drawsAndClearsTheGeometryIssueHighlight() {
+    const QImage before = render();
+    // One face of the plate, where it is: a red patch over the plate.
+    const NodeId plate = findNode(*_index, "Base plate");
+    const TopoDS_Shape face = TopExp_Explorer(_index->worldShape(plate), TopAbs_FACE).Current();
+    _scene->showIssue(face);
+    QVERIFY(_scene->hasIssue());
+    const QImage shown = render();
+    sc::test::dumpImage(shown, "scene_issue_highlight");
+    int red = 0;
+    for (int y = 0; y < shown.height(); ++y) {
+      for (int x = 0; x < shown.width(); ++x) {
+        const QColor color = shown.pixelColor(x, y);
+        red += color.red() > 180 && color.green() < 80 && color.blue() < 80 ? 1 : 0;
+      }
+    }
+    QVERIFY2(red > 100, "the issue highlight is not drawn in red");
+    QCOMPARE(displayedParts(*_scene, _viewport->context()), 3); // not a part
+
+    _scene->clearIssue();
+    QVERIFY(!_scene->hasIssue());
+    QVERIFY2(sc::test::changedPixelFraction(before, render()) < 0.001, "the highlight is still drawn");
+
+    // A new model, or a null shape, clears it too.
+    _scene->showIssue(BRepPrimAPI_MakeBox(1.0, 1.0, 1.0).Shape());
+    _scene->setModel(_index);
+    QVERIFY(!_scene->hasIssue());
+    _scene->showIssue(face);
+    _scene->showIssue(TopoDS_Shape());
+    QVERIFY(!_scene->hasIssue());
   }
 
   void hiddenLineDrawsWhiteFacesAndRestoresColors() {
