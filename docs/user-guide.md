@@ -227,9 +227,18 @@ clicked point on the surface).
 ### Mass properties
 
 **Shift+M** measures the selected parts (assemblies expand to their parts), or every visible part
-when nothing is selected. Hidden parts are skipped. Results, at unit density: volume, surface
-area, centroid, principal moments of inertia, and axis-aligned and oriented bounding boxes. The
-witness is the bounding box with a marker at the centroid. When exactly one part carries
+when nothing is selected. Hidden parts are skipped. Results: volume, surface area, centroid,
+principal moments of inertia, and axis-aligned and oriented bounding boxes. The witness is the
+bounding box with a marker at the centroid.
+
+**Mass.** Give parts a material with **Measure > Set Material...**: pick one from the list (steel,
+aluminium, ABS and others, with typical densities) or type a name and a density in kg/m³. It
+applies to every instance of the selected parts. **Clear Material** removes it. A material the
+STEP file declares is used when you have not set one; the Properties panel shows each part's
+material and where it comes from. When every measured part has a material, mass properties
+report the **mass** (the headline), the **center of mass** and the principal moments of inertia
+in mass units, each part with its own density. If some parts have no material, the result stays
+at unit density and says how many lack one. Materials are kept per file, like saved views. When exactly one part carries
 validation properties in the file, the declared values are shown next to the computed ones with
 the percentage difference and a verdict such as "Matches".
 
@@ -264,7 +273,8 @@ Results and their witnesses are cleared when another file is opened or the model
 ### Units
 
 Under **Measure** choose **Length Unit** (micrometer, millimeter, centimeter, meter, inch, foot),
-**Precision** (0 to 6 decimals; default 3) and **Angle Unit** (degrees or radians). The choice is
+**Mass Unit** (grams, kilograms or pounds; default kilograms), **Precision** (0 to 6 decimals;
+default 3) and **Angle Unit** (degrees or radians). The choice is
 remembered. A change applies to new measurements; existing rows keep the text they were measured
 with. Values are converted from the file's own unit automatically.
 
@@ -439,7 +449,8 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + left drag zoom;
 left click select; Shift + click add to selection; right click context menu.
 
-Menu items without shortcuts: Open Recent, Export Geometry, Manage Saved Views, Preferences, Show All PMI, PMI Labels from Semantics,
+Menu items without shortcuts: Open Recent, Export Geometry, Manage Saved Views, Set Material,
+Clear Material, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 
 ## 12. Troubleshooting

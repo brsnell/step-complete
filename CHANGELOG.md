@@ -6,6 +6,10 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- Measure > Set Material / Clear Material: give parts a material (a preset or a custom density);
+  mass properties then report the mass, center of mass and mass moments of inertia, each part
+  with its own density. Materials the STEP file declares are used too. Measure > Mass Unit picks
+  g, kg or lb. The Properties panel shows a part's material.
 - View > Saved Views: save the camera, the hidden parts and the section planes under a name
   (`Ctrl+Shift+V`), restore them from the list, and rename, delete or reorder them. Views are
   kept per file content in the app's data folder, so they survive copies, renames and re-exports.

@@ -7,6 +7,7 @@
 #include "app/ExportImageDialog.h"
 #include "app/ExportJob.h"
 #include "app/ImportJob.h"
+#include "app/MaterialDialog.h"
 #include "app/MeasurementsPanel.h"
 #include "app/PmiPanel.h"
 #include "app/PreferencesDialog.h"
@@ -57,6 +58,8 @@
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
+#include <set>
 #include <unordered_map>
 #include <utility>
 
@@ -70,6 +73,7 @@ const char* const RecentFilesKey = "recentFiles";
 const char* const LastDirKey = "lastOpenDir";
 const char* const MeasureUnitKey = "measure/lengthUnit";
 const char* const MeasureDecimalsKey = "measure/decimals";
+const char* const MeasureMassUnitKey = "measure/massUnit";
 const char* const MeasureAngleUnitKey = "measure/angleUnit";
 
 bool isStepFile(const QString& path) {
@@ -192,6 +196,7 @@ void MainWindow::createDocks() {
   addDockWidget(Qt::LeftDockWidgetArea, treeDock);
 
   _properties = new PropertiesPanel(this);
+  _properties->setMaterialLookup([this](core::NodeId part) { return materialOf(part); });
   auto* propertiesDock = new QDockWidget(tr("Properties"), this);
   propertiesDock->setObjectName(QStringLiteral("PropertiesDock"));
   propertiesDock->setWidget(_properties);
@@ -466,6 +471,8 @@ void MainWindow::createMeasureMenu() {
   _measureOptions.lengthUnit = static_cast<core::LengthUnit>(
       settings.value(MeasureUnitKey, int(core::LengthUnit::Millimeter)).toInt());
   _measureOptions.decimals = std::clamp(settings.value(MeasureDecimalsKey, 3).toInt(), 0, 8);
+  _measureOptions.massUnit =
+      static_cast<core::MassUnit>(settings.value(MeasureMassUnitKey, int(core::MassUnit::Kilogram)).toInt());
   _measureOptions.angleUnit =
       static_cast<core::AngleUnit>(settings.value(MeasureAngleUnitKey, int(core::AngleUnit::Degree)).toInt());
   _measureTool->setDisplayOptions(_measureOptions);
@@ -506,6 +513,11 @@ void MainWindow::createMeasureMenu() {
   _massPropertiesAction->setStatusTip(
       tr("Volume, surface area, centroid, inertia and bounding box of the selected parts (all visible "
          "parts when nothing is selected)"));
+  _setMaterialAction = menu->addAction(tr("Set &Material..."), this, &MainWindow::setMaterialOfSelection);
+  _setMaterialAction->setStatusTip(tr("Give the selected parts a material, for their mass"));
+  _clearMaterialAction =
+      menu->addAction(tr("C&lear Material"), this, [this] { setMaterial(selectedNodes(), std::nullopt); });
+  _clearMaterialAction->setStatusTip(tr("Remove the material set on the selected parts"));
   menu->addSeparator();
   _stopMeasureAction = menu->addAction(tr("&Stop Measuring"), this, [this] { setMeasureMode(-1); });
   _stopMeasureAction->setShortcut(Qt::Key_Escape);
@@ -523,6 +535,23 @@ void MainWindow::createMeasureMenu() {
     connect(action, &QAction::triggered, this, [this, unit] {
       _measureOptions.lengthUnit = unit;
       QSettings().setValue(MeasureUnitKey, int(unit));
+      applyMeasureOptions();
+    });
+  }
+  QMenu* masses = menu->addMenu(tr("Mass Uni&t"));
+  auto* massGroup = new QActionGroup(this);
+  const std::pair<core::MassUnit, const char*> massUnits[] = {
+      {core::MassUnit::Gram, QT_TR_NOOP("Grams")},
+      {core::MassUnit::Kilogram, QT_TR_NOOP("Kilograms")},
+      {core::MassUnit::Pound, QT_TR_NOOP("Pounds")}};
+  for (const auto& [unit, name] : massUnits) {
+    QAction* action = masses->addAction(tr(name));
+    action->setCheckable(true);
+    action->setChecked(unit == _measureOptions.massUnit);
+    massGroup->addAction(action);
+    connect(action, &QAction::triggered, this, [this, unit = unit] {
+      _measureOptions.massUnit = unit;
+      QSettings().setValue(MeasureMassUnitKey, int(unit));
       applyMeasureOptions();
     });
   }
@@ -662,6 +691,10 @@ void MainWindow::measureMassProperties() {
     item.name = index->displayPath(id);
     item.declared = index->validationProperties(id);
     item.location = index->node(id).location;
+    if (const std::optional<PropertiesPanel::PartMaterial> material = materialOf(id)) {
+      item.density = material->material.density;
+      item.material = material->material.name;
+    }
     items.push_back(std::move(item));
   }
   const core::Measurement result = core::computeMassProperties(items, _measureOptions);
@@ -684,6 +717,10 @@ void MainWindow::updateActions() {
   _isolateAction->setEnabled(hasSelection);
   _transparentAction->setEnabled(hasSelection);
   _fitSelectionAction->setEnabled(hasSelection);
+  if (_setMaterialAction != nullptr) {
+    _setMaterialAction->setEnabled(hasSelection);
+    _clearMaterialAction->setEnabled(hasSelection);
+  }
   _showAllAction->setEnabled(hasModel);
   _showAllPmiAction->setEnabled(_pmi && !_pmi->isEmpty());
   _semanticLabelsAction->setEnabled(_pmi && !_pmi->isEmpty());
@@ -846,7 +883,7 @@ void MainWindow::onImportFinished() {
     _emptyHint->hide();
     setWindowTitle(QStringLiteral("%1 — %2").arg(fileName, QString::fromUtf8(core::AppName)));
     addRecentFile(job->path());
-    loadUserViews(job->path());
+    loadModelData(job->path());
     _viewport->fitAll();
     _viewport->invalidateScene();
 
@@ -890,6 +927,7 @@ void MainWindow::closeModel() {
   _modelPath.clear();
   _modelData = QJsonObject();
   _userViews.clear();
+  _materials.clear();
   rebuildSavedViewsMenu();
   _emptyHint->show();
   setWindowTitle(QString::fromUtf8(core::AppName));
@@ -1454,11 +1492,21 @@ void MainWindow::rebuildSavedViewsMenu() {
   manage->setEnabled(hasModel && !_userViews.empty());
 }
 
-void MainWindow::loadUserViews(const QString& modelPath) {
+void MainWindow::loadModelData(const QString& modelPath) {
   _modelPath = modelPath;
   const ModelDataStore::Loaded loaded = _modelStore.load(modelPath);
   _modelData = loaded.data;
   _userViews = userViewsFromJson(_modelData.value(QStringLiteral("views")).toArray());
+  _materials.clear();
+  const QJsonObject materials = _modelData.value(QStringLiteral("materials")).toObject();
+  for (auto it = materials.begin(); it != materials.end(); ++it) {
+    const QJsonObject stored = it.value().toObject();
+    const double density = stored.value(QStringLiteral("density")).toDouble();
+    if (density > 0.0 && std::isfinite(density)) {
+      _materials[it.key().toStdString()] =
+          core::Material{stored.value(QStringLiteral("name")).toString().toStdString(), density};
+    }
+  }
   if (!loaded.ok) {
     statusBar()->showMessage(tr("The saved views of this model could not be read (%1).").arg(loaded.error),
                              8000);
@@ -1466,17 +1514,104 @@ void MainWindow::loadUserViews(const QString& modelPath) {
   rebuildSavedViewsMenu();
 }
 
-void MainWindow::writeUserViews() {
+void MainWindow::saveModelData() {
   if (_modelPath.isEmpty()) {
     return;
   }
-  _modelData.insert(QStringLiteral("views"), toJson(_userViews));
   QString error;
   if (!_modelStore.save(_modelPath, _modelData, &error)) {
-    QMessageBox::warning(this, tr("Saved Views"),
-                         tr("The saved views could not be written.\n\n%1").arg(error));
+    QMessageBox::warning(this, tr("Model Data"),
+                         tr("The data kept for this model could not be written.\n\n%1").arg(error));
   }
+}
+
+void MainWindow::writeUserViews() {
+  _modelData.insert(QStringLiteral("views"), toJson(_userViews));
+  saveModelData();
   rebuildSavedViewsMenu();
+}
+
+void MainWindow::writeMaterials() {
+  QJsonObject materials;
+  for (const auto& [prototype, material] : _materials) {
+    materials.insert(QString::fromStdString(prototype),
+                     QJsonObject{{QStringLiteral("name"), QString::fromStdString(material.name)},
+                                 {QStringLiteral("density"), material.density}});
+  }
+  _modelData.insert(QStringLiteral("materials"), materials);
+  saveModelData();
+}
+
+std::optional<PropertiesPanel::PartMaterial> MainWindow::materialOf(core::NodeId part) const {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!index) {
+    return std::nullopt;
+  }
+  const auto it = _materials.find(index->prototypeId(part));
+  if (it != _materials.end()) {
+    return PropertiesPanel::PartMaterial{it->second, false};
+  }
+  if (std::optional<core::Material> fromFile = index->fileMaterial(part)) {
+    return PropertiesPanel::PartMaterial{*fromFile, true};
+  }
+  return std::nullopt;
+}
+
+void MainWindow::setMaterialOfSelection() {
+  const std::vector<core::NodeId> nodes = selectedNodes();
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!index || nodes.empty()) {
+    return;
+  }
+  // Start from the first part's material, so editing one is quick.
+  std::optional<core::Material> current;
+  const std::vector<core::NodeId> parts = index->partsBelow(nodes.front());
+  if (!parts.empty()) {
+    if (const std::optional<PropertiesPanel::PartMaterial> material = materialOf(parts.front())) {
+      current = material->material;
+    }
+  }
+  MaterialDialog dialog(current, this);
+  if (dialog.exec() == QDialog::Accepted) {
+    setMaterial(nodes, dialog.material());
+  }
+}
+
+void MainWindow::setMaterial(const std::vector<core::NodeId>& nodes,
+                             const std::optional<core::Material>& material) {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!index) {
+    return;
+  }
+  std::set<std::string> definitions;
+  int instances = 0;
+  for (const core::NodeId node : nodes) {
+    for (const core::NodeId part : index->partsBelow(node)) {
+      definitions.insert(index->prototypeId(part));
+    }
+  }
+  if (definitions.empty()) {
+    return;
+  }
+  for (const std::string& definition : definitions) {
+    if (material) {
+      _materials[definition] = *material;
+    } else {
+      _materials.erase(definition);
+    }
+  }
+  for (const core::NodeId part : index->partInstances()) {
+    instances += definitions.count(index->prototypeId(part)) != 0 ? 1 : 0;
+  }
+  writeMaterials();
+  _properties->refresh();
+  const int count = static_cast<int>(definitions.size());
+  statusBar()->showMessage(material ? tr("%1 (%2 kg/m\u00B3) set on %n part(s)", nullptr, count)
+                                              .arg(QString::fromStdString(material->name))
+                                              .arg(material->density, 0, 'f', 1) +
+                                          QLatin1Char(' ') + tr("(%n instance(s)).", nullptr, instances)
+                                    : tr("Material cleared on %n part(s).", nullptr, count),
+                           6000);
 }
 
 void MainWindow::saveCurrentView() {

@@ -24,6 +24,10 @@
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_Volume.hxx>
 
+#include <XCAFDoc_MaterialTool.hxx>
+
+#include <TCollection_HAsciiString.hxx>
+
 #include <gtest/gtest.h>
 
 #include <set>
@@ -467,4 +471,45 @@ TEST(AssemblyIndex, PathIdsFindEveryNodeAgain) {
   const core::ImportResult second = core::importStep(path, {});
   ASSERT_TRUE(first.ok && second.ok);
   EXPECT_EQ(core::AssemblyIndex(first.document).pathIds(), core::AssemblyIndex(second.document).pathIds());
+}
+
+// The material a STEP file declares (docs/designs/material-density.md): OCCT hands the density
+// over in g/mm³ whatever the file's length unit, so an inch file gives the same kg/m³.
+TEST(AssemblyIndex, FileMaterialComesThroughStep) {
+  const core::DocumentPtr document = test::buildFixtureAssembly(false);
+  const core::AssemblyIndex index(document);
+  core::NodeId plate = core::NoNode;
+  for (const core::AssemblyNode& node : index.nodes()) {
+    if (node.name == "Base plate") {
+      plate = node.id;
+    }
+  }
+  ASSERT_NE(plate, core::NoNode);
+  XCAFDoc_DocumentTool::MaterialTool(document->ocaf()->Main())
+      ->SetMaterial(index.node(plate).prototypeLabel, new TCollection_HAsciiString("Aluminium 6061"),
+                    new TCollection_HAsciiString(""), 2.7, new TCollection_HAsciiString("density"),
+                    new TCollection_HAsciiString("POSITIVE_RATIO_MEASURE")); // g/cm³
+
+  for (const char* unit : {"MM", "INCH"}) {
+    const std::string path = test::tempPath(std::string("material_") + unit + ".step");
+    ASSERT_TRUE(test::writeStep(document, path, unit));
+    const core::ImportResult imported = core::importStep(path, {});
+    ASSERT_TRUE(imported.ok) << imported.error;
+    const core::AssemblyIndex back(imported.document);
+    int withMaterial = 0;
+    for (const core::AssemblyNode& node : back.nodes()) {
+      const std::optional<core::Material> material = back.fileMaterial(node.id);
+      if (node.name == "Base plate") {
+        ASSERT_TRUE(material) << unit;
+        EXPECT_EQ(material->name, "Aluminium 6061");
+        EXPECT_NEAR(material->density, 2700.0, 1e-6) << unit;
+        ++withMaterial;
+      } else {
+        EXPECT_FALSE(material) << node.name;
+      }
+    }
+    EXPECT_EQ(withMaterial, 1);
+  }
+  EXPECT_FALSE(index.prototypeId(plate).empty());
+  EXPECT_TRUE(index.prototypeId(core::NoNode).empty());
 }

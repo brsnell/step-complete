@@ -373,9 +373,9 @@ Feedback from v1.0 users can reorder v1.1 and v2.
 - ✅ **User saved views** (View > Saved Views): the camera, hidden parts and section planes under a
   name. Per-file data lives in the app data folder, keyed by the file's content
   ([design](designs/user-saved-views.md)); material densities and markup reuse that store.
-- **Material density for mass properties.** Mass properties are computed at unit density today.
-  Add a density per part (typed in, or picked from a short list of common materials), and use
-  the file's material when it declares one. Report mass next to volume.
+- ✅ **Material density for mass properties** (Measure > Set Material): per-part densities (a
+  preset or custom, or the file's material); mass, center of mass and mass moments, each part
+  weighted by its own density ([design](designs/material-density.md)).
 - **BOM / parts-list export.** Export the assembly tree as CSV: one row per unique part, with
   quantity, name, product name, path and, optionally, volume, mass and bounding box. Uses the
   same UTF-8-with-BOM CSV writer as the Measurements panel.

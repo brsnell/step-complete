@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app/PropertiesPanel.h"
 #include "app/UserViews.h"
 #include "core/AssemblyIndex.h"
 #include "core/GeometryExport.h"
@@ -10,6 +11,7 @@
 #include <QPointer>
 #include <QString>
 
+#include <map>
 #include <memory>
 #include <vector>
 
@@ -66,6 +68,13 @@ public:
   bool saveCurrentViewAs(const QString& name);
   void restoreUserView(int index);
   const std::vector<UserView>& userViews() const { return _userViews; }
+
+  // --- Materials (docs/designs/material-density.md) ------------------------------------
+  // What Measure > Set Material and Clear Material do: give the part definitions below 'nodes'
+  // a material (nullopt clears it, back to the file's). Stored per model file.
+  void setMaterial(const std::vector<core::NodeId>& nodes, const std::optional<core::Material>& material);
+  // A part's material: the user's, else the one the file declares.
+  std::optional<PropertiesPanel::PartMaterial> materialOf(core::NodeId part) const;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -134,8 +143,11 @@ private:
   void saveCurrentView();
   void manageSavedViews();
   void rebuildSavedViewsMenu();
-  void loadUserViews(const QString& modelPath);
+  void loadModelData(const QString& modelPath);
+  void saveModelData();
   void writeUserViews();
+  void writeMaterials();
+  void setMaterialOfSelection();
   void showPreferences();
   void applyViewPreferences(const ViewPreferences& preferences);
   void showAbout();
@@ -171,6 +183,9 @@ private:
   QString _modelPath;     // the open model's file, for its saved views
   QJsonObject _modelData; // everything the store keeps for it (views and later features)
   std::vector<UserView> _userViews;
+  std::map<std::string, core::Material> _materials; // by AssemblyIndex::prototypeId
+  QAction* _setMaterialAction = nullptr;
+  QAction* _clearMaterialAction = nullptr;
   MeasurementsPanel* _measurements = nullptr;
   QDockWidget* _measurementsDock = nullptr;
   QActionGroup* _measureGroup = nullptr;

@@ -1,5 +1,7 @@
 #include "core/Measurement.h"
 
+#include <TopExp_Explorer.hxx>
+
 #include <BRepBuilderAPI_MakeVertex.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRep_Tool.hxx>
@@ -11,6 +13,7 @@
 #include <array>
 #include <cmath>
 #include <functional>
+#include <set>
 
 namespace sc::core {
 
@@ -326,6 +329,18 @@ std::string moment(double mm5, const MeasureDisplayOptions& options) {
          "\xE2\x81\xB5"; // superscript five
 }
 
+// Mass moments of inertia (kg mm² from the measure code) in the display units, e.g. "kg·mm²".
+std::string massMoment(double kgMm2, const MeasureDisplayOptions& options) {
+  const double perUnit = millimetersPer(options.lengthUnit);
+  return formatSignificant(kgMm2 / kilogramsPer(options.massUnit) / (perUnit * perUnit), 6) + " " +
+         std::string(symbol(options.massUnit)) + "\xC2\xB7" + std::string(symbol(options.lengthUnit)) +
+         "\xC2\xB2"; // middle dot, superscript two
+}
+
+bool hasSolid(const TopoDS_Shape& shape) {
+  return !shape.IsNull() && TopExp_Explorer(shape, TopAbs_SOLID).More();
+}
+
 // "10.000 x 20.000 x 30.000 mm" (with multiplication signs)
 std::string sizeText(double sizeX, double sizeY, double sizeZ, const MeasureDisplayOptions& options) {
   auto format = [&options](double mm) {
@@ -586,7 +601,31 @@ Measurement computeMassProperties(const std::vector<MassItem>& items, const Meas
     measurement.entities.push_back("and " + std::to_string(items.size() - MaxListedEntities) + " more");
   }
 
-  const measure::MassProperties mass = measure::massProperties(shapes);
+  // Densities only when every item with volume has one: a partial mass would look like the answer.
+  std::vector<double> densities;
+  int withVolume = 0;
+  int withoutDensity = 0;
+  std::set<double> distinctDensities;
+  std::set<std::string> materials;
+  for (const MassItem& item : items) {
+    if (item.worldShape.IsNull()) {
+      continue;
+    }
+    if (hasSolid(item.worldShape)) {
+      ++withVolume;
+      if (!item.density || *item.density <= 0.0) {
+        ++withoutDensity;
+      } else {
+        distinctDensities.insert(*item.density);
+        materials.insert(item.material);
+      }
+    }
+    densities.push_back(item.density && *item.density > 0.0 ? *item.density : 1.0);
+  }
+  if (withVolume == 0 || withoutDensity > 0) {
+    densities.clear();
+  }
+  const measure::MassProperties mass = measure::massProperties(shapes, densities);
   if (!mass.ok) {
     measurement.error = "There is no solid or surface geometry to measure.";
     return measurement;
@@ -597,15 +636,37 @@ Measurement computeMassProperties(const std::vector<MassItem>& items, const Meas
   };
   const std::string volume = formatVolume(mass.volume, options.lengthUnit, options.decimals);
   const std::string area = formatArea(mass.area, options.lengthUnit, options.decimals);
-  measurement.headline = mass.hasVolume ? volume : area;
+  measurement.headline = mass.hasMass     ? formatMass(mass.mass, options.massUnit, options.decimals)
+                         : mass.hasVolume ? volume
+                                          : area;
 
   add("Solids", std::to_string(mass.solidCount));
+  if (mass.hasMass) {
+    add("Mass", measurement.headline);
+    if (distinctDensities.size() == 1) {
+      add("Density", formatNumber(*distinctDensities.begin(), 1) + " kg/m\xC2\xB3");
+    }
+    if (materials.size() == 1 && !materials.begin()->empty()) {
+      add("Material", *materials.begin());
+    }
+  } else if (mass.hasVolume) {
+    add("Mass", withoutDensity == withVolume ? std::string("no material set (Measure > Set Material)")
+                                             : "no material for " + std::to_string(withoutDensity) + " of " +
+                                                   std::to_string(withVolume) + " parts");
+  }
   if (mass.hasVolume) {
     add("Volume", volume);
   }
   add("Surface area", area);
-  add(mass.hasVolume ? "Centroid" : "Centroid (surface)", point(mass.centroid, options));
-  if (mass.hasVolume) {
+  add(mass.hasMass     ? "Center of mass"
+      : mass.hasVolume ? "Centroid"
+                       : "Centroid (surface)",
+      point(mass.centroid, options));
+  if (mass.hasMass) {
+    add("Principal moments", massMoment(mass.principalMoments[0], options) + ", " +
+                                 massMoment(mass.principalMoments[1], options) + ", " +
+                                 massMoment(mass.principalMoments[2], options));
+  } else if (mass.hasVolume) {
     // Inertia of a bare surface has other units and is rarely wanted: only report it for solids.
     add("Principal moments (unit density)", moment(mass.principalMoments[0], options) + ", " +
                                                 moment(mass.principalMoments[1], options) + ", " +

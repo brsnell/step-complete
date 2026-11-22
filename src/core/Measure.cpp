@@ -573,9 +573,10 @@ std::optional<RadiusResult> radius(const TopoDS_Shape& shape) {
   return result;
 }
 
-MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes) {
+MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes, const std::vector<double>& densities) {
   MassProperties result;
   const TopoDS_Compound all = makeCompound(shapes);
+  const bool weighted = !densities.empty() && densities.size() == shapes.size();
 
   std::vector<TopoDS_Shape> solids;
   for (TopExp_Explorer it(all, TopAbs_SOLID); it.More(); it.Next()) {
@@ -590,12 +591,34 @@ MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes) {
     result.area = surfaceProps.Mass();
 
     GProp_GProps props = surfaceProps;
-    if (result.hasVolume) {
+    if (result.hasVolume && weighted) {
+      // Each shape's solids with its own density: kg/m³ is 1e-9 kg/mm³, so Mass() is in kg and
+      // the inertia in kg mm².
+      props = GProp_GProps(gp_Pnt(0.0, 0.0, 0.0));
+      for (size_t i = 0; i < shapes.size(); ++i) {
+        std::vector<TopoDS_Shape> own;
+        for (TopExp_Explorer it(shapes[i], TopAbs_SOLID); it.More(); it.Next()) {
+          own.push_back(it.Current());
+        }
+        if (own.empty()) {
+          continue;
+        }
+        GProp_GProps shapeProps;
+        BRepGProp::VolumeProperties(makeCompound(own), shapeProps);
+        result.volume += std::abs(shapeProps.Mass());
+        props.Add(shapeProps, densities[i] * 1e-9);
+      }
+      result.hasMass = true;
+      result.mass = std::abs(props.Mass());
+    } else if (result.hasVolume) {
       props = GProp_GProps();
       BRepGProp::VolumeProperties(makeCompound(solids), props);
       result.volume = std::abs(props.Mass());
     }
-    if (std::abs(props.Mass()) <= Precision::Confusion()) {
+    // With densities Mass() is in kg, so a small plastic part would look empty: test the volume.
+    const double size = result.hasMass ? result.volume : std::abs(props.Mass());
+    if (size <= Precision::Confusion() || (result.hasMass && result.mass <= 0.0)) {
+      result.hasMass = false;
       return result;
     }
     result.centroid = props.CentreOfMass();

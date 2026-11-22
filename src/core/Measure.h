@@ -160,7 +160,11 @@ struct MassProperties {
   double volume = 0.0;
   double area = 0.0;
   gp_Pnt centroid; // of the volume, or of the surface when there is no volume
-  // Inertia tensor about the centroid, for unit density (mm^5).
+  // Mass (kg), when a density was given for every shape with volume. Then the centroid is the
+  // centre of mass and the inertia and principal moments are mass moments (kg mm²).
+  bool hasMass = false;
+  double mass = 0.0;
+  // Inertia tensor about the centroid: for unit density (mm^5), or kg mm² with densities.
   gp_Mat inertia;
   std::array<double, 3> principalMoments{};
   std::array<gp_Dir, 3> principalAxes;
@@ -168,7 +172,10 @@ struct MassProperties {
   OrientedBox orientedBox;
 };
 
-MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes);
+// 'densities' (kg/m³), when given, has one entry per shape: each shape's volume counts with its
+// own density, so the mass, centre of mass and inertia are right for mixed materials.
+MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes,
+                              const std::vector<double>& densities = {});
 
 // The plane of a planar face, with its normal pointing out of the material (the face's
 // orientation applied) and its location on the face. Pass a world shape (toWorld) to get world

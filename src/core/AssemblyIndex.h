@@ -59,6 +59,12 @@ struct ValidationProperties {
   bool empty() const { return !volume && !area && !centroid; }
 };
 
+// A material: its name (may be empty) and density in kg/m³.
+struct Material {
+  std::string name;
+  double density = 0.0;
+};
+
 // Read-only index over an XCAF document's assembly structure. Everything in
 // the UI refers to nodes by NodeId, never to raw labels.
 class AssemblyIndex {
@@ -99,6 +105,13 @@ public:
   std::vector<std::string> pathIds() const;
   // The node with this id, or NoNode (the file changed, or the id is from another model).
   NodeId nodeForPathId(const std::string& id) const;
+  // A stable id for the node's definition (its prototype label entry, "0:1:1:2"), shared by all
+  // instances of the same part: user materials are kept per definition.
+  std::string prototypeId(NodeId id) const;
+
+  // The material the STEP file declares for the part (OCCT's XCAFDoc_MaterialTool), with a
+  // density; nothing without one. The instance's own material wins over the definition's.
+  std::optional<Material> fileMaterial(NodeId id) const;
 
   // Layers assigned to the instance or its prototype.
   std::vector<std::string> layers(NodeId id) const;

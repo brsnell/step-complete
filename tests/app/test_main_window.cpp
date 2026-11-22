@@ -3,6 +3,7 @@
 
 #include "TestModels.h"
 
+#include "app/AssemblyTreeModel.h"
 #include "app/ExportJob.h"
 #include "app/ImportJob.h"
 #include "app/MainWindow.h"
@@ -21,6 +22,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
+#include <QSortFilterProxyModel>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTest>
@@ -403,6 +405,65 @@ private Q_SLOTS:
     QVERIFY(plateShown());
     _window->restoreUserView(0);
     QVERIFY(!plateShown());
+  }
+
+  // Measure > Set Material (docs/designs/material-density.md): mass properties of a part with a
+  // material report its mass; parts without one say so; the material outlives a reopen.
+  void materialsGiveMassAndPersist() {
+    QDir(sc::app::ModelDataStore::defaultDirectory()).removeRecursively();
+    openFixture();
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    auto* treeModel = _window->findChild<sc::app::AssemblyTreeModel*>();
+    auto* proxy = qobject_cast<QSortFilterProxyModel*>(tree->model());
+    QVERIFY(tree && treeModel && proxy);
+    const auto plateRow = [tree] {
+      QAbstractItemModel* model = tree->model();
+      const QModelIndex fixture = model->index(0, 0);
+      for (int row = 0; row < model->rowCount(fixture); ++row) {
+        if (model->index(row, 0, fixture).data().toString() == QStringLiteral("Base plate")) {
+          return model->index(row, 0, fixture);
+        }
+      }
+      return QModelIndex();
+    };
+    const auto measurePlate = [&] {
+      tree->selectionModel()->select(plateRow(),
+                                     QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+      _mass->trigger();
+      return _panel->measurements().back();
+    };
+    const auto detail = [](const sc::core::Measurement& measurement, const std::string& key) {
+      for (const auto& [k, v] : measurement.details) {
+        if (k == key) {
+          return v;
+        }
+      }
+      return std::string("<missing>");
+    };
+
+    const sc::core::Measurement before = measurePlate();
+    QVERIFY(before.ok);
+    QCOMPARE(detail(before, "Mass"), std::string("no material set (Measure > Set Material)"));
+
+    // Aluminium on the plate (100 x 60 x 10 mm = 60000 mm³): 0.162 kg.
+    const sc::core::NodeId plate = treeModel->nodeId(proxy->mapToSource(plateRow()));
+    QVERIFY(plate != sc::core::NoNode);
+    _window->setMaterial({plate}, sc::core::Material{"Aluminium", 2700.0});
+    QVERIFY(_window->materialOf(plate).has_value());
+    QVERIFY(!_window->materialOf(plate)->fromFile);
+    const sc::core::Measurement after = measurePlate();
+    QCOMPARE(after.headline, std::string("0.162 kg"));
+    QCOMPARE(detail(after, "Material"), std::string("Aluminium"));
+
+    // Reopened: still aluminium. Cleared: back to no material.
+    _close->trigger();
+    openFixture();
+    const sc::core::NodeId reopened = treeModel->nodeId(proxy->mapToSource(plateRow()));
+    QVERIFY(_window->materialOf(reopened).has_value());
+    QCOMPARE(measurePlate().headline, std::string("0.162 kg"));
+    _window->setMaterial({reopened}, std::nullopt);
+    QVERIFY(!_window->materialOf(reopened).has_value());
+    QCOMPARE(detail(measurePlate(), "Mass"), std::string("no material set (Measure > Set Material)"));
   }
 
 private:
