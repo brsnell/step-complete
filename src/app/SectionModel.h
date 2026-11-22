@@ -26,10 +26,17 @@ public:
   virtual void reset() = 0;
   virtual bool handlesVisible() const = 0;
   virtual void setHandlesVisible(bool visible) = 0;
+  // The next click on a flat face puts the plane on it; cancelPick() stops waiting.
+  virtual void pickFace(int index) = 0;
+  virtual void cancelPick() = 0;
+  // The plane waiting for a face pick, or -1.
+  virtual int pickingPlane() const = 0;
 
 Q_SIGNALS:
   // A plane changed, for whatever reason (including drags in the 3D view).
   void planeChanged(int index);
+  // A face pick started or ended.
+  void pickChanged();
 };
 
 // Adapter over a (non-owned) render::SectionTool.
@@ -46,6 +53,9 @@ public:
   void reset() override { _tool->reset(); }
   bool handlesVisible() const override { return _tool->handlesVisible(); }
   void setHandlesVisible(bool visible) override { _tool->setHandlesVisible(visible); }
+  void pickFace(int index) override { _tool->pickFace(index); }
+  void cancelPick() override { _tool->cancelPick(); }
+  int pickingPlane() const override { return _tool->pickingPlane(); }
 
 private:
   render::SectionTool* _tool;

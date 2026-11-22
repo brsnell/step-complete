@@ -630,4 +630,23 @@ MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes) {
   return result;
 }
 
+std::optional<gp_Pln> planeOfFace(const TopoDS_Shape& shape) {
+  if (shape.IsNull() || shape.ShapeType() != TopAbs_FACE) {
+    return std::nullopt;
+  }
+  const TopoDS_Face& face = TopoDS::Face(shape);
+  const BRepAdaptor_Surface surface(face); // includes the face's location
+  if (surface.GetType() != GeomAbs_Plane) {
+    return std::nullopt;
+  }
+  const gp_Pln plane = surface.Plane();
+  // The surface normal is XDirection x YDirection (the axis direction only for a right-handed
+  // frame); a reversed face points the other way.
+  gp_Dir normal = plane.Position().XDirection().Crossed(plane.Position().YDirection());
+  if (face.Orientation() == TopAbs_REVERSED) {
+    normal.Reverse();
+  }
+  return gp_Pln(plane.Location(), normal);
+}
+
 } // namespace sc::core::measure

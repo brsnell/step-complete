@@ -5,6 +5,7 @@
 #include <gp_Ax1.hxx>
 #include <gp_Dir.hxx>
 #include <gp_Mat.hxx>
+#include <gp_Pln.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Vec.hxx>
 
@@ -168,5 +169,11 @@ struct MassProperties {
 };
 
 MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes);
+
+// The plane of a planar face, with its normal pointing out of the material (the face's
+// orientation applied) and its location on the face. Pass a world shape (toWorld) to get world
+// coordinates. Nothing for a curved face or a shape that is not a face. Used to put a section
+// plane on a picked face.
+std::optional<gp_Pln> planeOfFace(const TopoDS_Shape& shape);
 
 } // namespace sc::core::measure

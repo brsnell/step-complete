@@ -4,6 +4,8 @@
 
 #include <array>
 
+#include <gp_Dir.hxx>
+
 class QCheckBox;
 class QComboBox;
 class QDoubleSpinBox;
@@ -19,8 +21,8 @@ namespace sc::app {
 
 class SectionModel;
 
-// Controls for the section view: three plane rows (enable, axis, offset, flip,
-// cap, hatch), "Show handles" and "Reset". Talks to a render::SectionTool and
+// Controls for the section view: three plane rows (enable, Pick Face, axis or a custom normal,
+// offset, flip, cap, hatch), "Show handles" and "Reset". Talks to a render::SectionTool and
 // follows it when the tool changes (e.g. dragging a plane handle in 3D).
 class SectionPanel : public QWidget {
   Q_OBJECT
@@ -43,7 +45,11 @@ Q_SIGNALS:
 private:
   struct Row {
     QCheckBox* enable = nullptr;
+    QPushButton* pick = nullptr; // beside the enable box: usable while the plane is off
     QComboBox* axis = nullptr;
+    QWidget* custom = nullptr; // the X, Y, Z fields of a custom normal
+    std::array<QDoubleSpinBox*, 3> normal{};
+    bool customChosen = false; // "Custom" chosen for an axis-aligned normal: keep the fields shown
     QSlider* slider = nullptr;
     QDoubleSpinBox* offset = nullptr;
     QPushButton* flip = nullptr;
@@ -57,6 +63,11 @@ private:
   void onToolChanged(int index);
   void setOffset(int index, double offset);
   void onAxisChosen(int index);
+  void onNormalEdited(int index);
+  void onPickClicked(int index);
+  void refreshPickButtons();
+  // Sets a new direction and pulls the offset into the range along it.
+  void setNormal(int index, const gp_Dir& normal);
   void onFlip(int index);
   void onReset();
   // Writes a modified copy of the plane to the tool, updates the row and announces the change.

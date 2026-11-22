@@ -1,6 +1,6 @@
 # Section planes at any angle
 
-Status: DRAFT (2026-11-22)
+Status: APPROVED (2026-11-22)
 
 ## What
 
@@ -34,9 +34,10 @@ at an angle, a rib along a diagonal. Other viewers offer both a picked plane and
 3. **Flat faces only.** A click on a curved face, an edge or empty space keeps the pick active
    and says "Pick a flat face" in the status bar. A cylinder's axis or a face's tangent plane
    is out of scope.
-4. **One click, then back to normal.** Pick Face turns the plane on, shows "Click a flat face
-   for plane N (Esc cancels)" in the status bar and makes faces pickable, as the measure tool
-   does. The first flat face ends the pick. **Esc**, pressing Pick Face again, or starting a
+4. **One click, then back to normal.** Pick Face shows "Click a flat face for plane N (Esc
+   cancels)" in the status bar and makes faces pickable, as the measure tool does. The button
+   sits beside the plane's checkbox, so it works on a plane that is off; the first flat face
+   turns the plane on and ends the pick, and a cancelled pick leaves the plane as it was. **Esc**, pressing Pick Face again, or starting a
    measurement cancels it. Picking stops any active measurement, so only one tool owns clicks.
    The tree and 3D selection are left as they were.
 5. **Custom normal fields.** Three spin boxes (X, Y, Z, three decimals) appear under the axis

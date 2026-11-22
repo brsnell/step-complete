@@ -368,8 +368,8 @@ Feedback from v1.0 users can reorder v1.1 and v2.
 - ✅ **Geometry export** (File > Export Geometry...): STL (merged or one file per unique part), OBJ
   with colors and glTF/GLB with colors and the assembly tree, at the display's mesh quality or
   finer on a private copy ([design](designs/geometry-export.md)). Writing STEP stays a non-goal.
-- **Section planes at any angle.** `SectionPlane` already takes any normal; the Section panel
-  only offers X, Y and Z. Add "plane on a picked planar face" and a custom normal.
+- ✅ **Section planes at any angle**: Custom (a typed normal) in each plane's axis list, and Pick
+  Face to put a plane on a clicked flat face ([design](designs/angled-section-planes.md)).
 - **User saved views.** Save the camera, visibility and section planes under a name and restore
   them later, next to the PMI saved views. The design decides where they are stored (per file,
   keyed by the open-file cache's file hash, or a sidecar file).

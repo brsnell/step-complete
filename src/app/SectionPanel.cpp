@@ -13,6 +13,8 @@
 #include <QSlider>
 #include <QVBoxLayout>
 
+#include <gp_Vec.hxx>
+
 #include <algorithm>
 #include <cmath>
 
@@ -20,7 +22,7 @@ namespace sc::app {
 
 namespace {
 
-constexpr int CustomItem = 3; // combo index of "Custom" when present
+constexpr int CustomItem = 3; // combo index of "Custom"
 
 // Axis index (0..2) when the normal is parallel to a coordinate axis, else -1.
 int axisOf(const gp_Dir& normal) {
@@ -78,6 +80,7 @@ SectionPanel::SectionPanel(SectionModel* model, QWidget* parent) : QWidget(paren
   });
   connect(reset, &QPushButton::clicked, this, &SectionPanel::onReset);
   connect(_model, &SectionModel::planeChanged, this, &SectionPanel::onToolChanged);
+  connect(_model, &SectionModel::pickChanged, this, &SectionPanel::refreshPickButtons);
 
   refresh();
 }
@@ -92,9 +95,32 @@ void SectionPanel::buildRow(int index, QGridLayout* layout) {
   inner->setContentsMargins(0, 0, 0, 0);
   inner->setVerticalSpacing(3);
 
+  row.pick = new QPushButton(tr("Pick Face"), this);
+  row.pick->setCheckable(true);
+  row.pick->setObjectName(QStringLiteral("sectionPickFace"));
+  row.pick->setToolTip(tr("Click a flat face in the 3D view to put this plane on it. %1").arg(cutTip));
+
   row.axis = new QComboBox(row.controls);
-  row.axis->addItems({tr("X"), tr("Y"), tr("Z")});
-  row.axis->setToolTip(tr("Axis the plane is perpendicular to."));
+  row.axis->addItems({tr("X"), tr("Y"), tr("Z"), tr("Custom")});
+  row.axis->setToolTip(tr("Axis the plane is perpendicular to, or Custom for any direction."));
+
+  row.custom = new QWidget(row.controls);
+  auto* customLayout = new QHBoxLayout(row.custom);
+  customLayout->setContentsMargins(0, 0, 0, 0);
+  const QString axisNames[3] = {tr("X"), tr("Y"), tr("Z")};
+  for (int axis = 0; axis < 3; ++axis) {
+    auto* spin = new QDoubleSpinBox(row.custom);
+    spin->setRange(-1000.0, 1000.0);
+    spin->setDecimals(3);
+    spin->setSingleStep(0.1);
+    spin->setKeyboardTracking(false);
+    spin->setPrefix(axisNames[axis] + QStringLiteral(" "));
+    spin->setObjectName(QStringLiteral("sectionNormal%1").arg(QLatin1Char("XYZ"[axis])));
+    spin->setToolTip(tr("Direction the plane faces (any length; it is normalized)."));
+    row.normal[static_cast<size_t>(axis)] = spin;
+    customLayout->addWidget(spin);
+  }
+  row.custom->setVisible(false);
   row.flip = new QPushButton(tr("Flip"), row.controls);
   row.flip->setToolTip(tr("Cut away the other side of the plane. %1").arg(cutTip));
 
@@ -102,6 +128,7 @@ void SectionPanel::buildRow(int index, QGridLayout* layout) {
   row.slider->setRange(0, SliderSteps);
   row.slider->setToolTip(tr("Position of the plane along its normal. %1").arg(cutTip));
   row.offset = new QDoubleSpinBox(row.controls);
+  row.offset->setObjectName(QStringLiteral("sectionOffset"));
   row.offset->setDecimals(2);
   row.offset->setSuffix(tr(" mm"));
   row.offset->setKeyboardTracking(false);
@@ -116,11 +143,16 @@ void SectionPanel::buildRow(int index, QGridLayout* layout) {
   inner->addWidget(row.flip, 0, 1);
   inner->addWidget(row.cap, 0, 2);
   inner->addWidget(row.hatch, 0, 3);
-  inner->addWidget(row.slider, 1, 0, 1, 3);
-  inner->addWidget(row.offset, 1, 3);
+  inner->addWidget(row.custom, 1, 0, 1, 4);
+  inner->addWidget(row.slider, 2, 0, 1, 3);
+  inner->addWidget(row.offset, 2, 3);
   inner->setColumnStretch(2, 1);
 
-  layout->addWidget(row.enable, 0, 0);
+  auto* header = new QHBoxLayout();
+  header->addWidget(row.enable);
+  header->addStretch(1);
+  header->addWidget(row.pick);
+  layout->addLayout(header, 0, 0);
   layout->addWidget(row.controls, 1, 0);
 
   connect(row.enable, &QCheckBox::toggled, this, [this, index](bool on) {
@@ -129,6 +161,14 @@ void SectionPanel::buildRow(int index, QGridLayout* layout) {
     }
   });
   connect(row.axis, &QComboBox::activated, this, [this, index](int) { onAxisChosen(index); });
+  connect(row.pick, &QPushButton::clicked, this, [this, index] { onPickClicked(index); });
+  for (QDoubleSpinBox* spin : row.normal) {
+    connect(spin, &QDoubleSpinBox::valueChanged, this, [this, index](double) {
+      if (!_busy) {
+        onNormalEdited(index);
+      }
+    });
+  }
   connect(row.flip, &QPushButton::clicked, this, [this, index] { onFlip(index); });
   connect(row.slider, &QSlider::valueChanged, this, [this, index](int step) {
     if (!_busy) {
@@ -171,10 +211,17 @@ void SectionPanel::setOffset(int index, double offset) {
 }
 
 void SectionPanel::onAxisChosen(int index) {
-  const int axis = _rows[static_cast<size_t>(index)].axis->currentIndex();
-  if (axis < 0 || axis > 2) {
-    return; // "Custom" is only a display state
+  Row& row = _rows[static_cast<size_t>(index)];
+  const int axis = row.axis->currentIndex();
+  if (axis == CustomItem) {
+    row.customChosen = true; // show the fields; the direction changes when they are edited
+    refreshRow(index);
+    return;
   }
+  if (axis < 0 || axis > 2) {
+    return;
+  }
+  row.customChosen = false;
   const render::SectionPlane current = _model->plane(index);
   // Keep the cut direction (sign) of an axis-aligned plane; custom normals start positive.
   const int old = axisOf(current.normal);
@@ -182,8 +229,27 @@ void SectionPanel::onAxisChosen(int index) {
   const double sign = (old >= 0 && oldComponents[old] < 0) ? -1.0 : 1.0;
   const gp_Dir normal(axis == 0 ? sign : 0.0, axis == 1 ? sign : 0.0, axis == 2 ? sign : 0.0);
   if (normal.IsEqual(current.normal, 1e-9)) {
+    refreshRow(index); // hides the custom fields
     return;
   }
+  setNormal(index, normal);
+}
+
+void SectionPanel::onNormalEdited(int index) {
+  const Row& row = _rows[static_cast<size_t>(index)];
+  const gp_Vec vector(row.normal[0]->value(), row.normal[1]->value(), row.normal[2]->value());
+  if (vector.Magnitude() < 1e-9) {
+    refreshRow(index); // no direction: put the fields back
+    return;
+  }
+  const gp_Dir normal(vector);
+  if (normal.IsEqual(_model->plane(index).normal, 1e-12)) {
+    return;
+  }
+  setNormal(index, normal);
+}
+
+void SectionPanel::setNormal(int index, const gp_Dir& normal) {
   // The range depends on the normal, so apply it first, then pull the offset into the new range.
   edit(index, [&normal](render::SectionPlane& p) { p.normal = normal; });
   const auto [low, high] = _model->offsetRange(index);
@@ -191,6 +257,23 @@ void SectionPanel::onAxisChosen(int index) {
   const double clamped = std::clamp(offset, std::min(low, high), std::max(low, high));
   if (clamped != offset) {
     setOffset(index, clamped);
+  }
+}
+
+void SectionPanel::onPickClicked(int index) {
+  if (_model->pickingPlane() == index) {
+    _model->cancelPick();
+  } else {
+    _model->pickFace(index);
+  }
+  refreshPickButtons();
+}
+
+void SectionPanel::refreshPickButtons() {
+  for (int i = 0; i < 3; ++i) {
+    QPushButton* pick = _rows[static_cast<size_t>(i)].pick;
+    const QSignalBlocker blocker(pick);
+    pick->setChecked(_model->pickingPlane() == i);
   }
 }
 
@@ -221,6 +304,7 @@ void SectionPanel::refresh() {
   for (int i = 0; i < 3; ++i) {
     refreshRow(i);
   }
+  refreshPickButtons();
   const QSignalBlocker blocker(_handles);
   _handles->setChecked(_model->handlesVisible());
 }
@@ -241,16 +325,14 @@ void SectionPanel::refreshRow(int index) {
   row.controls->setEnabled(plane.enabled);
 
   const int axis = axisOf(plane.normal);
-  if (axis >= 0) {
-    if (row.axis->count() > CustomItem) {
-      row.axis->removeItem(CustomItem);
-    }
-    row.axis->setCurrentIndex(axis);
-  } else {
-    if (row.axis->count() <= CustomItem) {
-      row.axis->addItem(tr("Custom"));
-    }
-    row.axis->setCurrentIndex(CustomItem);
+  const bool custom = axis < 0 || row.customChosen;
+  row.axis->setCurrentIndex(custom ? CustomItem : axis);
+  row.custom->setVisible(custom);
+  const double components[3] = {plane.normal.X(), plane.normal.Y(), plane.normal.Z()};
+  for (int i = 0; i < 3; ++i) {
+    QDoubleSpinBox* spin = row.normal[static_cast<size_t>(i)];
+    const QSignalBlocker blockSpin(spin);
+    spin->setValue(components[i]);
   }
 
   // The spin box also covers an offset outside the model's range (it may be set programmatically).

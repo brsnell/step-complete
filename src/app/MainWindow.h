@@ -146,7 +146,8 @@ private:
   SectionPanel* _sectionPanel = nullptr;
   QDockWidget* _sectionDock = nullptr;
   QAction* _sectionAction = nullptr;
-  QTimer* _declutterTimer = nullptr; // re-lays out PMI labels once the camera settles
+  QAction* _cancelPickAction = nullptr; // Esc while a section plane waits for a face
+  QTimer* _declutterTimer = nullptr;    // re-lays out PMI labels once the camera settles
   QAction* _antialiasingAction = nullptr;
   QAction* _exportImageAction = nullptr;
   QAction* _exportGeometryAction = nullptr;

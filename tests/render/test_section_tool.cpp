@@ -58,6 +58,31 @@ private:
         .adjusted(4, 4, -4, -4);
   }
 
+  // Hovers and clicks the model at a world point, like a user would.
+  bool clickAt(const gp_Pnt& point) {
+    const auto& view = _viewport->view();
+    const auto& context = _viewport->context();
+    int pixelX = 0;
+    int pixelY = 0;
+    view->Convert(point.X(), point.Y(), point.Z(), pixelX, pixelY);
+    context->MoveTo(pixelX, pixelY, view, false);
+    if (!context->HasDetected()) {
+      return false;
+    }
+    context->SelectDetected(AIS_SelectionScheme_Replace);
+    _section->onSelectionChanged();
+    return true;
+  }
+
+  sc::core::NodeId nodeNamed(const std::string& name) const {
+    for (const auto& node : _scene->model()->nodes()) {
+      if (node.name == name) {
+        return node.id;
+      }
+    }
+    return sc::core::NoNode;
+  }
+
   SectionPlane planeX(double offset) const {
     SectionPlane plane;
     plane.enabled = true;
@@ -204,6 +229,69 @@ private Q_SLOTS:
 
     // Other objects are not taken as handles.
     QVERIFY(!_section->beginDrag(sc::OccHandle<AIS_InteractiveObject>(), Px(0, 0)));
+  }
+
+  // --- Plane on a picked face (docs/designs/angled-section-planes.md) --------------------
+
+  void pickingAFlatFacePutsThePlaneOnIt() {
+    _section->setHandlesVisible(false); // handles would catch the click
+    const sc::core::NodeId plate = nodeNamed("Base plate");
+    QVERIFY(plate != sc::core::NoNode);
+    _scene->select({plate});
+    QSignalSpy started(_section.get(), &sc::render::SectionTool::pickStarted);
+    QSignalSpy ended(_section.get(), &sc::render::SectionTool::pickEnded);
+
+    _section->pickFace(2);
+    QVERIFY(_section->isPicking());
+    QCOMPARE(_section->pickingPlane(), 2);
+    QCOMPARE(started.count(), 1);
+    QVERIFY(!_scene->selectionModes().empty()); // faces are pickable
+
+    render();
+    QVERIFY(clickAt(gp_Pnt(60, 40, 10))); // the plate's top face
+    QVERIFY(!_section->isPicking());
+    QCOMPARE(ended.count(), 1);
+    QCOMPARE(ended.at(0).at(0).toInt(), 2);
+    QVERIFY(ended.at(0).at(1).toBool());
+    const SectionPlane plane = _section->plane(2);
+    QVERIFY(plane.enabled);
+    QVERIFY(plane.normal.IsEqual(gp_Dir(0, 0, 1), 1e-9)); // out of the material
+    QVERIFY(std::abs(plane.offset - 10.0) < 1e-6);        // through the face
+    // Back to whole-part selection, with the selection from before the pick.
+    QVERIFY(_scene->selectionModes().empty());
+    QCOMPARE(_scene->selectedParts(), std::vector<sc::core::NodeId>{plate});
+  }
+
+  void aCurvedFaceIsRejectedAndThePickGoesOn() {
+    _section->setHandlesVisible(false);
+    _viewport->setStandardView(V3d_Yneg); // from the front: the pins' curved sides face us
+    _viewport->fitAll();
+    render();
+    const SectionPlane before = _section->plane(0);
+    QSignalSpy rejected(_section.get(), &sc::render::SectionTool::pickRejected);
+    QSignalSpy ended(_section.get(), &sc::render::SectionTool::pickEnded);
+    _section->pickFace(0);
+    render();
+    QVERIFY(clickAt(gp_Pnt(10, 7, 20))); // the first pin's side, above the plate
+    QCOMPARE(rejected.count(), 1);
+    QVERIFY(_section->isPicking());
+    QCOMPARE(_section->plane(0).enabled, before.enabled);
+    QVERIFY(_section->plane(0).normal.IsEqual(before.normal, 1e-12));
+
+    _section->cancelPick();
+    QVERIFY(!_section->isPicking());
+    QCOMPARE(ended.count(), 1);
+    QVERIFY(!ended.at(0).at(1).toBool());
+    QVERIFY(_scene->selectionModes().empty());
+    QCOMPARE(_section->plane(0).enabled, before.enabled);
+  }
+
+  void resetEndsAPick() {
+    _section->pickFace(1);
+    QVERIFY(_section->isPicking());
+    _section->reset();
+    QVERIFY(!_section->isPicking());
+    QVERIFY(_scene->selectionModes().empty());
   }
 };
 
