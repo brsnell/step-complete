@@ -28,7 +28,9 @@ assembly" (TODOS v1.1).
    1. the material the user set;
    2. the material the STEP file declares for the part (OCCT's `XCAFDoc_MaterialTool`; it hands
       over densities in g/mm³ whatever the file's length unit, checked by a round trip through
-      STEP in millimetres and inches);
+      STEP in millimetres and inches). OCCT's reader can mistake one of the part's user-defined
+      attribute names for the material name (seen with OCCT 8), so a name equal to one of the
+      part's attribute names is dropped and only the density kept;
    3. none.
 3. **Mass is weighted part by part.** Each solid's volume properties are added to the total
    with its own density (`GProp_GProps::Add`), so the mass, the centre of mass and the inertia

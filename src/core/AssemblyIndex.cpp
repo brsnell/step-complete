@@ -278,10 +278,23 @@ std::optional<Material> AssemblyIndex::fileMaterial(NodeId id) const {
     return std::nullopt;
   }
   const AssemblyNode& entry = node(id);
-  if (std::optional<Material> own = materialOf(entry.instanceLabel)) {
-    return own;
+  std::optional<Material> material = materialOf(entry.instanceLabel);
+  if (!material) {
+    material = materialOf(entry.prototypeLabel);
   }
-  return materialOf(entry.prototypeLabel);
+  if (material) {
+    // OCCT's reader (STEPCAFControl_Reader::ReadMaterials) takes the name of whichever descriptive
+    // item it meets last among all the product's properties, so a part with user-defined
+    // attributes can get an attribute's name ("Part number") as its material name (seen with
+    // OCCT 8). The density is read from the measure item and stays right; drop such a name.
+    for (const auto& [key, value] : attributes(id)) {
+      if (key == material->name) {
+        material->name.clear();
+        break;
+      }
+    }
+  }
+  return material;
 }
 
 std::vector<NodeId> AssemblyIndex::partsBelow(NodeId id) const {

@@ -501,7 +501,13 @@ TEST(AssemblyIndex, FileMaterialComesThroughStep) {
       const std::optional<core::Material> material = back.fileMaterial(node.id);
       if (node.name == "Base plate") {
         ASSERT_TRUE(material) << unit;
-        EXPECT_EQ(material->name, "Aluminium 6061");
+        // OCCT 7.6 writes no user attributes and reads the name back. OCCT 8 writes the plate's
+        // attributes too, and its reader can then report an attribute's name ("Part number") as
+        // the material's: fileMaterial drops such a name rather than show a wrong one.
+        EXPECT_TRUE(material->name == "Aluminium 6061" || material->name.empty()) << material->name;
+        for (const auto& [key, value] : back.attributes(node.id)) {
+          EXPECT_NE(material->name, key);
+        }
         EXPECT_NEAR(material->density, 2700.0, 1e-6) << unit;
         ++withMaterial;
       } else {
