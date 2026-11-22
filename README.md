@@ -9,7 +9,7 @@ Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/
 
 **Documentation:** [User guide](docs/user-guide.md) · [Packaging](packaging/README.md) · [Performance](docs/performance.md)
 
-> **Status: v1.0 release candidate (milestones M1–M4 done, M5 packaging in progress).** Opens STEP assemblies with names, colors
+> **Status: v1.1 (Windows and Linux packages; macOS packages follow once tested on a Mac).** Opens STEP assemblies with names, colors
 > and structure; assembly tree, properties, hide/isolate/transparency; measurement on the exact
 > geometry (distance, point to point, angle, radius, entity info, mass properties with
 > validation-property check); PMI from AP242 files (dimensions, tolerances, datums, saved views,
@@ -24,7 +24,7 @@ Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/
 - **Accurate measurement** on exact B-rep geometry, never the display mesh.
 - **Full AP242 PMI**: semantic and graphical annotations, saved views, links to geometry.
 - **Light enough for 10-year-old hardware**: a 2016 laptop with integrated graphics and 4 GB RAM.
-- **Windows 10+, macOS 12+ (Intel and Apple Silicon), Linux.** v1.0 packages are for Windows and Linux; macOS packages follow once tested on a Mac.
+- **Windows 10+, macOS 12+ (Intel and Apple Silicon), Linux.** Released packages are for Windows and Linux; macOS packages follow once tested on a Mac.
 
 ## Building
 

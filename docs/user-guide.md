@@ -1,6 +1,6 @@
 # STEP Complete user guide
 
-STEP Complete (v1.0) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
+STEP Complete (v1.1) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
 exact measurement, PMI display (GD&T, dimensions, datums, saved views), section views, and image
 and geometry export. This guide describes what the application does; menu names appear as **Menu > Item**.
 
@@ -15,17 +15,17 @@ Contents: [Installing](#1-installing) | [Requirements](#2-system-requirements) |
 
 ## 1. Installing
 
-This section matches the v1.0 packages. Download the file for your platform from the project's
+This section matches the v1.1 packages. Download the file for your platform from the project's
 GitHub releases page. `<version>` is the release number.
 
 | Platform | File |
 |---|---|
 | Windows (64-bit) | `StepComplete-<version>-windows-x64-setup.exe` (installer) or `StepComplete-<version>-windows-x64-portable.zip` (portable) |
 | Linux (x86_64) | `StepComplete-<version>-x86_64.AppImage` |
-| macOS, Apple Silicon | `StepComplete-<version>-macos-arm64.dmg` (not in v1.0) |
-| macOS, Intel | `StepComplete-<version>-macos-x64.dmg` (not in v1.0) |
+| macOS, Apple Silicon | `StepComplete-<version>-macos-arm64.dmg` (not published yet) |
+| macOS, Intel | `StepComplete-<version>-macos-x64.dmg` (not published yet) |
 
-v1.0 ships for Windows and Linux only. The macOS packages will be added in a later release,
+Releases so far ship for Windows and Linux only. The macOS packages will be added in a later release,
 once they have been tested on a Mac; the macOS instructions below apply from then on.
 
 **Windows.** Run the setup program, or unzip the portable archive anywhere and start the
