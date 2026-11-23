@@ -14,7 +14,7 @@ the status bar says why.
 ## Why
 
 People are often sent meshes (3D-printing STL, OBJ and glTF from visualization tools), and other
-viewers open them (TODOS v2, the second half of "other import formats" after IGES).
+viewers open them (TODOS v1.2, the second half of "other import formats" after IGES).
 
 ## Decisions
 

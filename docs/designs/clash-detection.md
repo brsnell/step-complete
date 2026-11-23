@@ -13,7 +13,7 @@ background with progress and Cancel.
 
 ## Why
 
-Checking an assembly for interference is a common design-review task (TODOS v2), and other
+Checking an assembly for interference is a common design-review task (TODOS v1.2), and other
 viewers offer it. The geometry check (v1.1) covers each part alone; this covers parts against each
 other.
 

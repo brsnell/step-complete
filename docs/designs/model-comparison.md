@@ -21,7 +21,7 @@ Comparison** brings back the normal display.
 
 ## Why
 
-Checking what changed between two revisions is a frequent review task (TODOS v2, PLAN §1), and
+Checking what changed between two revisions is a frequent review task (TODOS v1.2, PLAN §1), and
 today it means opening both files and looking back and forth.
 
 ## Decisions

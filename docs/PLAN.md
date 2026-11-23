@@ -8,7 +8,8 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 **License:** MIT · **Repo:** github.com/brsnell/step-complete
 
 **Status:** M0–M4 are done; M5 (ship v1.0) is in progress, and v1.0.0 shipped for Windows and
-Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22; v2 (M7) is drafted in §7a. Open work is in
+Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22; every v1.2 (M7) feature is built (not yet
+released), and markup is planned for v1.3 (M8), in §7a. Open work is in
 [TODOS.md](../TODOS.md).
 
 ---
@@ -32,9 +33,10 @@ Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22; v2 (M7) is drafted in §
 ### Non-goals (v1.0)
 - Editing geometry or PMI, writing STEP. (Read-only viewer; keeps scope and risk down.)
 - Other formats besides STEP. The architecture keeps the door open (OCCT's `DE_Wrapper` handles
-  IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1. IGES and mesh formats are planned for v2 (§7a);
-  IGES is in since v2 work started ([design](designs/iges-import.md)).
-- Model comparison, wall-thickness analysis and markup. Candidates for v2 (see §7a).
+  IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1. IGES and mesh formats came in v1.2 (§7a,
+  [IGES](designs/iges-import.md), [meshes](designs/mesh-import.md)).
+- Model comparison, wall-thickness analysis and markup. Model comparison and wall thickness came
+  in v1.2; markup is planned for v1.3 (see §7a).
   Collaboration was a candidate too and was dropped on 2026-11-21.
 
 ---
@@ -339,7 +341,7 @@ people.
 
 ---
 
-## 7a. After v1.0: v1.1 and v2
+## 7a. After v1.0: v1.1, v1.2 and v1.3
 
 Drafted 2026-11-21, after v1.0.0 shipped. Not approved yet: each feature gets a design in
 `docs/designs/` (marked `Status: APPROVED`) before work starts. Working order and per-item detail
@@ -349,14 +351,16 @@ are in [TODOS.md](../TODOS.md).
 1. **Finish v1** (hidden-line), because it was promised in §1 and never built.
 2. **v1.1: quick wins.** Small features users of other viewers expect. Each one fits the
    read-only viewer as it is today.
-3. **v2: the larger features.** Clash detection and wall thickness first, because they are
-   read-only analysis like measurement. Other import formats next: the importer supports them
+3. **v1.2: the larger features.** (Planned as "v2"; every one adds to the viewer without
+   changing what was there, so it ships as a minor release.) Clash detection and wall thickness
+   first, because they are read-only analysis like measurement. Other import formats next: the importer supports them
    already, but every subsystem assumes STEP. Model comparison and markup come last: they need
-   things v1 does not have (two models at once, saving data of our own).
+   things v1 does not have (two models at once, saving data of our own). Markup moved to v1.3
+   (M8).
 
-Collaboration (a v2 candidate in §1) was dropped on 2026-11-21.
+Collaboration (a candidate in §1) was dropped on 2026-11-21.
 
-Feedback from v1.0 users can reorder v1.1 and v2.
+Feedback from users can reorder what is left.
 
 ### M6: v1.1 (≈5–7 weeks): ✅ shipped as v1.1.0 (2026-11-22)
 - ✅ **Hidden-line display style** (View > Hidden Line, `L`): white unlit faces, sharp edges and a
@@ -384,7 +388,7 @@ Feedback from v1.0 users can reorder v1.1 and v2.
   tiny edges in the selected or visible parts, listed in a panel and highlighted in 3D when
   selected ([design](designs/geometry-check.md)).
 
-### M7: v2 (≈5–7 months): 📝 drafted
+### M7: v1.2: ✅ features done (unreleased)
 - ✅ **Clash and interference detection** (Measure > Check Clashes): interference with its overlap
   volume, and optionally touching and clearance, among the selected or visible parts; a
   bounding-box pass, then exact checks in parallel in the background
@@ -401,6 +405,8 @@ Feedback from v1.0 users can reorder v1.1 and v2.
   by path, shape and name, classified on exact properties, changed parts colored by mesh
   deviation with a legend, removed parts as ghosts ([design](designs/model-comparison.md)).
   Alignment of models that do not share coordinates is out of scope.
+
+### M8: v1.3: 📝 drafted
 - **Markup.** 3D notes and sketches pinned to geometry. They are saved to a sidecar file next to
   the model, never into the STEP file, and appear in image export.
 
@@ -449,5 +455,5 @@ overrides. The deferred items in `TODOS.md` (exploded view and others) are uncha
 2. ✅ M0–M4; M5 mostly done (see §7).
 3. The remaining work (release checks, signing, reference-machine performance, deferred items) is
    tracked in [TODOS.md](../TODOS.md).
-4. M6 (v1.1) and M7 (v2) are drafted in §7a. Approve the plan, then write a design for each
-   feature before building it, starting with hidden-line mode.
+4. M6 (v1.1) shipped and M7 (v1.2) is built (§7a). M8 (v1.3, markup) is next; each feature gets a
+   design before it is built.

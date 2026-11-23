@@ -2,7 +2,7 @@
 
 State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. The Windows packages passed a hands-on test on real hardware (2026-11-16). v1.0.0 ships for Windows and Linux only; the release workflow builds the macOS DMGs but does not publish them until the hands-on macOS check below passes.
 
-Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN.md) §7a, not approved yet. Every open item under Release and Viewport is blocked on hardware or a cost decision, so the v1.1 section is the next work that can be coded. Each v1.1 and v2 item gets a design in `docs/designs/` before work starts.
+Update 2026-11-23: v1.1 (M6) shipped; every v1.2 (M7) feature is built (the milestone was drafted as "v2"; it ships as 1.2 because it only adds to the viewer). Markup is v1.3 (M8). See [docs/PLAN.md](docs/PLAN.md) §7a. Every open item under Release and Viewport is blocked on hardware or a cost decision. Each item gets a design in `docs/designs/` before work starts.
 
 ## Release
 
@@ -60,13 +60,17 @@ Update 2026-11-21: v1.1 (M6) and v2 (M7) are drafted in [docs/PLAN.md](docs/PLAN
 
 Shipped as v1.1.0 on 2026-11-22 (see `CHANGELOG.md`).
 
-## v2 (M7)
+## v1.2 (M7)
+
+Every v1.2 feature is built (see `CHANGELOG.md`, Unreleased); what is left is the release.
+
+## v1.3 (M8)
 
 ### Markup
 
 **What:** 3D notes and simple sketches pinned to geometry, saved to a sidecar file next to the model and included in image export.
 
-**Why:** Listed as a v2 candidate (PLAN §1). Reviewers need to point at things.
+**Why:** Listed as a candidate in PLAN §1. Reviewers need to point at things.
 
 **Context:** It must never write into the STEP file. Notes have to stay attached when the same file is reopened, so they need a stable reference to the geometry (assembly path plus face). Store it per file with `ModelDataStore` (as user saved views do), under its own key; a shareable export can sit on top of the same JSON.
 

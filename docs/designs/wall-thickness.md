@@ -14,7 +14,7 @@ menu item off brings back the normal display.
 ## Why
 
 Checking castings, moldings and printed parts for walls that are too thin (or too thick) is a
-common review task (TODOS v2, PLAN §1).
+common review task (TODOS v1.2, PLAN §1).
 
 ## Decisions
 
