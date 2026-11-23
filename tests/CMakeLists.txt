@@ -32,6 +32,7 @@ add_executable(sc_core_tests
   core/test_wall_thickness.cpp
   core/test_iges_import.cpp
   core/test_mesh_import.cpp
+  core/test_comparison.cpp
 )
 target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support ZLIB::ZLIB GTest::gtest_main)
 sc_target_defaults(sc_core_tests)
@@ -48,6 +49,7 @@ add_executable(sc_render_tests
   render/test_section_tool.cpp
   render/test_view_settings.cpp
   render/test_thickness_scene.cpp
+  render/test_comparison_scene.cpp
 )
 target_link_libraries(sc_render_tests PRIVATE sc::render sc_test_support Qt6::Test)
 sc_target_defaults(sc_render_tests)
@@ -79,6 +81,7 @@ add_executable(sc_app_tests
   app/test_geometry_check_panel.cpp
   app/test_clash_panel.cpp
   app/test_thickness_panel.cpp
+  app/test_comparison_panel.cpp
 )
 target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
 sc_target_defaults(sc_app_tests)

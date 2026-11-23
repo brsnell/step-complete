@@ -397,9 +397,10 @@ Feedback from v1.0 users can reorder v1.1 and v2.
 - ✅ **Mesh import** (STL, OBJ, glTF): OCCT's mesh readers into the same document; exact
   measuring and the checks are off for mesh files and say so, mass properties and wall thickness
   use the triangles ([design](designs/mesh-import.md)). PMI stays AP242 only.
-- **Model comparison.** Open two revisions of a model, align them, and color the geometry that
-  was added, removed or changed, with a deviation legend. Needs two documents in one scene
-  (`SceneManager` holds one today) and a way to pair parts between revisions.
+- ✅ **Model comparison** (File > Compare With): the other revision imported as data, parts paired
+  by path, shape and name, classified on exact properties, changed parts colored by mesh
+  deviation with a legend, removed parts as ghosts ([design](designs/model-comparison.md)).
+  Alignment of models that do not share coordinates is out of scope.
 - **Markup.** 3D notes and sketches pinned to geometry. They are saved to a sidecar file next to
   the model, never into the STEP file, and appear in image export.
 

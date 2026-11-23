@@ -62,18 +62,6 @@ Shipped as v1.1.0 on 2026-11-22 (see `CHANGELOG.md`).
 
 ## v2 (M7)
 
-### Model comparison
-
-**What:** Open two revisions of a model, align them, and color what was added, removed or changed, with a deviation legend and a list of changed parts.
-
-**Why:** Listed as a v2 candidate (PLAN §1). Checking what changed between revisions is a frequent review task.
-
-**Context:** Needs two documents in one scene (`SceneManager` and `MainWindow` hold one today), a way to pair parts between revisions (by name, by product, by geometry), and a deviation method (point sampling against the other shape, or Boolean differences).
-
-**Effort:** L
-**Priority:** P3
-**Depends on:** Design approved.
-
 ### Markup
 
 **What:** 3D notes and simple sketches pinned to geometry, saved to a sidecar file next to the model and included in image export.

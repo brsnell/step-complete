@@ -6,6 +6,8 @@
 #include "app/ClashDialog.h"
 #include "app/ClashJob.h"
 #include "app/ClashPanel.h"
+#include "app/ComparisonJob.h"
+#include "app/ComparisonPanel.h"
 #include "app/ExportGeometryDialog.h"
 #include "app/ExportImageDialog.h"
 #include "app/ExportJob.h"
@@ -26,6 +28,7 @@
 #include "core/Memory.h"
 #include "core/OcctInfo.h"
 #include "core/Version.h"
+#include "render/ComparisonScene.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
 #include "render/PmiScene.h"
@@ -93,6 +96,13 @@ const char* const MeasureDecimalsKey = "measure/decimals";
 const char* const MeasureMassUnitKey = "measure/massUnit";
 const char* const MeasureAngleUnitKey = "measure/angleUnit";
 
+// The Open dialog's filters, also used by File > Compare With.
+QString openFilters() {
+  return MainWindow::tr("Models (*.step *.stp *.stpz *.p21 *.igs *.iges *.stl *.obj *.gltf *.glb);;"
+                        "STEP files (*.step *.stp *.stpz *.p21);;IGES files (*.igs *.iges);;"
+                        "Mesh files (*.stl *.obj *.gltf *.glb);;All files (*)");
+}
+
 // A file the importer reads, by its name (the importer itself goes by the content).
 bool isCadFile(const QString& path) {
   return core::formatFromExtension(path.toUtf8().toStdString()) != core::FileFormat::Unknown;
@@ -121,6 +131,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   _scene = std::make_unique<render::SceneManager>(_viewport->context());
   _pmiScene = std::make_unique<render::PmiScene>(_viewport->context());
   _thicknessScene = std::make_unique<render::ThicknessScene>(_viewport->context(), *_scene);
+  _comparisonScene = std::make_unique<render::ComparisonScene>(_viewport->context(), *_scene);
   _sectionTool = new render::SectionTool(_viewport, _scene.get(), this);
   // PMI labels are screen-space boxes: re-separate them once the camera stops moving.
   _declutterTimer = new QTimer(this);
@@ -165,6 +176,7 @@ MainWindow::~MainWindow() {
   delete _geometryCheckJob; // likewise for a running geometry check
   delete _clashJob;         // and a running clash check
   delete _thicknessJob;     // and a running thickness measurement
+  delete _comparisonJob;    // and a running comparison
   // The panel and its dock still emit while child widgets are torn down; nothing may reach
   // syncMeasurementWitnesses once the tool is gone.
   disconnect(_measurements, nullptr, this, nullptr);
@@ -174,12 +186,14 @@ MainWindow::~MainWindow() {
   disconnect(_clashPanel, nullptr, this, nullptr);
   disconnect(_clashDock->toggleViewAction(), nullptr, this, nullptr);
   disconnect(_thicknessPanel, nullptr, this, nullptr);
+  disconnect(_comparisonPanel, nullptr, this, nullptr);
   disconnect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this, nullptr);
   delete _measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
   delete _sectionTool; // removes its handles and the parts' clip planes
   _pmiScene.reset();
   _thicknessScene.reset(); // gives the parts their own presentations back
+  _comparisonScene.reset();
   _scene.reset();
 }
 
@@ -373,6 +387,32 @@ void MainWindow::createDocks() {
     _viewport->invalidateScene();
   });
   connect(_viewport, &render::OcctViewport::hoverUpdated, this, &MainWindow::onThicknessHover);
+
+  _comparisonPanel = new ComparisonPanel(this);
+  _comparisonDock = new QDockWidget(tr("Comparison"), this);
+  _comparisonDock->setObjectName(QStringLiteral("ComparisonDock"));
+  _comparisonDock->setWidget(_comparisonPanel);
+  addDockWidget(Qt::BottomDockWidgetArea, _comparisonDock);
+  tabifyDockWidget(_messagesDock, _comparisonDock);
+  _comparisonDock->hide();
+  connect(_comparisonPanel, &ComparisonPanel::cancelRequested, this, [this] {
+    if (_comparisonJob) {
+      _comparisonJob->cancel();
+    }
+  });
+  connect(_comparisonPanel, &ComparisonPanel::endRequested, this, [this] {
+    stopComparison();
+    statusBar()->showMessage(tr("Comparison ended."), 4000);
+  });
+  connect(_comparisonPanel, &ComparisonPanel::compareAgainRequested, this, [this](double tolerance) {
+    if (_comparisonScene->isShown() && !_comparisonJob) {
+      startComparison(_comparisonPath, _comparisonScene->other(), tolerance);
+    }
+  });
+  connect(_comparisonPanel, &ComparisonPanel::changeChosen, this,
+          [this](int index) { showChange(index, false); });
+  connect(_comparisonPanel, &ComparisonPanel::changeActivated, this,
+          [this](int index) { showChange(index, true); });
 }
 
 void MainWindow::declutterPmi() {
@@ -414,6 +454,8 @@ void MainWindow::createActions() {
   connect(_recentMenu, &QMenu::aboutToShow, this, &MainWindow::rebuildRecentMenu);
   _closeAction = fileMenu->addAction(tr("&Close"), this, &MainWindow::closeModel);
   _closeAction->setShortcut(QKeySequence::Close);
+  _compareAction = fileMenu->addAction(tr("Compare &With..."), this, &MainWindow::compareWithDialog);
+  _compareAction->setStatusTip(tr("Open another revision of this model and show what changed"));
   fileMenu->addSeparator();
   _exportImageAction = fileMenu->addAction(tr("&Export Image..."), this, &MainWindow::exportImage);
   _exportImageAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
@@ -700,6 +742,12 @@ void MainWindow::applyMeasureOptions() {
   // New results use the new units; existing results keep the text they were measured with.
   _measureTool->setDisplayOptions(_measureOptions);
   _thicknessScene->setUnit(_measureOptions.lengthUnit, _measureOptions.decimals);
+  _comparisonScene->setUnit(_measureOptions.lengthUnit, _measureOptions.decimals);
+  if (_comparisonScene->isShown()) {
+    _comparisonPanel->setResult(_comparisonScene->result(), QFileInfo(_comparisonPath).fileName(),
+                                _measureOptions);
+    _viewport->invalidateScene();
+  }
   if (_thicknessScene->isShown()) {
     const double thin = _thicknessPanel->thinLimit();
     const double thick = _thicknessPanel->thickLimit();
@@ -731,6 +779,10 @@ void MainWindow::setMeasureMode(int mode) {
     if (_thicknessScene->isShown() || _thicknessJob) {
       stopThickness();
       statusBar()->showMessage(tr("Wall thickness view turned off to measure."), 4000);
+    }
+    if (_comparisonScene->isShown() || _comparisonJob) {
+      stopComparison();
+      statusBar()->showMessage(tr("Comparison ended to measure."), 4000);
     }
     // Measuring works on sub-shapes: drop the part selection first.
     _syncingSelection = true;
@@ -1033,6 +1085,7 @@ void MainWindow::showWallThickness(bool on) {
     return;
   }
   setMeasureMode(-1); // the colored parts cannot be picked for measuring
+  stopComparison();   // both views color the parts
   _thicknessDock->show();
   _thicknessDock->raise();
   _thicknessPanel->setRunning(0, QString());
@@ -1104,6 +1157,118 @@ void MainWindow::stopThickness() {
   _thicknessAction->setChecked(false);
 }
 
+bool MainWindow::isComparing() const {
+  return !_comparisonJob.isNull();
+}
+
+bool MainWindow::isComparisonShown() const {
+  return _comparisonScene->isShown();
+}
+
+void MainWindow::compareWithDialog() {
+  if (!_scene->model() || _comparisonJob) {
+    return;
+  }
+  QSettings settings;
+  const QString path = QFileDialog::getOpenFileName(
+      this, tr("Compare With"), settings.value(QLatin1String(LastDirKey)).toString(), openFilters());
+  if (!path.isEmpty()) {
+    settings.setValue(QLatin1String(LastDirKey), QFileInfo(path).absolutePath());
+    compareWith(path);
+  }
+}
+
+void MainWindow::compareWith(const QString& path) {
+  if (!_scene->model()) {
+    statusBar()->showMessage(tr("Open a model to compare it."), 4000);
+    return;
+  }
+  startComparison(path, nullptr, _comparisonPanel->tolerance());
+}
+
+void MainWindow::startComparison(const QString& path, std::shared_ptr<const core::AssemblyIndex> other,
+                                 double tolerance) {
+  if (_comparisonJob) {
+    return;
+  }
+  setMeasureMode(-1); // the colored parts cannot be picked for measuring
+  stopThickness();    // both views color the parts
+  _comparisonScene->clear();
+  _comparisonPath = path;
+  _comparisonDock->show();
+  _comparisonDock->raise();
+  _comparisonPanel->setRunning(0, QString());
+  core::ComparisonOptions options;
+  options.tolerance = tolerance;
+  _comparisonJob = new ComparisonJob(_scene->model(), path, std::move(other), options, this);
+  connect(_comparisonJob, &ComparisonJob::progress, _comparisonPanel, &ComparisonPanel::setRunning);
+  connect(_comparisonJob, &ComparisonJob::finished, this, &MainWindow::onComparisonFinished);
+  statusBar()->showMessage(tr("Comparing with %1...").arg(QFileInfo(path).fileName()));
+  _comparisonJob->start();
+  updateActions();
+  _viewport->invalidateScene();
+}
+
+void MainWindow::onComparisonFinished() {
+  ComparisonJob* job = _comparisonJob;
+  if (job == nullptr) {
+    return;
+  }
+  job->deleteLater();
+  _comparisonJob = nullptr;
+  updateActions();
+  const QString name = QFileInfo(job->otherPath()).fileName();
+  if (job->current() != _scene->model()) {
+    _comparisonPanel->clear(); // the model changed meanwhile
+    return;
+  }
+  if (!job->error().empty()) {
+    const QString message = tr("Could not open %1: %2").arg(name, QString::fromStdString(job->error()));
+    _comparisonPanel->setError(message);
+    statusBar()->showMessage(message, 8000);
+    return;
+  }
+  if (job->cancelled() || !job->result()) {
+    _comparisonPanel->clear();
+    statusBar()->showMessage(tr("Comparison cancelled."), 4000);
+    return;
+  }
+  _comparisonScene->setUnit(_measureOptions.lengthUnit, _measureOptions.decimals);
+  _comparisonScene->show(job->result(), *job->current(), job->other(), job->options().tolerance);
+  _comparisonPanel->setResult(job->result(), name, _measureOptions);
+  statusBar()->showMessage(_comparisonPanel->summary(), 10000);
+  _viewport->invalidateScene();
+}
+
+void MainWindow::showChange(int changeIndex, bool zoom) {
+  const auto& result = _comparisonScene->result();
+  if (!result || changeIndex < 0 || changeIndex >= static_cast<int>(result->changes.size())) {
+    return;
+  }
+  const core::PartChange& change = result->changes[static_cast<size_t>(changeIndex)];
+  Bnd_Box box;
+  if (change.current != core::NoNode) {
+    if (!_measureTool->isActive() && !_sectionTool->isPicking()) {
+      _scene->select({change.current});
+      onViewportSelectionChanged(); // the tree and Properties follow
+    }
+    box = _scene->boundingBox({change.current});
+  } else {
+    box = _comparisonScene->ghostBox(changeIndex); // a removed part: only its ghost is shown
+  }
+  if (zoom && !box.IsVoid()) {
+    _viewport->view()->FitAll(box, 0.05, false);
+  }
+  _viewport->invalidateScene();
+}
+
+void MainWindow::stopComparison() {
+  delete _comparisonJob; // cancels and waits; its result is not wanted
+  _comparisonScene->clear();
+  _comparisonPanel->clear();
+  _viewport->invalidateScene();
+}
+
 void MainWindow::measureMassProperties() {
   const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
   if (!index) {
@@ -1166,6 +1331,9 @@ void MainWindow::updateActions() {
   const bool hasModel = _scene->model() != nullptr;
   const bool hasSelection = hasModel && !selectedNodes().empty();
   _closeAction->setEnabled(hasModel);
+  if (_compareAction != nullptr) {
+    _compareAction->setEnabled(hasModel && !_comparisonJob);
+  }
   _exportGeometryAction->setEnabled(hasModel && !_export);
   _exportPartsListAction->setEnabled(hasModel);
   _hideAction->setEnabled(hasSelection);
@@ -1231,11 +1399,7 @@ void MainWindow::openFileWhenReady(const QString& path) {
 void MainWindow::openFileDialog() {
   QSettings settings;
   const QString dir = settings.value(QLatin1String(LastDirKey)).toString();
-  const QString path = QFileDialog::getOpenFileName(
-      this, tr("Open Model"), dir,
-      tr("Models (*.step *.stp *.stpz *.p21 *.igs *.iges *.stl *.obj *.gltf *.glb);;"
-         "STEP files (*.step *.stp *.stpz *.p21);;IGES files (*.igs *.iges);;"
-         "Mesh files (*.stl *.obj *.gltf *.glb);;All files (*)"));
+  const QString path = QFileDialog::getOpenFileName(this, tr("Open Model"), dir, openFilters());
   if (!path.isEmpty()) {
     settings.setValue(QLatin1String(LastDirKey), QFileInfo(path).absolutePath());
     openFile(path);
@@ -1302,6 +1466,7 @@ void MainWindow::onImportFinished() {
     stopGeometryCheck(); // problems belong to the previous model
     stopClashCheck();
     stopThickness();
+    stopComparison();
     _measureTool->reset();
     _measurements->clear(); // results belong to the previous model
     _pmiScene->clearViewClipping(_viewport->view());
@@ -1381,6 +1546,7 @@ void MainWindow::closeModel() {
   stopGeometryCheck();
   stopClashCheck();
   stopThickness();
+  stopComparison();
   setMeasureMode(-1);
   _measureTool->reset();
   _measurements->clear();

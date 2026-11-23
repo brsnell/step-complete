@@ -89,6 +89,7 @@ public:
   // Clip planes applied to every part (not to PMI, measurement witnesses or the
   // view cube, which stay whole). Null or empty removes clipping.
   void setClipPlanes(const OccHandle<Graphic3d_SequenceOfHClipPlane>& planes);
+  const OccHandle<Graphic3d_SequenceOfHClipPlane>& clipPlanes() const { return _clipPlanes; }
 
   // --- Geometry check -------------------------------------------------------------
   // Draws one faulty face, edge or vertex (world coordinates) in red on top of the

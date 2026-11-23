@@ -1,5 +1,7 @@
 #include "core/WallThickness.h"
 
+#include "core/PartMesh.h"
+
 #include <BRep_Tool.hxx>
 #include <OSD_Parallel.hxx>
 #include <Poly_Triangle.hxx>
@@ -71,91 +73,26 @@ struct Mesh {
   std::vector<Triangle> triangles;
 };
 
-// Collects every face's triangulation in the shape's coordinates, winding triangles outward
-// (reversed faces swap two corners) and giving each node the average of its face's triangle
-// normals. Faces keep their own nodes, so sharp edges keep sharp normals.
-Mesh collect(const TopoDS_Shape& shape) {
+// The part's merged, refined mesh (core/PartMesh) as plain vectors to cast rays on.
+Mesh collect(const TopoDS_Shape& shape, const ThicknessOptions& options) {
   Mesh mesh;
-  for (TopExp_Explorer it(shape, TopAbs_FACE); it.More(); it.Next()) {
-    const TopoDS_Face& face = TopoDS::Face(it.Current());
-    TopLoc_Location location;
-    const OccHandle<Poly_Triangulation> triangulation = BRep_Tool::Triangulation(face, location);
-    if (triangulation.IsNull() || triangulation->NbTriangles() == 0) {
-      continue;
-    }
-    const gp_Trsf trsf = location.Transformation();
-    const int base = static_cast<int>(mesh.points.size());
-    for (int i = 1; i <= triangulation->NbNodes(); ++i) {
-      mesh.points.push_back(toVec(triangulation->Node(i).Transformed(trsf).XYZ()));
-      mesh.normals.push_back({});
-    }
-    const bool reversed = face.Orientation() == TopAbs_REVERSED;
-    for (int i = 1; i <= triangulation->NbTriangles(); ++i) {
-      int n1 = 0;
-      int n2 = 0;
-      int n3 = 0;
-      triangulation->Triangle(i).Get(n1, n2, n3);
-      if (reversed) {
-        std::swap(n2, n3);
-      }
-      const Triangle triangle = {base + n1 - 1, base + n2 - 1, base + n3 - 1};
-      const Vec3& a = mesh.points[static_cast<size_t>(triangle[0])];
-      const Vec3 area = cross(mesh.points[static_cast<size_t>(triangle[1])] - a,
-                              mesh.points[static_cast<size_t>(triangle[2])] - a); // area-weighted
-      for (const int n : triangle) {
-        mesh.normals[static_cast<size_t>(n)] = mesh.normals[static_cast<size_t>(n)] + area;
-      }
-      mesh.triangles.push_back(triangle);
-    }
+  const OccHandle<Poly_Triangulation> merged =
+      partMesh(shape, MeshRefinement{options.refineFraction, options.refineLevels, options.maxPoints});
+  if (merged.IsNull()) {
+    return mesh;
   }
-  for (Vec3& normal : mesh.normals) {
-    normal = normalized(normal);
+  for (int i = 1; i <= merged->NbNodes(); ++i) {
+    mesh.points.push_back(toVec(merged->Node(i).XYZ()));
+    mesh.normals.push_back(toVec(merged->Normal(i).XYZ()));
+  }
+  for (int i = 1; i <= merged->NbTriangles(); ++i) {
+    int n1 = 0;
+    int n2 = 0;
+    int n3 = 0;
+    merged->Triangle(i).Get(n1, n2, n3);
+    mesh.triangles.push_back({n1 - 1, n2 - 1, n3 - 1});
   }
   return mesh;
-}
-
-// Splits triangles with an edge longer than 'longest' into four, level by level, until none is
-// or the point cap is reached. Midpoints are shared between the two triangles of an edge.
-void refine(Mesh& mesh, double longest, int levels, int maxPoints) {
-  for (int level = 0; level < levels; ++level) {
-    std::map<std::pair<int, int>, int> midpoints;
-    std::vector<Triangle> next;
-    next.reserve(mesh.triangles.size());
-    bool split = false;
-    const auto midpoint = [&mesh, &midpoints](int a, int b) {
-      const std::pair<int, int> key = std::minmax(a, b);
-      const auto [it, inserted] = midpoints.try_emplace(key, static_cast<int>(mesh.points.size()));
-      if (inserted) {
-        mesh.points.push_back((mesh.points[static_cast<size_t>(a)] + mesh.points[static_cast<size_t>(b)]) *
-                              0.5);
-        mesh.normals.push_back(
-            normalized(mesh.normals[static_cast<size_t>(a)] + mesh.normals[static_cast<size_t>(b)]));
-      }
-      return it->second;
-    };
-    for (const Triangle& t : mesh.triangles) {
-      const Vec3& a = mesh.points[static_cast<size_t>(t[0])];
-      const Vec3& b = mesh.points[static_cast<size_t>(t[1])];
-      const Vec3& c = mesh.points[static_cast<size_t>(t[2])];
-      const double edge = std::max({length(b - a), length(c - b), length(a - c)});
-      if (edge <= longest || static_cast<int>(mesh.points.size()) + 3 > maxPoints) {
-        next.push_back(t);
-        continue;
-      }
-      split = true;
-      const int ab = midpoint(t[0], t[1]);
-      const int bc = midpoint(t[1], t[2]);
-      const int ca = midpoint(t[2], t[0]);
-      next.push_back({t[0], ab, ca});
-      next.push_back({ab, t[1], bc});
-      next.push_back({ca, bc, t[2]});
-      next.push_back({ab, bc, ca});
-    }
-    mesh.triangles = std::move(next);
-    if (!split) {
-      return;
-    }
-  }
 }
 
 } // namespace
@@ -373,12 +310,11 @@ computeThickness(const TopoDS_Shape& shape, const ThicknessOptions& options, con
   if (shape.IsNull()) {
     return nullptr;
   }
-  Mesh mesh = collect(shape);
+  Mesh mesh = collect(shape, options);
   if (mesh.triangles.empty()) {
     return nullptr;
   }
   const double size = sizeOf(mesh);
-  refine(mesh, size * options.refineFraction, options.refineLevels, options.maxPoints);
   auto bvh = std::make_shared<const MeshBvh>(std::move(mesh));
   const Mesh& built = bvh->mesh();
   const double epsilon = std::max(size * MinWallFraction, 1e-9);

@@ -360,6 +360,33 @@ because single points at sharp corners of curved faces can read far off.
 - Selecting, hiding, isolating and section views keep working on colored parts. Measuring needs
   the parts' own faces and edges, so starting a measurement turns the view off.
 
+### Comparing revisions
+
+**File > Compare With...** opens another revision of the open model and shows what changed. The
+two files must place the model the same way (two exports from one CAD model do). The open model
+is colored part by part:
+
+- **Changed** parts by their deviation from the other revision: green within the tolerance, then
+  towards red where the open model has material the other has not, and towards blue where it
+  lost material. A legend shows the scale in the Measure menu's length unit.
+- **Moved** parts (the same geometry somewhere else) in purple, **added** parts (only in the open
+  model) in orange and **unchanged** parts in light grey.
+- **Removed** parts (only in the other revision) appear as red see-through ghosts where they were.
+
+The **Comparison** panel (bottom dock) gives a summary ("Compared with rev-b.step: 3 changed,
+1 moved, 1 added, 2 removed, 40 unchanged.") and lists every part that differs, with its change
+and largest deviation; **Show unchanged** lists the rest too. Choosing a row selects the part
+(a selected colored part shows its bounding box); double-clicking zooms to it, or to a removed
+part's ghost. The **Tolerance** (0.01 mm by default) decides what counts as equal: change it and
+click **Compare Again**. **End Comparison** brings back the normal display; opening another file,
+closing the model, starting a measurement or turning on Wall Thickness ends it too.
+
+Parts pair by their place in the assembly tree; parts that were renamed pair by their shape, then
+by name ("nut_2" and "NUT"). Unchanged, moved or changed is decided on the exact geometry (volume,
+area, centre of mass and inertia), so re-exported identical parts never show as changed; the
+deviation colors are measured on the display mesh and are accurate to about the mesh deflection.
+Comparing runs in the background with progress and **Cancel**.
+
 ### Units
 
 Under **Measure** choose **Length Unit** (micrometer, millimeter, centimeter, meter, inch, foot),
@@ -564,7 +591,7 @@ Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + le
 left click select; Shift + click add to selection; right click context menu.
 
 Menu items without shortcuts: Open Recent, Export Geometry, Export Parts List, Manage Saved Views, Set Material,
-Clear Material, Check Geometry, Check Clashes, Wall Thickness, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
+Clear Material, Check Geometry, Check Clashes, Wall Thickness, Compare With, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 
 ## 12. Troubleshooting

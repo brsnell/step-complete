@@ -1,23 +1,9 @@
 #include "render/ThicknessScene.h"
 
+#include "render/ColorMapPresentation.h"
 #include "render/SceneManager.h"
 
 #include <AIS_ColorScale.hxx>
-#include <Graphic3d_ArrayOfTriangles.hxx>
-#include <Graphic3d_AspectFillArea3d.hxx>
-#include <Graphic3d_MaterialAspect.hxx>
-#include <Graphic3d_TransformPers.hxx>
-#include <Graphic3d_ZLayerId.hxx>
-#include <NCollection_Sequence.hxx>
-#include <NCollection_Vec2.hxx>
-#include <Prs3d_Drawer.hxx>
-#include <Prs3d_Presentation.hxx>
-#include <Select3D_SensitiveTriangulation.hxx>
-#include <SelectMgr_EntityOwner.hxx>
-#include <SelectMgr_Selection.hxx>
-#include <TCollection_AsciiString.hxx>
-#include <TCollection_ExtendedString.hxx>
-#include <TopLoc_Location.hxx>
 #include <gp_Trsf.hxx>
 
 #include <algorithm>
@@ -28,23 +14,13 @@ namespace sc::render {
 
 namespace {
 
-constexpr int LegendIntervals = 10;
-constexpr int NoHighlightMode = 99; // a display mode with nothing in it
-
 // One part instance's thickness map, placed where the instance is.
-class ThicknessPresentation : public AIS_InteractiveObject {
-  DEFINE_STANDARD_RTTI_INLINE(ThicknessPresentation, AIS_InteractiveObject)
+class ThicknessPresentation : public ColorMapPresentation {
+  DEFINE_STANDARD_RTTI_INLINE(ThicknessPresentation, ColorMapPresentation)
 
 public:
   ThicknessPresentation(std::shared_ptr<const core::ThicknessMap> map, const gp_Trsf& placement)
-      : _map(std::move(map)) {
-    SetLocalTransformation(placement);
-    // Hovering would paint the whole part in the highlight color and hide the very colors the
-    // readout is about: hover highlighting uses a display mode that draws nothing.
-    OccHandle<Prs3d_Drawer> hover = new Prs3d_Drawer();
-    hover->SetDisplayMode(NoHighlightMode);
-    SetDynamicHilightAttributes(hover);
-  }
+      : ColorMapPresentation(map->mesh, placement), _map(std::move(map)) {}
 
   void setLimits(double thin, double thick) {
     _thin = thin;
@@ -53,51 +29,12 @@ public:
 
   const core::ThicknessMap& map() const { return *_map; }
 
+protected:
+  Quantity_Color nodeColor(int node) const override {
+    return ThicknessScene::colorOf(_map->thickness[static_cast<size_t>(node - 1)], _thin, _thick);
+  }
+
 private:
-  // Every display mode draws the colored mesh: display styles do not apply to this view.
-  void Compute(const OccHandle<PrsMgr_PresentationManager>&, const OccHandle<Prs3d_Presentation>& prs,
-               const int mode) override {
-    if (mode == NoHighlightMode) {
-      return;
-    }
-    const OccHandle<Poly_Triangulation>& mesh = _map->mesh;
-    OccHandle<Graphic3d_Group> group = prs->NewGroup();
-    OccHandle<Graphic3d_AspectFillArea3d> fill = new Graphic3d_AspectFillArea3d();
-    fill->SetInteriorStyle(Aspect_IS_SOLID);
-    fill->SetInteriorColor(Quantity_NOC_WHITE);
-    Graphic3d_MaterialAspect material(Graphic3d_NameOfMaterial_Plastered);
-    material.SetColor(Quantity_NOC_WHITE);
-    fill->SetFrontMaterial(material);
-    fill->SetBackMaterial(material);
-    group->SetGroupPrimitivesAspect(fill);
-
-    OccHandle<Graphic3d_ArrayOfTriangles> triangles =
-        new Graphic3d_ArrayOfTriangles(mesh->NbNodes(), 3 * mesh->NbTriangles(),
-                                       Graphic3d_ArrayFlags_VertexNormal | Graphic3d_ArrayFlags_VertexColor);
-    for (int i = 1; i <= mesh->NbNodes(); ++i) {
-      triangles->AddVertex(
-          mesh->Node(i), mesh->Normal(i),
-          ThicknessScene::colorOf(_map->thickness[static_cast<size_t>(i - 1)], _thin, _thick));
-    }
-    for (int i = 1; i <= mesh->NbTriangles(); ++i) {
-      int n1 = 0;
-      int n2 = 0;
-      int n3 = 0;
-      mesh->Triangle(i).Get(n1, n2, n3);
-      triangles->AddEdges(n1, n2, n3);
-    }
-    group->AddPrimitiveArray(triangles);
-  }
-
-  // Mode 0 only: the whole part, like a part's own presentation without sub-shape picking.
-  void ComputeSelection(const OccHandle<SelectMgr_Selection>& selection, const int mode) override {
-    if (mode != 0) {
-      return;
-    }
-    OccHandle<SelectMgr_EntityOwner> owner = new SelectMgr_EntityOwner(this, 5);
-    selection->Add(new Select3D_SensitiveTriangulation(owner, _map->mesh, TopLoc_Location(), true));
-  }
-
   std::shared_ptr<const core::ThicknessMap> _map;
   double _thin = 0.0;
   double _thick = 1.0;
@@ -118,26 +55,7 @@ Quantity_Color ThicknessScene::colorOf(double thickness, double thin, double thi
   }
   const double span = thick - thin;
   const double s = span > 0.0 ? std::clamp((thickness - thin) / span, 0.0, 1.0) : 0.5;
-  // Hue 0 (red, thin) to 240 (blue, thick) at full saturation and brightness, in sRGB.
-  const double hue = 240.0 * s / 60.0; // sextant
-  const double x = 1.0 - std::abs(std::fmod(hue, 2.0) - 1.0);
-  double r = 0.0;
-  double g = 0.0;
-  double b = 0.0;
-  if (hue < 1.0) {
-    r = 1.0;
-    g = x;
-  } else if (hue < 2.0) {
-    r = x;
-    g = 1.0;
-  } else if (hue < 3.0) {
-    g = 1.0;
-    b = x;
-  } else {
-    g = x;
-    b = 1.0;
-  }
-  return Quantity_Color(r, g, b, Quantity_TOC_sRGB);
+  return hueColor(240.0 * s); // red (thin) to blue (thick)
 }
 
 void ThicknessScene::show(std::shared_ptr<const core::ThicknessResult> result,
@@ -159,12 +77,16 @@ void ThicknessScene::show(std::shared_ptr<const core::ThicknessResult> result,
     presentation->setLimits(_thin, _thick);
     _scene.setPartOverride(part, presentation);
     _presentations.push_back(presentation);
+    _parts.push_back(part);
   }
   updateLegend();
 }
 
 void ThicknessScene::clear() {
-  _scene.clearPartOverrides();
+  for (const core::NodeId part : _parts) { // only ours: another view may override other parts
+    _scene.setPartOverride(part, nullptr);
+  }
+  _parts.clear();
   _presentations.clear();
   if (!_legend.IsNull()) {
     _context->Remove(_legend, false);
@@ -206,25 +128,12 @@ void ThicknessScene::updateLegend() {
     return;
   }
   const double perUnit = core::millimetersPer(_unit);
-  OccHandle<AIS_ColorScale> legend = new AIS_ColorScale();
-  legend->SetRange(_thin / perUnit, _thick / perUnit);
-  legend->SetNumberOfIntervals(LegendIntervals);
-  NCollection_Sequence<Quantity_Color> colors;
-  for (int i = 0; i < LegendIntervals; ++i) {
-    const double s = (i + 0.5) / LegendIntervals;
-    colors.Append(colorOf(_thin + s * (_thick - _thin), _thin, _thick));
-  }
-  legend->SetColorType(Aspect_TOCSD_USER);
-  legend->SetColors(colors);
-  legend->SetFormat(
-      TCollection_AsciiString(("%." + std::to_string(std::clamp(_decimals, 0, 6)) + "f").c_str()));
-  const std::string title = "Wall thickness (" + std::string(core::symbol(_unit)) + ")";
-  legend->SetTitle(TCollection_ExtendedString(title.c_str(), true));
-  legend->SetSize(80, 260);
-  legend->SetTextHeight(13);
-  legend->SetTransformPersistence(
-      new Graphic3d_TransformPers(Graphic3d_TMF_2d, Aspect_TOTP_LEFT_LOWER, NCollection_Vec2<int>(16, 16)));
-  legend->SetZLayer(Graphic3d_ZLayerId_TopOSD);
+  const double thin = _thin;
+  const double thick = _thick;
+  OccHandle<AIS_ColorScale> legend = makeColorLegend(
+      _thin / perUnit, _thick / perUnit,
+      [thin, thick, perUnit](double value) { return colorOf(value * perUnit, thin, thick); },
+      "Wall thickness (" + std::string(core::symbol(_unit)) + ")", _decimals);
   _context->Display(legend, 0, -1, false); // not selectable
   _legend = legend;
 }

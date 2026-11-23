@@ -6,6 +6,11 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- File > Compare With: opens another revision of the model and colors what changed: changed parts
+  by their deviation (with a legend), moved, added and unchanged parts by kind, and removed parts
+  as ghosts. Parts pair by their place in the tree, then by shape and by name. The Comparison
+  panel lists the differences with their largest deviation, and the tolerance can be changed.
+- The wall thickness view shows a selected part's bounding box instead of painting it over.
 - Mesh files open: STL (ASCII or binary), OBJ with its colors, and glTF/GLB with names, colors and
   the node hierarchy. glTF's metres and Y up become millimetres and Z up; STL and OBJ are taken as
   millimetres. Mass properties and wall thickness use the triangles; the exact measuring tools
