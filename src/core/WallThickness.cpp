@@ -8,6 +8,7 @@
 #include <TopLoc_Location.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
+#include <gp_Trsf.hxx>
 
 #include <algorithm>
 #include <array>
@@ -278,19 +279,19 @@ private:
     const double origins[3] = {origin.x, origin.y, origin.z};
     const double inverses[3] = {inverse.x, inverse.y, inverse.z};
     for (int axis = 0; axis < 3; ++axis) {
-      double near = (lows[axis] - origins[axis]) * inverses[axis];
-      double far = (highs[axis] - origins[axis]) * inverses[axis];
-      if (near > far) {
-        std::swap(near, far);
+      double entering = (lows[axis] - origins[axis]) * inverses[axis];
+      double leaving = (highs[axis] - origins[axis]) * inverses[axis];
+      if (entering > leaving) {
+        std::swap(entering, leaving);
       }
-      if (std::isnan(near) || std::isnan(far)) { // origin on the slab with a zero direction
+      if (std::isnan(entering) || std::isnan(leaving)) { // origin on the slab with a zero direction
         if (origins[axis] < lows[axis] || origins[axis] > highs[axis]) {
           return false;
         }
         continue;
       }
-      t0 = std::max(t0, near);
-      t1 = std::min(t1, far * (1.0 + 1e-9) + 1e-12);
+      t0 = std::max(t0, entering);
+      t1 = std::min(t1, leaving * (1.0 + 1e-9) + 1e-12);
       if (t0 > t1) {
         return false;
       }

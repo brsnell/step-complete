@@ -35,6 +35,9 @@
 
 #include <BRepBndLib.hxx>
 #include <Bnd_Box.hxx>
+#include <Graphic3d_Camera.hxx>
+#include <StdSelect_ViewerSelector3d.hxx>
+#include <V3d_View.hxx>
 
 #include <QAction>
 #include <QActionGroup>

@@ -3,10 +3,13 @@
 #include "render/SceneManager.h"
 
 #include <AIS_ColorScale.hxx>
-#include <Aspect_SequenceOfColor.hxx>
 #include <Graphic3d_ArrayOfTriangles.hxx>
 #include <Graphic3d_AspectFillArea3d.hxx>
+#include <Graphic3d_MaterialAspect.hxx>
 #include <Graphic3d_TransformPers.hxx>
+#include <Graphic3d_ZLayerId.hxx>
+#include <NCollection_Sequence.hxx>
+#include <NCollection_Vec2.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <Prs3d_Presentation.hxx>
 #include <Select3D_SensitiveTriangulation.hxx>
@@ -14,6 +17,8 @@
 #include <SelectMgr_Selection.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <TCollection_ExtendedString.hxx>
+#include <TopLoc_Location.hxx>
+#include <gp_Trsf.hxx>
 
 #include <algorithm>
 #include <cmath>
@@ -204,7 +209,7 @@ void ThicknessScene::updateLegend() {
   OccHandle<AIS_ColorScale> legend = new AIS_ColorScale();
   legend->SetRange(_thin / perUnit, _thick / perUnit);
   legend->SetNumberOfIntervals(LegendIntervals);
-  Aspect_SequenceOfColor colors;
+  NCollection_Sequence<Quantity_Color> colors;
   for (int i = 0; i < LegendIntervals; ++i) {
     const double s = (i + 0.5) / LegendIntervals;
     colors.Append(colorOf(_thin + s * (_thick - _thin), _thin, _thick));
@@ -218,7 +223,7 @@ void ThicknessScene::updateLegend() {
   legend->SetSize(80, 260);
   legend->SetTextHeight(13);
   legend->SetTransformPersistence(
-      new Graphic3d_TransformPers(Graphic3d_TMF_2d, Aspect_TOTP_LEFT_LOWER, Graphic3d_Vec2i(16, 16)));
+      new Graphic3d_TransformPers(Graphic3d_TMF_2d, Aspect_TOTP_LEFT_LOWER, NCollection_Vec2<int>(16, 16)));
   legend->SetZLayer(Graphic3d_ZLayerId_TopOSD);
   _context->Display(legend, 0, -1, false); // not selectable
   _legend = legend;
