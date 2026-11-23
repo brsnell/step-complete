@@ -83,12 +83,28 @@ content decides: a STEP file with an IGES name (or the reverse) opens as what it
 Properties shows the **Format**. IGES has no assembly structure, so its parts sit at the top of
 the Assembly tree with their names, colors and layers; it has no PMI or saved views.
 
+**Mesh files.** STL (`.stl`, ASCII or binary), OBJ (`.obj`, with the colors of its `.mtl` file)
+and glTF 2.0 (`.gltf`, `.glb`, with names, colors and the node hierarchy) open too. A mesh is
+triangles only, with no exact faces, edges or circles, so:
+
+- **Measure > Distance, Point to Point, Angle, Radius and Entity Info**, **Check Geometry** and
+  **Check Clashes** are off for a mesh file; the status bar says so when the file opens.
+- **Mass Properties** come from the triangles: area always, and volume, centroid and inertia
+  that are exact for a closed mesh (the result says "From: mesh"). Materials, mass and the parts
+  list work as for solids.
+- Display, the Assembly tree, hiding and transparency, sections, **Wall Thickness**, saved views
+  and the exports all work as usual.
+- **Units and axes.** glTF is in metres with Y up by its specification, so it is scaled to
+  millimetres and turned Z up. STL and OBJ have no unit: millimetres are assumed (the file unit
+  reads "mm (assumed)"). STL stays as written (Z up); OBJ is read as Y up, like most tools and
+  this app's own OBJ export write it.
+
 **Ways to open a file**
 
 - **File > Open...** (`Ctrl+O`). The dialog remembers the last folder.
 - **File > Open Recent**. Lists the last 10 files; entries whose file has gone are disabled;
   **Clear Recent Files** empties the list.
-- **Drag and drop** one file onto the window. Only a single local file with a STEP or IGES extension is
+- **Drag and drop** one file onto the window. Only a single local file with a STEP, IGES or mesh extension is
   accepted.
 - **Command line:** `StepComplete model.step` opens the file as soon as the 3D view is ready.
 

@@ -155,7 +155,9 @@ struct OrientedBox {
 
 struct MassProperties {
   bool ok = false;
-  bool hasVolume = false; // false when the selection contains no solids
+  bool hasVolume = false; // false when the selection contains no solids (and is not a mesh)
+  // From mesh faces (triangles only): the volume is exact only for a closed mesh.
+  bool fromMesh = false;
   int solidCount = 0;
   double volume = 0.0;
   double area = 0.0;
@@ -174,6 +176,9 @@ struct MassProperties {
 
 // 'densities' (kg/m³), when given, has one entry per shape: each shape's volume counts with its
 // own density, so the mass, centre of mass and inertia are right for mixed materials.
+// True when a face of the shape has no surface, only a triangulation (mesh files).
+bool hasMeshOnlyFaces(const TopoDS_Shape& shape);
+
 MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes,
                               const std::vector<double>& densities = {});
 

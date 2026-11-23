@@ -8,6 +8,7 @@
 #include "core/ProgressBridge.h"
 
 #include <BRepMesh_IncrementalMesh.hxx>
+#include <BRep_Builder.hxx>
 #include <IFSelect_ReturnStatus.hxx>
 #include <IGESCAFControl_Reader.hxx>
 #include <IGESData_GlobalSection.hxx>
@@ -21,6 +22,10 @@
 #include <OSD_Parallel.hxx>
 #include <OSD_ThreadPool.hxx>
 #include <Prs3d_Drawer.hxx>
+#include <RWGltf_CafReader.hxx>
+#include <RWMesh_CoordinateSystem.hxx>
+#include <RWObj_CafReader.hxx>
+#include <RWStl.hxx>
 #include <STEPCAFControl_Reader.hxx>
 #include <STEPControl_Reader.hxx>
 #include <Standard_Failure.hxx>
@@ -48,9 +53,16 @@
 #include <StepVisual_CameraModelD3.hxx>
 #include <StepVisual_PlanarBox.hxx>
 #include <StepVisual_ViewVolume.hxx>
+#include <TCollection_ExtendedString.hxx>
 #include <TCollection_HAsciiString.hxx>
+#include <TDF_ChildIterator.hxx>
+#include <TDataStd_Name.hxx>
+#include <TopoDS_Face.hxx>
+#include <XCAFDoc_ColorTool.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
+#include <XCAFDoc_VisMaterial.hxx>
+#include <XCAFDoc_VisMaterialTool.hxx>
 #include <XSControl_WorkSession.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Dir.hxx>
@@ -64,6 +76,7 @@
 #include <exception>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <random>
@@ -521,6 +534,94 @@ bool readIges(const std::string& readPath, Document& document, Message_ProgressS
   return true;
 }
 
+// OBJ and glTF colors arrive as visual materials, which the viewer would draw with physically
+// based settings that wash them out, and which the assembly tree does not read. Each becomes the
+// plain surface color (with its alpha) that STEP and IGES parts carry, and the material goes.
+void materialsToColors(const OccHandle<TDocStd_Document>& ocaf) {
+  const OccHandle<XCAFDoc_VisMaterialTool> materials = XCAFDoc_DocumentTool::VisMaterialTool(ocaf->Main());
+  const OccHandle<XCAFDoc_ColorTool> colors = XCAFDoc_DocumentTool::ColorTool(ocaf->Main());
+  const OccHandle<XCAFDoc_ShapeTool> shapes = XCAFDoc_DocumentTool::ShapeTool(ocaf->Main());
+  std::vector<TDF_Label> labels;
+  for (TDF_ChildIterator it(shapes->Label(), true); it.More(); it.Next()) {
+    labels.push_back(it.Value());
+  }
+  for (const TDF_Label& label : labels) {
+    const OccHandle<XCAFDoc_VisMaterial> material = materials->GetShapeMaterial(label);
+    if (material.IsNull()) {
+      continue;
+    }
+    colors->SetColor(label, material->BaseColor(), XCAFDoc_ColorSurf);
+    materials->UnSetShapeMaterial(label);
+  }
+}
+
+// Reads a mesh file (docs/designs/mesh-import.md): STL into one part named after the file, OBJ
+// and glTF through OCCT's XCAF mesh readers (names, colors, the glTF hierarchy). Every mesh is a
+// face that holds only a triangulation. glTF is metres and Y up; OBJ is read as Y up; STL and OBJ
+// have no unit, so millimetres are assumed. Fills the result like readIges.
+bool readMesh(const std::string& readPath, const std::string& displayPath, FileFormat format,
+              Document& document, Message_ProgressScope& root, ProgressBridge& bridge,
+              const CancelToken* cancel, ImportResult& result) {
+  bridge.setStage("Reading file");
+  const Clock::time_point readStart = Clock::now();
+  OccHandle<TDocStd_Document> ocaf = document.ocaf();
+  if (format == FileFormat::Stl) {
+    const OccHandle<Poly_Triangulation> mesh = RWStl::ReadFile(readPath.c_str(), root.Next(75.0));
+    result.stats.readSeconds = secondsSince(readStart);
+    if (cancelled(cancel)) {
+      result.cancelled = true;
+      return false;
+    }
+    if (mesh.IsNull() || mesh->NbTriangles() == 0) {
+      result.error = "The file could not be read as STL, or it has no triangles.";
+      return false;
+    }
+    TopoDS_Face face;
+    BRep_Builder().MakeFace(face, mesh);
+    const OccHandle<XCAFDoc_ShapeTool> shapes = XCAFDoc_DocumentTool::ShapeTool(ocaf->Main());
+    const TDF_Label part = shapes->AddShape(face, false);
+    const std::string stem = std::filesystem::u8path(displayPath).stem().u8string();
+    TDataStd_Name::Set(part, TCollection_ExtendedString(stem.c_str(), true));
+    result.stats.rootCount = 1;
+  } else {
+    std::unique_ptr<RWMesh_CafReader> reader;
+    if (format == FileFormat::Gltf) {
+      auto gltf = std::make_unique<RWGltf_CafReader>();
+      gltf->SetParallel(true);
+      gltf->SetFileLengthUnit(1.0); // metres, by the specification
+      gltf->SetFileCoordinateSystem(RWMesh_CoordinateSystem_glTF);
+      reader = std::move(gltf);
+    } else {
+      reader = std::make_unique<RWObj_CafReader>();
+      reader->SetFileLengthUnit(0.001); // no unit in the file: millimetres assumed
+      reader->SetFileCoordinateSystem(RWMesh_CoordinateSystem_Yup);
+    }
+    reader->SetSystemLengthUnit(0.001); // the document is in millimetres
+    reader->SetSystemCoordinateSystem(RWMesh_CoordinateSystem_Zup);
+    reader->SetDocument(ocaf);
+    const bool read = reader->Perform(TCollection_AsciiString(readPath.c_str()), root.Next(75.0));
+    result.stats.readSeconds = secondsSince(readStart);
+    if (cancelled(cancel)) {
+      result.cancelled = true;
+      return false;
+    }
+    occ::LabelSequence roots;
+    XCAFDoc_DocumentTool::ShapeTool(ocaf->Main())->GetFreeShapes(roots);
+    if (!read || roots.IsEmpty()) {
+      result.error = std::string("The file could not be read as ") + displayName(format) + ".";
+      return false;
+    }
+    result.stats.rootCount = roots.Length();
+    materialsToColors(ocaf);
+  }
+  if (format == FileFormat::Gltf) {
+    document.setFileUnit("m", LengthUnit::Meter);
+  } else {
+    document.setFileUnit("mm (assumed)", std::nullopt); // no unit in STL or OBJ
+  }
+  return true;
+}
+
 } // namespace
 
 ImportResult importModel(const std::string& utf8Path, const ImportOptions& options,
@@ -591,6 +692,13 @@ ImportResult importModel(const std::string& utf8Path, const ImportOptions& optio
     document->setFormat(format == FileFormat::Unknown ? FileFormat::Step : format);
     if (format == FileFormat::Iges) {
       if (!readIges(readPath, *document, root, *bridge, cancel, result)) {
+        return result;
+      }
+      temp.reset();
+    } else if (isMeshFormat(format)) {
+      // OBJ and glTF name their side files (.mtl, .bin, textures) relative to the file: a
+      // compressed one is read from its inflated copy, which has none of them.
+      if (!readMesh(readPath, utf8Path, format, *document, root, *bridge, cancel, result)) {
         return result;
       }
       temp.reset();

@@ -718,6 +718,9 @@ void MainWindow::setMeasureMode(int mode) {
   if (newMode && !_scene->model()) {
     statusBar()->showMessage(tr("Open a model to measure."), 4000);
     newMode.reset();
+  } else if (newMode && isMeshModel()) {
+    statusBar()->showMessage(meshNotice(), 8000);
+    newMode.reset();
   }
   for (QAction* action : _measureGroup->actions()) {
     action->setChecked(newMode && action->data().toInt() == mode);
@@ -1144,6 +1147,21 @@ void MainWindow::measureMassProperties() {
   }
 }
 
+bool MainWindow::isMeshModel() const {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  return index && index->document() && core::isMeshFormat(index->document()->format());
+}
+
+QString MainWindow::meshNotice() const {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  const QString format = index && index->document()
+                             ? QString::fromLatin1(core::displayName(index->document()->format()))
+                             : QString();
+  return tr("Measuring exact geometry, Check Geometry and Check Clashes are off for mesh files (%1); Mass "
+            "Properties and Wall Thickness use the triangles.")
+      .arg(format);
+}
+
 void MainWindow::updateActions() {
   const bool hasModel = _scene->model() != nullptr;
   const bool hasSelection = hasModel && !selectedNodes().empty();
@@ -1167,12 +1185,14 @@ void MainWindow::updateActions() {
   }
   if (_stopMeasureAction != nullptr) {
     _stopMeasureAction->setEnabled(_measureTool->isActive());
+    // A mesh file (docs/designs/mesh-import.md) has no exact faces, edges or circles to pick.
+    const bool exact = hasModel && !isMeshModel();
     _massPropertiesAction->setEnabled(hasModel);
-    _checkGeometryAction->setEnabled(hasModel && !_geometryCheckJob);
-    _checkClashesAction->setEnabled(hasModel && !_clashJob);
+    _checkGeometryAction->setEnabled(exact && !_geometryCheckJob);
+    _checkClashesAction->setEnabled(exact && !_clashJob);
     _thicknessAction->setEnabled(hasModel);
     for (QAction* action : _measureGroup->actions()) {
-      action->setEnabled(hasModel);
+      action->setEnabled(exact);
     }
   }
 }
@@ -1212,9 +1232,10 @@ void MainWindow::openFileDialog() {
   QSettings settings;
   const QString dir = settings.value(QLatin1String(LastDirKey)).toString();
   const QString path = QFileDialog::getOpenFileName(
-      this, tr("Open CAD File"), dir,
-      tr("CAD files (*.step *.stp *.stpz *.p21 *.igs *.iges);;STEP files (*.step *.stp *.stpz *.p21);;"
-         "IGES files (*.igs *.iges);;All files (*)"));
+      this, tr("Open Model"), dir,
+      tr("Models (*.step *.stp *.stpz *.p21 *.igs *.iges *.stl *.obj *.gltf *.glb);;"
+         "STEP files (*.step *.stp *.stpz *.p21);;IGES files (*.igs *.iges);;"
+         "Mesh files (*.stl *.obj *.gltf *.glb);;All files (*)"));
   if (!path.isEmpty()) {
     settings.setValue(QLatin1String(LastDirKey), QFileInfo(path).absolutePath());
     openFile(path);
@@ -1339,6 +1360,9 @@ void MainWindow::onImportFinished() {
                           .arg(job->elapsedSeconds(), 0, 'f', 1);
     if (problems > 0) {
       summary += tr(" %1 translator messages (View → Panels → Import Messages).").arg(problems);
+    }
+    if (isMeshModel()) {
+      summary += QLatin1Char(' ') + meshNotice();
     }
     statusBar()->showMessage(summary, 15000);
   }

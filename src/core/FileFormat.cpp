@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 
@@ -41,10 +42,20 @@ const char* displayName(FileFormat format) {
     return "STEP";
   case FileFormat::Iges:
     return "IGES";
+  case FileFormat::Stl:
+    return "STL";
+  case FileFormat::Obj:
+    return "OBJ";
+  case FileFormat::Gltf:
+    return "glTF";
   case FileFormat::Unknown:
     break;
   }
   return "Unknown";
+}
+
+bool isMeshFormat(FileFormat format) {
+  return format == FileFormat::Stl || format == FileFormat::Obj || format == FileFormat::Gltf;
 }
 
 FileFormat formatFromExtension(const std::string& utf8Path) {
@@ -61,6 +72,15 @@ FileFormat formatFromExtension(const std::string& utf8Path) {
     if (endsWith(name, suffix)) {
       return FileFormat::Iges;
     }
+  }
+  if (endsWith(name, ".stl")) {
+    return FileFormat::Stl;
+  }
+  if (endsWith(name, ".obj")) {
+    return FileFormat::Obj;
+  }
+  if (endsWith(name, ".gltf") || endsWith(name, ".glb")) {
+    return FileFormat::Gltf;
   }
   return FileFormat::Unknown;
 }
@@ -89,6 +109,34 @@ FileFormat detectFileFormat(const std::string& utf8Path, const std::string& name
   }
   if (isIgesRecord(first)) {
     return FileFormat::Iges;
+  }
+  if (head.compare(0, 4, "glTF") == 0) {
+    return FileFormat::Gltf; // GLB container
+  }
+  if (head.compare(start, 1, "{") == 0 && head.find("\"asset\"") != std::string::npos) {
+    return FileFormat::Gltf; // glTF JSON
+  }
+  // Binary STL: an 80-byte header, a triangle count, then 50 bytes per triangle. Checked before
+  // ASCII: binary headers often start with "solid" too.
+  std::error_code ec;
+  const auto size = std::filesystem::file_size(std::filesystem::u8path(utf8Path), ec);
+  if (!ec && size >= 84 && head.size() >= 84) {
+    const auto* bytes = reinterpret_cast<const unsigned char*>(head.data() + 80);
+    const std::uintmax_t count = std::uintmax_t(bytes[0]) | std::uintmax_t(bytes[1]) << 8 |
+                                 std::uintmax_t(bytes[2]) << 16 | std::uintmax_t(bytes[3]) << 24;
+    if (count > 0 && 84 + 50 * count == size) {
+      return FileFormat::Stl;
+    }
+  }
+  if (head.compare(start, 5, "solid") == 0 && head.find("facet") != std::string::npos) {
+    return FileFormat::Stl; // ASCII STL
+  }
+  if (head.find("\nv ") != std::string::npos || head.compare(start, 2, "v ") == 0) {
+    // OBJ: vertex records. Also checked by name below, so a short header misses nothing.
+    if (head.find("\nf ") != std::string::npos || formatFromExtension(utf8Path) == FileFormat::Obj ||
+        formatFromExtension(nameForExtension) == FileFormat::Obj) {
+      return FileFormat::Obj;
+    }
   }
   return formatFromExtension(nameForExtension.empty() ? utf8Path : nameForExtension);
 }

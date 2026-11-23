@@ -4,10 +4,10 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>STEP Complete</name>
-  <summary>View STEP and IGES files with measurement and PMI</summary>
+  <summary>View STEP, IGES and mesh files with measurement and PMI</summary>
   <description>
     <p>
-      STEP Complete is a lightweight, cross-platform viewer for STEP (ISO 10303) and IGES CAD files.
+      STEP Complete is a lightweight, cross-platform viewer for STEP (ISO 10303) and IGES CAD files, which also opens STL, OBJ and glTF meshes.
       It shows assemblies and parts, measures distances, angles, radii and lengths,
       displays product and manufacturing information (PMI), and supports section views.
     </p>
@@ -22,6 +22,10 @@
     <mimetype>model/step</mimetype>
     <mimetype>model/step+zip</mimetype>
     <mimetype>model/iges</mimetype>
+    <mimetype>model/stl</mimetype>
+    <mimetype>model/obj</mimetype>
+    <mimetype>model/gltf+json</mimetype>
+    <mimetype>model/gltf-binary</mimetype>
   </mimetypes>
   <categories>
     <category>Graphics</category>

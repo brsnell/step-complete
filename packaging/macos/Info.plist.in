@@ -49,6 +49,27 @@
       <key>CFBundleTypeExtensions</key>
       <array><string>igs</string><string>iges</string></array>
     </dict>
+    <dict>
+      <!-- STL and OBJ: types macOS declares itself. -->
+      <key>CFBundleTypeName</key><string>3D mesh</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>CFBundleTypeIconFile</key><string>${MACOSX_BUNDLE_ICON_FILE}</string>
+      <key>LSItemContentTypes</key>
+      <array><string>public.standard-tesselated-geometry-format</string><string>public.geometry-definition-format</string></array>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>stl</string><string>obj</string></array>
+    </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>glTF scene</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>CFBundleTypeIconFile</key><string>${MACOSX_BUNDLE_ICON_FILE}</string>
+      <key>LSItemContentTypes</key>
+      <array><string>org.stepcomplete.gltf</string></array>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>gltf</string><string>glb</string></array>
+    </dict>
   </array>
   <key>UTImportedTypeDeclarations</key>
   <array>
@@ -91,6 +112,20 @@
         <array><string>igs</string><string>iges</string></array>
         <key>public.mime-type</key>
         <array><string>model/iges</string></array>
+      </dict>
+    </dict>
+    <dict>
+      <!-- Imported for the same reason as IGES above. -->
+      <key>UTTypeIdentifier</key><string>org.stepcomplete.gltf</string>
+      <key>UTTypeDescription</key><string>glTF scene</string>
+      <key>UTTypeConformsTo</key>
+      <array><string>public.data</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array><string>gltf</string><string>glb</string></array>
+        <key>public.mime-type</key>
+        <array><string>model/gltf+json</string><string>model/gltf-binary</string></array>
       </dict>
     </dict>
   </array>

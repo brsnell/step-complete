@@ -149,6 +149,9 @@ private:
   void afterVisibilityChange();
   void showContextMenu(QWidget* source, const QPoint& pos);
   void updateActions();
+  // The open model came from a mesh file (STL, OBJ, glTF): no exact geometry to measure.
+  bool isMeshModel() const;
+  QString meshNotice() const;
 
   // --- Measurement ------------------------------------------------------------
   void createMeasureMenu();
