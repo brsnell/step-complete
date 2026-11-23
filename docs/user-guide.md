@@ -1,6 +1,6 @@
 # STEP Complete user guide
 
-STEP Complete (v1.1) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
+STEP Complete (v1.2) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
 exact measurement, PMI display (GD&T, dimensions, datums, saved views), section views, and image
 and geometry export. This guide describes what the application does; menu names appear as **Menu > Item**.
 
@@ -15,7 +15,7 @@ Contents: [Installing](#1-installing) | [Requirements](#2-system-requirements) |
 
 ## 1. Installing
 
-This section matches the v1.1 packages. Download the file for your platform from the project's
+This section matches the v1.2 packages. Download the file for your platform from the project's
 GitHub releases page. `<version>` is the release number.
 
 | Platform | File |
