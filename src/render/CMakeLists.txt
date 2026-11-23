@@ -24,6 +24,8 @@ add_library(sc_render STATIC
   ColorMapPresentation.cpp
   ComparisonScene.h
   ComparisonScene.cpp
+  MarkupScene.h
+  MarkupScene.cpp
 )
 add_library(sc::render ALIAS sc_render)
 

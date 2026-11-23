@@ -8,6 +8,8 @@
 
 #include "render/OcctViewport.h"
 
+#include <utility>
+
 #include <Graphic3d_Camera.hxx>
 
 #include "core/OccCompat.h"
@@ -474,15 +476,39 @@ NCollection_Vec2<int> OcctViewport::toViewPixels(const QPointF& logicalPos) cons
                                static_cast<int>(std::lround(logicalPos.y() * dpr)));
 }
 
+void OcctViewport::setDragHandler(DragHandler* handler) {
+  if (_activeDrag != nullptr && _activeDrag == _dragHandler) {
+    _activeDrag = nullptr; // a drag in progress ends without its handler
+    _dragging = false;
+  }
+  _dragHandler = handler;
+}
+
+void OcctViewport::setPressHandler(DragHandler* handler) {
+  if (_activeDrag != nullptr && _activeDrag == _pressHandler) {
+    _activeDrag = nullptr;
+    _dragging = false;
+  }
+  _pressHandler = handler;
+}
+
 void OcctViewport::mousePressEvent(QMouseEvent* event) {
   QOpenGLWidget::mousePressEvent(event);
-  if (_glReady && _dragHandler != nullptr && event->buttons() == Qt::LeftButton &&
-      event->modifiers() == Qt::NoModifier && _context->HasDetected()) {
+  const bool plainLeft = event->buttons() == Qt::LeftButton && event->modifiers() == Qt::NoModifier;
+  if (_glReady && plainLeft) {
     const NCollection_Vec2<int> pixel = toViewPixels(event->position());
-    if (_dragHandler->beginDrag(_context->DetectedInteractive(), pixel)) {
-      _dragging = true;
-      _dragStart = pixel;
-      return;
+    const OccHandle<AIS_InteractiveObject> detected =
+        _context->HasDetected() ? _context->DetectedInteractive() : OccHandle<AIS_InteractiveObject>();
+    for (DragHandler* handler : {_pressHandler, _dragHandler}) {
+      if (handler == nullptr || (handler == _dragHandler && detected.IsNull())) {
+        continue;
+      }
+      if (handler->beginDrag(detected, pixel)) {
+        _dragging = true;
+        _activeDrag = handler;
+        _dragStart = pixel;
+        return;
+      }
     }
   }
   setNavigating(true);
@@ -496,8 +522,8 @@ void OcctViewport::mouseReleaseEvent(QMouseEvent* event) {
   QOpenGLWidget::mouseReleaseEvent(event);
   if (_dragging) {
     _dragging = false;
-    if (_dragHandler != nullptr) {
-      _dragHandler->endDrag();
+    if (DragHandler* handler = std::exchange(_activeDrag, nullptr)) {
+      handler->endDrag();
     }
     invalidateScene();
     return;
@@ -514,8 +540,8 @@ void OcctViewport::mouseReleaseEvent(QMouseEvent* event) {
 void OcctViewport::mouseMoveEvent(QMouseEvent* event) {
   QOpenGLWidget::mouseMoveEvent(event);
   if (_dragging) {
-    if (_dragHandler != nullptr) {
-      _dragHandler->drag(_dragStart, toViewPixels(event->position()));
+    if (_activeDrag != nullptr) {
+      _activeDrag->drag(_dragStart, toViewPixels(event->position()));
     }
     invalidateScene();
     return;

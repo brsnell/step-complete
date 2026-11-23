@@ -5,6 +5,7 @@
 #include "core/AssemblyIndex.h"
 #include "core/Clash.h"
 #include "core/GeometryExport.h"
+#include "core/Markup.h"
 #include "core/Measurement.h"
 #include "core/PartsList.h"
 #include "core/PmiModel.h"
@@ -35,6 +36,7 @@ class SectionTool;
 class PmiScene;
 class ThicknessScene;
 class ComparisonScene;
+class MarkupScene;
 class OcctViewport;
 class SceneManager;
 } // namespace sc::render
@@ -44,6 +46,7 @@ namespace sc::app {
 class AssemblyFilterProxy;
 class AssemblyTreeModel;
 class ImportJob;
+class MarkupPanel;
 class MeasurementsPanel;
 class ExportJob;
 class ClashJob;
@@ -120,6 +123,23 @@ public:
   void compareWith(const QString& path);
   bool isComparing() const;       // the comparison job runs
   bool isComparisonShown() const; // the comparison view is on
+
+  // --- Markup (docs/designs/markup.md) -------------------------------------------------
+  // The open model's notes and strokes, kept in the per-model store. Each change is written at
+  // once and shown in the view and the Markup panel.
+  const core::Markup& markup() const { return _markup; }
+  render::MarkupScene* markupScene() const { return _markupScene; }
+  // Returns the new item's id, or 0 (no model, or a note without text).
+  int addMarkupNote(const core::MarkupNote& note);
+  int addMarkupStroke(const core::MarkupStroke& stroke);
+  bool setMarkupNoteText(int id, const QString& text); // empty text is refused
+  void deleteMarkup(const std::vector<int>& ids);
+  void deleteAllMarkup(); // what Delete All Markup does once confirmed
+  // What Export Markup and Import Markup do once a file is chosen. Export shows a message box
+  // on failure; import adds the file's items to the model's and returns how many, or -1 with
+  // the reason in 'error'.
+  bool exportMarkupTo(const QString& path);
+  int importMarkupFrom(const QString& path, QString* error = nullptr);
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -199,6 +219,21 @@ private:
   void clearHighlight(Highlight owner);
 
   void setSectionView(bool on);
+
+  // --- Markup -----------------------------------------------------------------
+  void createMarkupMenu();
+  void writeMarkup();   // to the store, then refreshMarkup
+  void refreshMarkup(); // the view and the panel
+  void startAddNote();
+  void onNotePicked(const core::MarkupNote& note);
+  void editMarkupNote(int id);
+  void setSketching(bool on);
+  void zoomToMarkup(int id);
+  void exportMarkup();
+  void importMarkup();
+  void confirmDeleteAllMarkup();
+  // Adds markup read from a file; returns how many items were added.
+  int appendMarkup(const core::Markup& markup);
 
   // --- PMI --------------------------------------------------------------------
   void onPmiSelected(const std::vector<core::PmiId>& ids);
@@ -290,6 +325,16 @@ private:
   QDockWidget* _comparisonDock = nullptr;
   QPointer<ComparisonJob> _comparisonJob;
   QString _comparisonPath; // the other revision's file
+  render::MarkupScene* _markupScene = nullptr;
+  core::Markup _markup;
+  MarkupPanel* _markupPanel = nullptr;
+  QDockWidget* _markupDock = nullptr;
+  QAction* _addNoteAction = nullptr;
+  QAction* _sketchAction = nullptr;
+  QAction* _showMarkupAction = nullptr;
+  QAction* _exportMarkupAction = nullptr;
+  QAction* _importMarkupAction = nullptr;
+  QAction* _deleteAllMarkupAction = nullptr;
   core::MeasureDisplayOptions _measureOptions;
   QDockWidget* _messagesDock = nullptr;
   QLabel* _emptyHint = nullptr;

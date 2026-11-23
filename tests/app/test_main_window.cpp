@@ -13,9 +13,11 @@
 #include "app/GeometryCheckPanel.h"
 #include "app/ImportJob.h"
 #include "app/MainWindow.h"
+#include "app/MarkupPanel.h"
 #include "app/MeasurementsPanel.h"
 #include "app/ThicknessJob.h"
 #include "app/ThicknessPanel.h"
+#include "render/MarkupScene.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
 #include "render/SectionTool.h"
@@ -34,6 +36,7 @@
 #include <QDockWidget>
 #include <QFile>
 #include <QFileInfo>
+#include <QInputDialog>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
@@ -41,6 +44,7 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTest>
+#include <QTimer>
 #include <QTreeView>
 #include <QTreeWidget>
 
@@ -438,6 +442,128 @@ private Q_SLOTS:
     QVERIFY(plateShown());
     _window->restoreUserView(0);
     QVERIFY(!plateShown());
+  }
+
+  // Markup (docs/designs/markup.md): a note placed by clicking a face, a stroke, hidden with their
+  // part, kept with the model across a reopen, exported, deleted and imported again.
+  void markupPersistsExportsAndImports() {
+    QDir(sc::app::ModelDataStore::defaultDirectory()).removeRecursively();
+    openFixture();
+    auto* viewport = _window->findChild<sc::render::OcctViewport*>();
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    auto* markupPanel = _window->findChild<sc::app::MarkupPanel*>();
+    auto* markupDock = _window->findChild<QDockWidget*>(QStringLiteral("MarkupDock"));
+    sc::render::MarkupScene* scene = _window->markupScene();
+    QAction* addNote = menuAction(*_window, QStringLiteral("Mar&kup"), QStringLiteral("Add &Note"));
+    QAction* sketch = menuAction(*_window, QStringLiteral("Mar&kup"), QStringLiteral("&Sketch"));
+    QAction* showMarkup = menuAction(*_window, QStringLiteral("Mar&kup"), QStringLiteral("S&how Markup"));
+    QAction* hide = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("&Hide"));
+    QAction* showAll = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("Show &All"));
+    QVERIFY(viewport && tree && markupPanel && markupDock && scene && addNote && sketch && showMarkup &&
+            hide && showAll);
+    QVERIFY(_window->markup().empty());
+
+    // Add Note, click the plate's top away from the pins, type the text.
+    addNote->trigger();
+    QVERIFY(scene->isPickingNote());
+    viewport->setStandardView(V3d_Zpos);
+    viewport->fitAll();
+    viewport->grabFramebuffer();
+    QTimer typer;
+    typer.setInterval(20);
+    connect(&typer, &QTimer::timeout, this, [&typer] {
+      if (auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget())) {
+        typer.stop();
+        dialog->setTextValue(QStringLiteral("Deburr\nall edges"));
+        dialog->accept();
+      }
+    });
+    typer.start();
+    const auto& context = viewport->context();
+    int x = 0;
+    int y = 0;
+    viewport->view()->Convert(85.0, 45.0, 10.0, x, y);
+    context->MoveTo(x, y, viewport->view(), false);
+    QVERIFY(context->HasDetected());
+    context->SelectDetected(AIS_SelectionScheme_Replace);
+    Q_EMIT viewport->selectionChanged();
+    typer.stop();
+    QVERIFY(!scene->isPickingNote());
+    QCOMPARE(_window->markup().notes().size(), size_t(1));
+    const sc::core::MarkupNote note = _window->markup().notes().front();
+    QCOMPARE(note.text, std::string("Deburr\nall edges"));
+    QVERIFY(!note.part.empty());
+    QVERIFY2(
+        note.point.Distance(gp_Pnt(85, 45, 10)) < 1.0,
+        qPrintable(QStringLiteral("%1 %2 %3").arg(note.point.X()).arg(note.point.Y()).arg(note.point.Z())));
+    QVERIFY(markupDock->isVisible());
+    QCOMPARE(markupPanel->rowText(0), QStringLiteral("Deburr ..."));
+
+    // A stroke on the same part; both are drawn, hidden with the plate, and by Show Markup.
+    QVERIFY(_window->addMarkupStroke({0, note.part, {gp_Pnt(10, 50, 10), gp_Pnt(90, 50, 10)}}) != 0);
+    QCOMPARE(scene->displayedCount(), 2);
+    const QModelIndex fixture = tree->model()->index(0, 0);
+    QModelIndex plate;
+    for (int row = 0; row < tree->model()->rowCount(fixture); ++row) {
+      if (tree->model()->index(row, 0, fixture).data().toString() == QStringLiteral("Base plate")) {
+        plate = tree->model()->index(row, 0, fixture);
+      }
+    }
+    QVERIFY(plate.isValid());
+    tree->selectionModel()->select(plate, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    hide->trigger();
+    QCOMPARE(scene->displayedCount(), 0);
+    showAll->trigger();
+    QCOMPARE(scene->displayedCount(), 2);
+    showMarkup->trigger();
+    QCOMPARE(scene->displayedCount(), 0);
+    showMarkup->trigger();
+    QCOMPARE(scene->displayedCount(), 2);
+
+    // Editing and an empty edit.
+    QVERIFY(_window->setMarkupNoteText(note.id, QStringLiteral("Deburr")));
+    QVERIFY(!_window->setMarkupNoteText(note.id, QStringLiteral("   ")));
+    QCOMPARE(_window->markup().notes().front().text, std::string("Deburr"));
+
+    // Sketch mode takes the left button; Add Note ends it.
+    sketch->trigger();
+    QVERIFY(scene->isSketching());
+    QCOMPARE(viewport->pressHandler(), static_cast<sc::render::DragHandler*>(scene));
+    addNote->trigger();
+    QVERIFY(!scene->isSketching());
+    QVERIFY(!sketch->isChecked());
+    QVERIFY(scene->isPickingNote());
+    scene->cancelNotePick();
+
+    // Kept with the model.
+    _close->trigger();
+    QVERIFY(_window->markup().empty());
+    QCOMPARE(scene->displayedCount(), 0);
+    openFixture();
+    QCOMPARE(_window->markup().size(), 2);
+    QCOMPARE(scene->displayedCount(), 2);
+
+    // Export, delete everything (also kept), import again.
+    const QString file = QString::fromStdString(sc::test::tempPath("main_window_fixture.scmarkup"));
+    QVERIFY(_window->exportMarkupTo(file));
+    _window->deleteAllMarkup();
+    QVERIFY(_window->markup().empty());
+    _close->trigger();
+    openFixture();
+    QVERIFY(_window->markup().empty());
+    QCOMPARE(_window->importMarkupFrom(file), 2);
+    QCOMPARE(_window->markup().size(), 2);
+    QCOMPARE(scene->displayedCount(), 2);
+    QCOMPARE(markupPanel->rowCount(), 2);
+
+    QString error;
+    QCOMPARE(_window->importMarkupFrom(_path, &error), -1); // a STEP file is not markup
+    QVERIFY(!error.isEmpty());
+
+    // Deleting the chosen rows.
+    _window->deleteMarkup({_window->markup().strokes().front().id});
+    QCOMPARE(_window->markup().size(), 1);
+    QCOMPARE(markupPanel->rowCount(), 1);
   }
 
   // Measure > Set Material (docs/designs/material-density.md): mass properties of a part with a

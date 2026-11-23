@@ -2,8 +2,12 @@
 
 #include "core/OccHandle.h"
 
+#include <Font_FTFont.hxx>
+#include <Font_FontAspect.hxx>
 #include <Font_FontMgr.hxx>
 #include <Font_SystemFont.hxx>
+#include <Font_TextFormatter.hxx>
+#include <NCollection_String.hxx>
 #include <TCollection_AsciiString.hxx>
 
 #include <QDir>
@@ -14,6 +18,7 @@
 #include <QString>
 #include <QTemporaryDir>
 
+#include <cmath>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -106,6 +111,27 @@ bool ensurePmiFont() {
 const char* pmiFontName() {
   ensurePmiFont();
   return state().family.c_str();
+}
+
+double pmiTextWidth(const std::string& text, double fontSize) {
+  if (text.empty()) {
+    return 0.0;
+  }
+  const auto size = static_cast<unsigned int>(std::lround(fontSize));
+  try {
+    const OccHandle<Font_FTFont> font =
+        Font_FTFont::FindAndCreate(pmiFontName(), Font_FontAspect_Regular, Font_FTFontParams(size, 72));
+    if (!font.IsNull()) {
+      OccHandle<Font_TextFormatter> formatter = new Font_TextFormatter();
+      formatter->SetupAlignment(Graphic3d_HTA_LEFT, Graphic3d_VTA_TOP);
+      formatter->Append(NCollection_String(text.c_str()), *font);
+      formatter->Format();
+      return static_cast<double>(formatter->ResultWidth());
+    }
+  } catch (...) {
+    // fall through to the estimate
+  }
+  return static_cast<double>(text.size()) * fontSize * 0.6;
 }
 
 } // namespace sc::render

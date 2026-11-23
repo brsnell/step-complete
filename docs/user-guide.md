@@ -7,9 +7,9 @@ and geometry export. This guide describes what the application does; menu names 
 Contents: [Installing](#1-installing) | [Requirements](#2-system-requirements) |
 [Opening files](#3-opening-files) | [Navigating](#4-navigating-the-3d-view) |
 [Assembly and properties](#5-assembly-tree-and-properties) | [Measuring](#6-measuring) |
-[PMI](#7-pmi) | [Sections](#8-section-views) | [Export](#9-exporting) |
-[Preferences](#10-preferences) | [Shortcuts](#11-keyboard-shortcut-reference) |
-[Troubleshooting](#12-troubleshooting)
+[PMI](#7-pmi) | [Sections](#8-section-views) | [Export](#9-exporting) | [Markup](#10-markup) |
+[Preferences](#11-preferences) | [Shortcuts](#12-keyboard-shortcut-reference) |
+[Troubleshooting](#13-troubleshooting)
 
 ![STEP Complete showing an assembly](images/m1-as1.png)
 
@@ -539,7 +539,40 @@ has a material. Units follow the Measure menu's length and mass units and precis
 headers name them. Text from the file that a spreadsheet would treat as a formula (starting with
 `=`, `+`, `-` or `@`) is written with a leading apostrophe, so it shows as text.
 
-## 10. Preferences
+## 10. Markup
+
+Review notes and sketches pinned to the model. They are never written into the model file: they
+are kept with STEP Complete's own data for that file (like saved views), so they come back
+whenever the same file is opened again, also after it was copied, renamed or re-exported in
+place.
+
+- **Markup > Add Note** (`Ctrl+Shift+N`): click a face, then type the note (several lines are
+  fine). The text appears in a yellow box next to the point, joined to it by a leader. `Esc`
+  cancels the click. Adding a note stops measuring and turns off the wall thickness and
+  comparison views, whose colored parts have no faces to click.
+- **Markup > Sketch** (`Ctrl+Shift+K`): while it is on, dragging with the left mouse button
+  draws a magenta line over the model. The stroke lies on a plane facing you through the point
+  where the drag started (seen from another side it is a flat line in space) and moves with that
+  part. The wheel, the middle
+  button and `Shift`/`Ctrl` dragging still move the view. Choose Sketch again or press `Esc` to
+  stop.
+- **Markup > Show Markup** shows or hides every note and stroke. A note or stroke on a hidden part
+  is hidden with it.
+
+The **Markup** panel lists the notes (their first line) and the sketches. Choosing a row draws
+that item in orange; double-clicking a note edits its text, double-clicking a sketch zooms to
+it; **Delete** (or the `Delete` key) removes the chosen rows. **Markup > Delete All Markup...**
+removes everything after asking.
+
+**File > Export Image** includes the markup that is shown.
+
+**Sharing.** **Markup > Export Markup...** saves the notes and sketches as a `.scmarkup` file;
+**Import Markup...** adds such a file's markup to the open model's (it asks first when the file
+was made for a model with another name). Markup is attached to parts by their place in the
+model, so it only lands where it should on the same model or a revision of it; items whose part
+the open model does not have are listed as "(part missing)" and not drawn.
+
+## 11. Preferences
 
 **File > Preferences...** (on macOS it appears in the application menu). Changes preview live;
 **OK** saves them, **Cancel** reverts.
@@ -555,7 +588,7 @@ Measurement units and precision are set in the **Measure** menu and are remember
 Preferences are stored per user by Qt's settings mechanism (registry on Windows, a plist file on
 macOS, a configuration file under `~/.config` on Linux).
 
-## 11. Keyboard shortcut reference
+## 12. Keyboard shortcut reference
 
 On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 
@@ -565,6 +598,8 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `Ctrl+W` | Close model |
 | `Ctrl+Shift+E` | Export image |
 | `Ctrl+Shift+V` | Save the current view (View > Saved Views) |
+| `Ctrl+Shift+N` | Add a note (Markup menu) |
+| `Ctrl+Shift+K` | Sketch on or off (Markup menu) |
 | `Ctrl+Q` | Quit |
 | `Ctrl+F` | Find part (filter the Assembly tree) |
 | `F` | Fit all |
@@ -584,17 +619,18 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `A` | Measure: angle |
 | `R` | Measure: radius / diameter |
 | `Shift+M` | Mass properties |
-| `Esc` | Stop measuring, or cancel a section plane's face pick |
-| `Delete` | Remove the selected measurements (in the Measurements panel; also `Backspace` on macOS) |
+| `Esc` | Stop measuring, cancel a section plane's or a note's face pick, or stop sketching |
+| `Delete` | Remove the selected measurements (in the Measurements panel; also `Backspace` on macOS) or notes and sketches (in the Markup panel) |
 
 Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + left drag zoom;
 left click select; Shift + click add to selection; right click context menu.
 
 Menu items without shortcuts: Open Recent, Export Geometry, Export Parts List, Manage Saved Views, Set Material,
-Clear Material, Check Geometry, Check Clashes, Wall Thickness, Compare With, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
+Clear Material, Check Geometry, Check Clashes, Wall Thickness, Compare With, Show Markup, Export Markup,
+Import Markup, Delete All Markup, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 **The 3D view is black, blank or shows a "Graphics Error".** Update your GPU driver first. On
 Linux, start with `--software-gl`. Check **Help > Graphics Information...** to see what the

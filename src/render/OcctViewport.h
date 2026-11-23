@@ -149,7 +149,12 @@ public:
   const std::optional<OverlayMarker>& overlayMarker() const { return _overlay; }
 
   // At most one handler; null removes it. Not owned.
-  void setDragHandler(DragHandler* handler) { _dragHandler = handler; }
+  void setDragHandler(DragHandler* handler);
+  // A handler offered every plain left press, wherever it lands ('detected' may be null), before
+  // the drag handler and navigation (e.g. sketching markup). At most one; null removes it. Not
+  // owned.
+  void setPressHandler(DragHandler* handler);
+  DragHandler* pressHandler() const { return _pressHandler; }
 
   QSize minimumSizeHint() const override { return {200, 150}; }
 
@@ -213,6 +218,8 @@ private:
   // Emits devicePixelRatioChanged (queued) when the ratio differs from the last check.
   void checkDevicePixelRatio();
   DragHandler* _dragHandler = nullptr;
+  DragHandler* _pressHandler = nullptr;
+  DragHandler* _activeDrag = nullptr; // the handler that took the current drag
   bool _dragging = false;
   // Small-object culling while the camera moves (see setNavigating).
   bool _navigating = false;

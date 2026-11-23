@@ -8,8 +8,8 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 **License:** MIT · **Repo:** github.com/brsnell/step-complete
 
 **Status:** M0–M4 are done; M5 (ship v1.0) is in progress, and v1.0.0 shipped for Windows and
-Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22 and v1.2.0 (M7) on 2026-11-23; markup is planned for v1.3
-(M8), in §7a. Open work is in
+Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22 and v1.2.0 (M7) on 2026-11-23; markup for v1.3
+(M8) is built and not yet released, see §7a. Open work is in
 [TODOS.md](../TODOS.md).
 
 ---
@@ -36,7 +36,7 @@ Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22 and v1.2.0 (M7) on 2026-1
   IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1. IGES and mesh formats came in v1.2 (§7a,
   [IGES](designs/iges-import.md), [meshes](designs/mesh-import.md)).
 - Model comparison, wall-thickness analysis and markup. Model comparison and wall thickness came
-  in v1.2; markup is planned for v1.3 (see §7a).
+  in v1.2; markup is built for v1.3 (see §7a).
   Collaboration was a candidate too and was dropped on 2026-11-21.
 
 ---
@@ -406,9 +406,11 @@ Feedback from users can reorder what is left.
   deviation with a legend, removed parts as ghosts ([design](designs/model-comparison.md)).
   Alignment of models that do not share coordinates is out of scope.
 
-### M8: v1.3: 📝 drafted
-- **Markup.** 3D notes and sketches pinned to geometry. They are saved to a sidecar file next to
-  the model, never into the STEP file, and appear in image export.
+### M8: v1.3: 🚧 in progress
+- ✅ **Markup** (the Markup menu): notes pinned to a clicked face and freehand sketches, anchored
+  to the part in its own coordinates and hidden with it. They are kept in the per-model store
+  that saved views use (never in the STEP file; a `.scmarkup` export shares them) and appear in
+  image export ([design](designs/markup.md)).
 
 ### Candidates, not scheduled
 Seen in other viewers. Waiting on user demand: 3D mouse (3Dconnexion) support and part color
@@ -455,5 +457,5 @@ overrides. The deferred items in `TODOS.md` (exploded view and others) are uncha
 2. ✅ M0–M4; M5 mostly done (see §7).
 3. The remaining work (release checks, signing, reference-machine performance, deferred items) is
    tracked in [TODOS.md](../TODOS.md).
-4. M6 (v1.1) and M7 (v1.2) shipped (§7a). M8 (v1.3, markup) is next; each feature gets a
+4. M6 (v1.1) and M7 (v1.2) shipped (§7a). M8 (v1.3): markup is built; each feature gets a
    design before it is built.
