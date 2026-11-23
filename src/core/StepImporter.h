@@ -33,7 +33,7 @@ struct ImportOptions {
   // Directory of the open-file cache (see DocumentCache.h); empty disables it. Only
   // premeshed imports use the cache. A hit skips reading, transfer and meshing.
   std::string cacheDir;
-  // Do not store a fresh import in the cache at the end of importStep; the caller will
+  // Do not store a fresh import in the cache at the end of importModel; the caller will
   // call storeInCache() itself, e.g. after it has handed the model to the UI.
   bool deferCacheStore = false;
 };
@@ -53,7 +53,7 @@ struct ImportStats {
   int uniqueParts = 0;
   bool fromCache = false; // the document was loaded from the open-file cache
   double cacheLoadSeconds = 0.0;
-  double cacheStoreSeconds = 0.0; // time importStep spent storing into the cache
+  double cacheStoreSeconds = 0.0; // time importModel spent storing into the cache
 };
 
 struct ImportResult {
@@ -65,21 +65,29 @@ struct ImportResult {
   ImportStats stats;
 };
 
-// Reads a STEP file (AP203/AP214/AP242) into an XCAF document with names,
-// colors, layers, validation properties, GD&T and saved views.
+// Reads a CAD file into an XCAF document; the format comes from the content (see FileFormat.h):
+// - STEP (AP203/AP214/AP242): names, colors, layers, validation properties, GD&T and saved views;
+// - IGES: names, colors, layers and the file unit (docs/designs/iges-import.md).
+// Gzip and zip containers are inflated first.
 //
 // Blocking; run it off the UI thread. Only one import may run at a time:
 // OCCT's translator parameters are process-global.
-ImportResult importStep(const std::string& utf8Path, const ImportOptions& options = {},
-                        const ProgressCallback& progress = {}, const CancelToken* cancel = nullptr);
+ImportResult importModel(const std::string& utf8Path, const ImportOptions& options = {},
+                         const ProgressCallback& progress = {}, const CancelToken* cancel = nullptr);
+
+// The same as importModel (the name predates IGES).
+inline ImportResult importStep(const std::string& utf8Path, const ImportOptions& options = {},
+                               const ProgressCallback& progress = {}, const CancelToken* cancel = nullptr) {
+  return importModel(utf8Path, options, progress, cancel);
+}
 
 // Stores a successful import in the cache (no-op without options.cacheDir, for a failed
 // result or one that came from the cache). Returns true if an entry was written. Takes the
-// same lock as importStep, so it is safe to call from the import worker thread after the
+// same lock as importModel, so it is safe to call from the import worker thread after the
 // result was published, but it reads the document: do not modify it meanwhile.
 bool storeInCache(const std::string& utf8Path, const ImportResult& result, const ImportOptions& options);
 
-// The lock importStep and storeInCache hold: OCCT's translator parameters and its XCAF
+// The lock importModel and storeInCache hold: OCCT's translator parameters and its XCAF
 // application (which opens and closes documents) are process-global. Other code that opens or
 // closes XCAF documents off the UI thread takes it too.
 std::mutex& xcafMutex();

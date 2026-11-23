@@ -34,6 +34,7 @@
 #include <QStatusBar>
 #include <QTest>
 #include <QTreeView>
+#include <QTreeWidget>
 
 #include <AIS_InteractiveContext.hxx>
 
@@ -70,6 +71,8 @@ private Q_SLOTS:
     auto fixture = sc::test::buildFixtureAssembly(false);
     _path = QString::fromStdString(sc::test::tempPath("main_window_fixture.step"));
     QVERIFY(sc::test::writeStep(fixture, _path.toStdString()));
+    _igesPath = QString::fromStdString(sc::test::tempPath("main_window_fixture.igs"));
+    QVERIFY(sc::test::writeIges(fixture, _igesPath.toStdString()));
   }
 
   void init() {
@@ -646,6 +649,31 @@ private Q_SLOTS:
     QVERIFY(!thickness->isEnabled());
   }
 
+  // IGES (docs/designs/iges-import.md): opens like STEP, and Properties names the format.
+  void opensAnIgesFile() {
+    _window->openFileWhenReady(_igesPath);
+    QTRY_VERIFY_WITH_TIMEOUT(_window->findChild<sc::app::ImportJob*>() == nullptr, 60000);
+    QVERIFY(_close->isEnabled());
+    QVERIFY2(_window->windowTitle().startsWith(QFileInfo(_igesPath).fileName()),
+             qPrintable(_window->windowTitle()));
+    QVERIFY2(_window->statusBar()->currentMessage().startsWith(QStringLiteral("Loaded ")),
+             qPrintable(_window->statusBar()->currentMessage()));
+    // IGES has no assembly structure: OCCT's writer flattened the fixture into one shape.
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    QVERIFY(tree->model()->rowCount() >= 1);
+
+    QString format;
+    for (QTreeWidget* properties : _window->findChildren<QTreeWidget*>()) {
+      const QList<QTreeWidgetItem*> rows =
+          properties->findItems(QStringLiteral("Format"), Qt::MatchExactly | Qt::MatchRecursive);
+      if (!rows.isEmpty()) {
+        format = rows.front()->text(1);
+      }
+    }
+    QCOMPARE(format, QStringLiteral("IGES"));
+    QVERIFY(_mass->isEnabled());
+  }
+
 private:
   void openFixture() {
     _window->openFileWhenReady(_path); // GL is ready (init), so the import starts now
@@ -656,6 +684,7 @@ private:
   }
 
   QString _path;
+  QString _igesPath;
   MainWindow* _window = nullptr;
   MeasurementsPanel* _panel = nullptr;
   MeasureTool* _tool = nullptr;

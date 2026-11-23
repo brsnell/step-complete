@@ -1,5 +1,6 @@
 #include "app/PropertiesPanel.h"
 
+#include "core/FileFormat.h"
 #include "core/Units.h"
 
 #include <QFileInfo>
@@ -210,6 +211,7 @@ void PropertiesPanel::rebuild() {
     if (file.exists()) {
       addRow(model, tr("Size"), QLocale().formattedDataSize(file.size()));
     }
+    addRow(model, tr("Format"), QString::fromLatin1(core::displayName(document->format())));
     QString unit = QString::fromStdString(document->fileUnitName());
     if (document->fileUnit()) {
       unit = QString::fromUtf8(core::displayName(*document->fileUnit()).data());

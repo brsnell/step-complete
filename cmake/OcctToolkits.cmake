@@ -1,11 +1,12 @@
 # Maps the OCCT toolkits we need to imported targets, hiding naming differences
 # between OCCT versions. OCCT 7.8 merged the STEP toolkits (TKSTEP, TKSTEPBase,
-# TKSTEPAttr, TKSTEP209, TKXDESTEP) into TKDESTEP.
+# TKSTEPAttr, TKSTEP209, TKXDESTEP) into TKDESTEP, and the IGES ones (TKIGES, TKXDEIGES)
+# into TKDEIGES.
 #
 # Defines interface targets:
 #   sc::occt_foundation  - kernel, math, geometry, topology
 #   sc::occt_visual      - V3d/AIS viewer and OpenGL driver
-#   sc::occt_data        - XCAF document, STEP import and mesh export (OBJ, glTF)
+#   sc::occt_data        - XCAF document, STEP and IGES import, mesh export (OBJ, glTF)
 
 if(NOT OpenCASCADE_VERSION)
   set(OpenCASCADE_VERSION "${OpenCASCADE_MAJOR_VERSION}.${OpenCASCADE_MINOR_VERSION}.${OpenCASCADE_MAINTENANCE_VERSION}")
@@ -22,9 +23,9 @@ set(_sc_occt_data       TKCDF TKLCAF TKCAF TKXSBase TKXCAF TKBinL TKBin TKBinXCA
 
 if(OpenCASCADE_VERSION VERSION_GREATER_EQUAL 7.8)
   # 7.8 also moved the OBJ and glTF writers out of TKRWMesh.
-  list(APPEND _sc_occt_data TKDE TKDESTEP TKDEOBJ TKDEGLTF)
+  list(APPEND _sc_occt_data TKDE TKDESTEP TKDEIGES TKDEOBJ TKDEGLTF)
 else()
-  list(APPEND _sc_occt_data TKSTEPBase TKSTEPAttr TKSTEP209 TKSTEP TKXDESTEP)
+  list(APPEND _sc_occt_data TKSTEPBase TKSTEPAttr TKSTEP209 TKSTEP TKXDESTEP TKIGES TKXDEIGES)
 endif()
 
 foreach(_group foundation visual data)

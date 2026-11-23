@@ -51,7 +51,7 @@ void ImportJob::start() {
     };
 
     auto result =
-        std::make_shared<core::ImportResult>(core::importStep(utf8Path, options, onProgress, &_cancel));
+        std::make_shared<core::ImportResult>(core::importModel(utf8Path, options, onProgress, &_cancel));
     std::shared_ptr<const core::AssemblyIndex> index;
     std::shared_ptr<const core::PmiModel> pmi;
     if (result->ok) {

@@ -2,11 +2,11 @@
 Type=Application
 Name=STEP Complete
 GenericName=STEP Viewer
-Comment=View STEP files with measurement and PMI
+Comment=View STEP and IGES files with measurement and PMI
 Exec=StepComplete %F
 Icon=stepcomplete
 Terminal=false
 Categories=Graphics;Engineering;Viewer;Qt;
-MimeType=model/step;model/step+zip;application/step;application/x-step;application/step+zip;
-Keywords=STEP;CAD;3D;PMI;measure;viewer;
+MimeType=model/step;model/step+zip;application/step;application/x-step;application/step+zip;model/iges;application/iges;
+Keywords=STEP;IGES;CAD;3D;PMI;measure;viewer;
 StartupWMClass=StepComplete

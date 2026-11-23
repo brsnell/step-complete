@@ -604,6 +604,7 @@ DocumentPtr copyDocument(const Document& source, bool withTriangulations) {
     auto copy = std::make_shared<Document>(doc);
     copy->setSourcePath(source.sourcePath());
     copy->setFileUnit(source.fileUnitName(), source.fileUnit());
+    copy->setFormat(source.format());
     copy->setCameras(source.cameras());
     return copy;
   } catch (const Standard_Failure&) {

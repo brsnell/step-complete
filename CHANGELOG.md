@@ -6,6 +6,10 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- IGES files (`.igs`, `.iges`) open like STEP files, with part names, colors, layers and the
+  file's unit, and every measuring and checking tool works on them. The format comes from the
+  file's content, so a misnamed file still opens; Properties shows it. IGES joins "Open with" on
+  Windows, macOS and Linux without becoming the default program.
 - Measure > Wall Thickness: colors the selected or visible parts by local wall thickness (the ray
   method on a refined display mesh, computed in parallel in the background), with a legend, a
   readout of the thickness under the cursor, and thin and thick limits in the Wall Thickness

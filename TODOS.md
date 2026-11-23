@@ -62,13 +62,13 @@ Shipped as v1.1.0 on 2026-11-22 (see `CHANGELOG.md`).
 
 ## v2 (M7)
 
-### Other import formats
+### Mesh import formats
 
-**What:** Open IGES first, then mesh formats (STL, OBJ, glTF).
+**What:** Open mesh formats (STL, OBJ, glTF). IGES is done ([design](docs/designs/iges-import.md)).
 
-**Why:** People often get IGES or mesh files instead of STEP, and other viewers open them.
+**Why:** People often get mesh files instead of STEP, and other viewers open them.
 
-**Context:** OCCT's `DE_Wrapper` reads all of them. IGES has B-rep geometry, so measurement works. Mesh files have no exact geometry, so measurement has to fall back to the mesh or be turned off for them, and the UI must say which. The importer, the open-file cache, file associations and the Open dialog's filters all assume STEP today. PMI stays AP242 only. This changes a v1 non-goal (PLAN §1).
+**Context:** OCCT's `DE_Wrapper` reads all of them. Mesh files have no exact geometry, so measurement has to fall back to the mesh or be turned off for them, and the UI must say which. `importModel` already detects the format from the content (`core/FileFormat`), and the cache, associations and Open dialog take new formats in one place each. PMI stays AP242 only.
 
 **Effort:** M
 **Priority:** P3

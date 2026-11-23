@@ -64,6 +64,9 @@ Root: HKA; Subkey: "Software\Classes\StepComplete.step\shell\open\command"; Valu
 Root: HKA; Subkey: "Software\Classes\StepComplete.stpz"; ValueType: string; ValueName: ""; ValueData: "Compressed STEP CAD model"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\StepComplete.stpz\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppExe},0"
 Root: HKA; Subkey: "Software\Classes\StepComplete.stpz\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\StepComplete.iges"; ValueType: string; ValueName: ""; ValueData: "IGES CAD model"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\StepComplete.iges\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\{#AppExe},0"
+Root: HKA; Subkey: "Software\Classes\StepComplete.iges\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\{#AppExe}"" ""%1"""
 
 ; "Open with" list entry
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "{#AppName}"; Flags: uninsdeletekey
@@ -72,12 +75,17 @@ Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; Val
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".stp"; ValueData: ""
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".p21"; ValueData: ""
 Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".stpz"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".igs"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\Applications\{#AppExe}\SupportedTypes"; ValueType: string; ValueName: ".iges"; ValueData: ""
 
 ; Offer our ProgID for each extension without changing the current default
 Root: HKA; Subkey: "Software\Classes\.step\OpenWithProgids"; ValueType: string; ValueName: "StepComplete.step"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.stp\OpenWithProgids"; ValueType: string; ValueName: "StepComplete.step"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.p21\OpenWithProgids"; ValueType: string; ValueName: "StepComplete.step"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.stpz\OpenWithProgids"; ValueType: string; ValueName: "StepComplete.stpz"; ValueData: ""; Flags: uninsdeletevalue
+; IGES is offered in Open with only: the optional default below stays STEP-only.
+Root: HKA; Subkey: "Software\Classes\.igs\OpenWithProgids"; ValueType: string; ValueName: "StepComplete.iges"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.iges\OpenWithProgids"; ValueType: string; ValueName: "StepComplete.iges"; ValueData: ""; Flags: uninsdeletevalue
 
 ; Optional default handler: only where no default exists yet
 Root: HKA; Subkey: "Software\Classes\.step"; ValueType: string; ValueName: ""; ValueData: "StepComplete.step"; Flags: createvalueifdoesntexist uninsdeletevalue; Tasks: assoc

@@ -22,6 +22,7 @@
 #include "app/SectionPanel.h"
 #include "app/ThicknessJob.h"
 #include "app/ThicknessPanel.h"
+#include "core/FileFormat.h"
 #include "core/Memory.h"
 #include "core/OcctInfo.h"
 #include "core/Version.h"
@@ -92,10 +93,9 @@ const char* const MeasureDecimalsKey = "measure/decimals";
 const char* const MeasureMassUnitKey = "measure/massUnit";
 const char* const MeasureAngleUnitKey = "measure/angleUnit";
 
-bool isStepFile(const QString& path) {
-  const QString suffix = QFileInfo(path).suffix().toLower();
-  return suffix == QLatin1String("step") || suffix == QLatin1String("stp") ||
-         suffix == QLatin1String("stpz") || suffix == QLatin1String("p21");
+// A file the importer reads, by its name (the importer itself goes by the content).
+bool isCadFile(const QString& path) {
+  return core::formatFromExtension(path.toUtf8().toStdString()) != core::FileFormat::Unknown;
 }
 
 QString severityLabel(core::ImportMessage::Severity severity) {
@@ -1212,7 +1212,9 @@ void MainWindow::openFileDialog() {
   QSettings settings;
   const QString dir = settings.value(QLatin1String(LastDirKey)).toString();
   const QString path = QFileDialog::getOpenFileName(
-      this, tr("Open STEP File"), dir, tr("STEP files (*.step *.stp *.stpz *.p21);;All files (*)"));
+      this, tr("Open CAD File"), dir,
+      tr("CAD files (*.step *.stp *.stpz *.p21 *.igs *.iges);;STEP files (*.step *.stp *.stpz *.p21);;"
+         "IGES files (*.igs *.iges);;All files (*)"));
   if (!path.isEmpty()) {
     settings.setValue(QLatin1String(LastDirKey), QFileInfo(path).absolutePath());
     openFile(path);
@@ -1430,7 +1432,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
 
 void MainWindow::dragEnterEvent(QDragEnterEvent* event) {
   const QList<QUrl> urls = event->mimeData()->urls();
-  if (urls.size() == 1 && urls.front().isLocalFile() && isStepFile(urls.front().toLocalFile())) {
+  if (urls.size() == 1 && urls.front().isLocalFile() && isCadFile(urls.front().toLocalFile())) {
     event->acceptProposedAction();
   }
 }
