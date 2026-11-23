@@ -29,6 +29,10 @@ add_library(sc_app STATIC
   ClashPanel.h
   ClashPanel.cpp
   GeometryCheckJob.h
+  ThicknessJob.h
+  ThicknessJob.cpp
+  ThicknessPanel.h
+  ThicknessPanel.cpp
   GeometryCheckJob.cpp
   GeometryCheckPanel.h
   GeometryCheckPanel.cpp

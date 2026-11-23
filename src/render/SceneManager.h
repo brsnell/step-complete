@@ -97,6 +97,14 @@ public:
   void clearIssue();
   bool hasIssue() const { return !_issue.IsNull(); }
 
+  // --- Part overrides ----------------------------------------------------------------
+  // Shows another presentation in place of a part's own (e.g. the wall thickness colors) while
+  // keeping its visibility, selection and clip planes; selecting it selects the part. Null
+  // restores the part's own presentation. The override is positioned by its own transformation.
+  void setPartOverride(core::NodeId part, const OccHandle<AIS_InteractiveObject>& presentation);
+  void clearPartOverrides();
+  bool hasOverride(core::NodeId part) const;
+
   // World bounding box of the visible parts below the nodes (void if none).
   Bnd_Box boundingBox(const std::vector<core::NodeId>& nodes) const;
 
@@ -107,6 +115,7 @@ public:
 private:
   struct PartEntry {
     OccHandle<AIS_InteractiveObject> object; // connected instance or detached presentation
+    OccHandle<AIS_InteractiveObject> own;    // while overridden: the part's own presentation
     bool visible = false;
     bool detached = false;
   };
@@ -114,6 +123,7 @@ private:
   OccHandle<XCAFPrs_AISObject> prototypeFor(const core::AssemblyNode& node);
   OccHandle<AIS_InteractiveObject> createInstance(const core::AssemblyNode& node);
   void detach(core::NodeId part);
+  void replaceObject(core::NodeId id, PartEntry& part, const OccHandle<AIS_InteractiveObject>& object);
   void displayPart(const OccHandle<AIS_InteractiveObject>& object);
   std::vector<int> activeSelectionModes() const;
   void applyStyleTo(const OccHandle<AIS_InteractiveObject>& object);

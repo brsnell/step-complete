@@ -33,6 +33,7 @@ namespace sc::render {
 class MeasureTool;
 class SectionTool;
 class PmiScene;
+class ThicknessScene;
 class OcctViewport;
 class SceneManager;
 } // namespace sc::render
@@ -48,6 +49,8 @@ class ClashJob;
 class ClashPanel;
 class GeometryCheckJob;
 class GeometryCheckPanel;
+class ThicknessJob;
+class ThicknessPanel;
 class PmiPanel;
 class SectionPanel;
 struct ViewPreferences;
@@ -100,6 +103,13 @@ public:
   // pairs in the Clashes panel. Does nothing while a clash check runs.
   void checkClashesWith(const core::ClashOptions& options);
   bool isCheckingClashes() const;
+
+  // --- Wall thickness (docs/designs/wall-thickness.md) -----------------------------------
+  // What Measure > Wall Thickness does: on, measure the selected parts (every visible part when
+  // nothing is selected) in the background and color them by thickness; off, back to normal.
+  void showWallThickness(bool on);
+  bool isMeasuringThickness() const;
+  bool isThicknessShown() const;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -161,6 +171,9 @@ private:
   void onClashCheckFinished();
   void showClash(int index, bool zoom);
   void stopClashCheck();
+  void onThicknessFinished();
+  void onThicknessHover();
+  void stopThickness(); // cancels, clears the view and the panel, unchecks the menu item
   // The red highlight is shared by the Geometry Check and Clashes panels; each clears only its own.
   enum class Highlight { None, GeometryIssue, Clash };
   void showHighlight(Highlight owner, const TopoDS_Shape& worldShape);
@@ -246,6 +259,12 @@ private:
   std::vector<core::NodeId> _clashParts;                  // what the last check covered, for Check Again
   core::ClashOptions _clashOptions;
   Highlight _highlight = Highlight::None;
+  std::unique_ptr<render::ThicknessScene> _thicknessScene;
+  QAction* _thicknessAction = nullptr;
+  ThicknessPanel* _thicknessPanel = nullptr;
+  QDockWidget* _thicknessDock = nullptr;
+  QPointer<ThicknessJob> _thicknessJob;
+  bool _thicknessMarker = false; // the overlay marker shows the thickness readout
   core::MeasureDisplayOptions _measureOptions;
   QDockWidget* _messagesDock = nullptr;
   QLabel* _emptyHint = nullptr;

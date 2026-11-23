@@ -388,9 +388,9 @@ Feedback from v1.0 users can reorder v1.1 and v2.
   volume, and optionally touching and clearance, among the selected or visible parts; a
   bounding-box pass, then exact checks in parallel in the background
   ([design](designs/clash-detection.md)).
-- **Wall thickness analysis.** Color the model by local thickness with a min/max legend, and add
-  a point-pick readout. Exact (B-rep) thickness or ray casting on the mesh is a design decision;
-  either has to stay usable on the §2a reference machine.
+- ✅ **Wall thickness analysis** (Measure > Wall Thickness): ray casting on the refined display
+  mesh, a color map with a legend and adjustable limits, and a hover readout
+  ([design](designs/wall-thickness.md)). About 300,000 points a second on a 4-core machine.
 - **Other import formats.** IGES first (it has B-rep, so measurement works), then mesh formats
   (STL, OBJ, glTF) through OCCT's `DE_Wrapper`. Mesh files have no exact geometry, so
   measurement has to fall back to the mesh or be disabled for them, and the UI must say which.

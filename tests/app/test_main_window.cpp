@@ -12,6 +12,8 @@
 #include "app/ImportJob.h"
 #include "app/MainWindow.h"
 #include "app/MeasurementsPanel.h"
+#include "app/ThicknessJob.h"
+#include "app/ThicknessPanel.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
 #include "render/SectionTool.h"
@@ -603,6 +605,45 @@ private Q_SLOTS:
     _close->trigger();
     QCOMPARE(panel->rowCount(), 0);
     QVERIFY(!check->isEnabled());
+  }
+
+  // Measure > Wall Thickness (docs/designs/wall-thickness.md): measures the fixture in the
+  // background, colors it, and turns off for measuring and when the model closes.
+  void wallThicknessColorsThePartsAndTurnsOff() {
+    QAction* thickness = menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("Wall &Thickness"));
+    QVERIFY(thickness != nullptr);
+    QVERIFY(!thickness->isEnabled());
+    openFixture();
+    QVERIFY(thickness->isEnabled());
+    auto* panel = _window->findChild<sc::app::ThicknessPanel*>();
+    auto* dock = _window->findChild<QDockWidget*>(QStringLiteral("ThicknessDock"));
+    QVERIFY(panel != nullptr && dock != nullptr);
+
+    thickness->trigger();
+    QVERIFY(thickness->isChecked());
+    QVERIFY(dock->isVisible());
+    QTRY_VERIFY_WITH_TIMEOUT(!_window->isMeasuringThickness(), 120000);
+    QTRY_VERIFY(_window->findChild<sc::app::ThicknessJob*>() == nullptr);
+    QVERIFY(_window->isThicknessShown());
+    // The plate (10 mm thick, 100 mm long) and the 6 mm pins.
+    QVERIFY2(panel->summary().startsWith(QStringLiteral("Wall thickness ")), qPrintable(panel->summary()));
+    QVERIFY2(panel->summary().contains(QStringLiteral(" in 2 parts.")), qPrintable(panel->summary()));
+    QVERIFY(panel->thinLimit() > 5.5 && panel->thinLimit() < 6.01);
+    QVERIFY(panel->thickLimit() > 99.0);
+
+    // Measuring needs the parts' own faces and edges: the view turns off.
+    menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Distance"))->trigger();
+    QVERIFY(!_window->isThicknessShown());
+    QVERIFY(!thickness->isChecked());
+    menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Stop Measuring"))->trigger();
+
+    // On again, then closing the model turns it off.
+    thickness->trigger();
+    QTRY_VERIFY_WITH_TIMEOUT(_window->isThicknessShown(), 120000);
+    _close->trigger();
+    QVERIFY(!_window->isThicknessShown());
+    QVERIFY(!thickness->isChecked());
+    QVERIFY(!thickness->isEnabled());
   }
 
 private:
