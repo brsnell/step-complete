@@ -394,9 +394,9 @@ Feedback from v1.0 users can reorder v1.1 and v2.
   ([design](designs/wall-thickness.md)). About 300,000 points a second on a 4-core machine.
 - ✅ **IGES import**: names, colors, layers and units through the XCAF IGES reader, the format
   detected from the content, and "Open with" associations ([design](designs/iges-import.md)).
-- **Mesh import formats** (STL, OBJ, glTF) through OCCT's `DE_Wrapper`. Mesh files have no exact
-  geometry, so measurement has to fall back to the mesh or be disabled for them, and the UI must
-  say which. PMI stays AP242 only.
+- ✅ **Mesh import** (STL, OBJ, glTF): OCCT's mesh readers into the same document; exact
+  measuring and the checks are off for mesh files and say so, mass properties and wall thickness
+  use the triangles ([design](designs/mesh-import.md)). PMI stays AP242 only.
 - **Model comparison.** Open two revisions of a model, align them, and color the geometry that
   was added, removed or changed, with a deviation legend. Needs two documents in one scene
   (`SceneManager` holds one today) and a way to pair parts between revisions.

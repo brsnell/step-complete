@@ -6,6 +6,10 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- Mesh files open: STL (ASCII or binary), OBJ with its colors, and glTF/GLB with names, colors and
+  the node hierarchy. glTF's metres and Y up become millimetres and Z up; STL and OBJ are taken as
+  millimetres. Mass properties and wall thickness use the triangles; the exact measuring tools
+  and the geometry and clash checks are off for mesh files, and the status bar says so.
 - IGES files (`.igs`, `.iges`) open like STEP files, with part names, colors, layers and the
   file's unit, and every measuring and checking tool works on them. The format comes from the
   file's content, so a misnamed file still opens; Properties shows it. IGES joins "Open with" on

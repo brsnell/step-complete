@@ -611,7 +611,7 @@ Measurement computeMassProperties(const std::vector<MassItem>& items, const Meas
     if (item.worldShape.IsNull()) {
       continue;
     }
-    if (hasSolid(item.worldShape)) {
+    if (hasSolid(item.worldShape) || measure::hasMeshOnlyFaces(item.worldShape)) { // a mesh has volume too
       ++withVolume;
       if (!item.density || *item.density <= 0.0) {
         ++withoutDensity;
@@ -640,7 +640,11 @@ Measurement computeMassProperties(const std::vector<MassItem>& items, const Meas
                          : mass.hasVolume ? volume
                                           : area;
 
-  add("Solids", std::to_string(mass.solidCount));
+  if (mass.fromMesh) {
+    add("From", "mesh (exact only for closed meshes)");
+  } else {
+    add("Solids", std::to_string(mass.solidCount));
+  }
   if (mass.hasMass) {
     add("Mass", measurement.headline);
     if (distinctDensities.size() == 1) {

@@ -167,7 +167,9 @@ TEST(FileFormat, NamesExtensionsAndUnits) {
   EXPECT_EQ(core::formatFromExtension("part.stpz"), core::FileFormat::Step);
   EXPECT_EQ(core::formatFromExtension("part.IGS"), core::FileFormat::Iges);
   EXPECT_EQ(core::formatFromExtension("part.iges.gz"), core::FileFormat::Iges);
-  EXPECT_EQ(core::formatFromExtension("part.stl"), core::FileFormat::Unknown);
+  EXPECT_EQ(core::formatFromExtension("part.stl"), core::FileFormat::Stl);
+  EXPECT_EQ(core::formatFromExtension("part.glb"), core::FileFormat::Gltf);
+  EXPECT_EQ(core::formatFromExtension("part.ply"), core::FileFormat::Unknown);
   EXPECT_STREQ(core::displayName(core::FileFormat::Iges), "IGES");
   EXPECT_EQ(core::lengthUnitFromIgesFlag(1), core::LengthUnit::Inch);
   EXPECT_EQ(core::lengthUnitFromIgesFlag(2), core::LengthUnit::Millimeter);

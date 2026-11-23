@@ -18,6 +18,9 @@
 #include "render/OcctViewport.h"
 #include "render/SectionTool.h"
 
+#include <BRepMesh_IncrementalMesh.hxx>
+#include <BRepPrimAPI_MakeBox.hxx>
+#include <StlAPI_Writer.hxx>
 #include <gp_Dir.hxx>
 
 #include <QAction>
@@ -73,6 +76,10 @@ private Q_SLOTS:
     QVERIFY(sc::test::writeStep(fixture, _path.toStdString()));
     _igesPath = QString::fromStdString(sc::test::tempPath("main_window_fixture.igs"));
     QVERIFY(sc::test::writeIges(fixture, _igesPath.toStdString()));
+    const TopoDS_Shape box = BRepPrimAPI_MakeBox(10.0, 20.0, 30.0).Shape();
+    BRepMesh_IncrementalMesh mesher(box, 0.1);
+    _stlPath = QString::fromStdString(sc::test::tempPath("main_window_box.stl"));
+    QVERIFY(StlAPI_Writer().Write(box, _stlPath.toStdString().c_str()));
   }
 
   void init() {
@@ -674,6 +681,39 @@ private Q_SLOTS:
     QVERIFY(_mass->isEnabled());
   }
 
+  // Mesh files (docs/designs/mesh-import.md): an STL opens, the exact-geometry tools are off and
+  // say why, and mass properties come from the triangles.
+  void meshFilesTurnOffExactMeasuring() {
+    _window->openFileWhenReady(_stlPath);
+    QTRY_VERIFY_WITH_TIMEOUT(_window->findChild<sc::app::ImportJob*>() == nullptr, 60000);
+    QVERIFY(_close->isEnabled());
+    QVERIFY2(_window->statusBar()->currentMessage().contains(QStringLiteral("mesh files (STL)")),
+             qPrintable(_window->statusBar()->currentMessage()));
+    QVERIFY(!menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Distance"))->isEnabled());
+    QVERIFY(
+        !menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("Check &Geometry"))->isEnabled());
+    QVERIFY(
+        !menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("Check &Clashes..."))->isEnabled());
+    QVERIFY(menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("Wall &Thickness"))->isEnabled());
+
+    QVERIFY(_mass->isEnabled());
+    _mass->trigger();
+    QVERIFY(!_panel->measurements().empty());
+    const sc::core::Measurement& result = _panel->measurements().back();
+    QVERIFY2(result.ok, result.error.c_str());
+    bool fromMesh = false;
+    for (const auto& [key, value] : result.details) {
+      fromMesh = fromMesh || (key == "From" && value.rfind("mesh", 0) == 0);
+    }
+    QVERIFY(fromMesh);
+    QVERIFY2(QString::fromStdString(result.headline).startsWith(QStringLiteral("6000")),
+             result.headline.c_str()); // 10 x 20 x 30 mm
+
+    // Back to a STEP file: measuring is on again.
+    openFixture();
+    QVERIFY(menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Distance"))->isEnabled());
+  }
+
 private:
   void openFixture() {
     _window->openFileWhenReady(_path); // GL is ready (init), so the import starts now
@@ -685,6 +725,7 @@ private:
 
   QString _path;
   QString _igesPath;
+  QString _stlPath;
   MainWindow* _window = nullptr;
   MeasurementsPanel* _panel = nullptr;
   MeasureTool* _tool = nullptr;

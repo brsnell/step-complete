@@ -16,6 +16,7 @@
 #include <Standard_Failure.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
+#include <TopLoc_Location.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <gp_Lin.hxx>
@@ -573,21 +574,48 @@ std::optional<RadiusResult> radius(const TopoDS_Shape& shape) {
   return result;
 }
 
+bool hasMeshOnlyFaces(const TopoDS_Shape& shape) {
+  for (TopExp_Explorer it(shape, TopAbs_FACE); it.More(); it.Next()) {
+    TopLoc_Location location;
+    if (BRep_Tool::Surface(TopoDS::Face(it.Current()), location).IsNull()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes, const std::vector<double>& densities) {
   MassProperties result;
   const TopoDS_Compound all = makeCompound(shapes);
   const bool weighted = !densities.empty() && densities.size() == shapes.size();
+  // Mesh files (docs/designs/mesh-import.md): faces that hold only triangles. Their volume comes
+  // from the triangles and counts as if the mesh were closed.
+  result.fromMesh = hasMeshOnlyFaces(all);
 
+  // What carries volume in a shape: its solids, or for a mesh the whole shape.
+  const auto volumeOf = [&result](const TopoDS_Shape& shape) {
+    std::vector<TopoDS_Shape> solids;
+    for (TopExp_Explorer it(shape, TopAbs_SOLID); it.More(); it.Next()) {
+      solids.push_back(it.Current());
+    }
+    if (solids.empty() && result.fromMesh && TopExp_Explorer(shape, TopAbs_FACE).More()) {
+      solids.push_back(shape);
+    }
+    return solids;
+  };
   std::vector<TopoDS_Shape> solids;
   for (TopExp_Explorer it(all, TopAbs_SOLID); it.More(); it.Next()) {
     solids.push_back(it.Current());
   }
   result.solidCount = static_cast<int>(solids.size());
+  if (solids.empty() && result.fromMesh) {
+    solids = volumeOf(all);
+  }
   result.hasVolume = !solids.empty();
 
   try {
     GProp_GProps surfaceProps;
-    BRepGProp::SurfaceProperties(all, surfaceProps);
+    BRepGProp::SurfaceProperties(all, surfaceProps, false, result.fromMesh);
     result.area = surfaceProps.Mass();
 
     GProp_GProps props = surfaceProps;
@@ -596,15 +624,12 @@ MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes, const std
       // the inertia in kg mm².
       props = GProp_GProps(gp_Pnt(0.0, 0.0, 0.0));
       for (size_t i = 0; i < shapes.size(); ++i) {
-        std::vector<TopoDS_Shape> own;
-        for (TopExp_Explorer it(shapes[i], TopAbs_SOLID); it.More(); it.Next()) {
-          own.push_back(it.Current());
-        }
+        const std::vector<TopoDS_Shape> own = volumeOf(shapes[i]);
         if (own.empty()) {
           continue;
         }
         GProp_GProps shapeProps;
-        BRepGProp::VolumeProperties(makeCompound(own), shapeProps);
+        BRepGProp::VolumeProperties(makeCompound(own), shapeProps, false, false, result.fromMesh);
         result.volume += std::abs(shapeProps.Mass());
         props.Add(shapeProps, densities[i] * 1e-9);
       }
@@ -612,7 +637,7 @@ MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes, const std
       result.mass = std::abs(props.Mass());
     } else if (result.hasVolume) {
       props = GProp_GProps();
-      BRepGProp::VolumeProperties(makeCompound(solids), props);
+      BRepGProp::VolumeProperties(makeCompound(solids), props, false, false, result.fromMesh);
       result.volume = std::abs(props.Mass());
     }
     // With densities Mass() is in kg, so a small plastic part would look empty: test the volume.
@@ -629,7 +654,7 @@ MassProperties massProperties(const std::vector<TopoDS_Shape>& shapes, const std
                             gp_Dir(principal.ThirdAxisOfInertia())};
 
     Bnd_Box box;
-    BRepBndLib::AddOptimal(all, box, false, false);
+    BRepBndLib::AddOptimal(all, box, result.fromMesh, false); // a mesh has only its triangles
     if (box.IsVoid()) {
       return result;
     }
@@ -658,6 +683,10 @@ std::optional<gp_Pln> planeOfFace(const TopoDS_Shape& shape) {
     return std::nullopt;
   }
   const TopoDS_Face& face = TopoDS::Face(shape);
+  TopLoc_Location location;
+  if (BRep_Tool::Surface(face, location).IsNull()) {
+    return std::nullopt; // a mesh face: triangles only
+  }
   const BRepAdaptor_Surface surface(face); // includes the face's location
   if (surface.GetType() != GeomAbs_Plane) {
     return std::nullopt;

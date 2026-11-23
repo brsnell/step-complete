@@ -12,17 +12,24 @@ enum class FileFormat {
   Unknown,
   Step, // ISO 10303-21: AP203, AP214, AP242
   Iges, // IGES 5.x
+  Stl,  // ASCII or binary (docs/designs/mesh-import.md)
+  Obj,  // Wavefront OBJ with MTL
+  Gltf, // glTF 2.0, .gltf or .glb
 };
 
-const char* displayName(FileFormat format); // "STEP", "IGES", "Unknown"
+const char* displayName(FileFormat format); // "STEP", "IGES", "STL", "OBJ", "glTF", "Unknown"
 
-// The format of a file from its first bytes (a STEP header, or IGES's fixed 80-column records),
-// else from the extension of 'nameForExtension' (the file's own path when empty). Reads at most
-// a few kilobytes. Compressed files are Unknown by content: inflate them first.
+// Mesh formats have triangles only: no exact faces, edges or units.
+bool isMeshFormat(FileFormat format);
+
+// The format of a file from its first bytes (a STEP header, IGES's fixed 80-column records, a
+// GLB or glTF JSON header, a binary STL whose triangle count matches its size, an ASCII STL's
+// solid/facet, OBJ vertex records), else from the extension of 'nameForExtension' (the file's own path when
+// empty). Reads at most a few kilobytes. Compressed files are Unknown by content: inflate them first.
 FileFormat detectFileFormat(const std::string& utf8Path, const std::string& nameForExtension = {});
 
 // The format a file name suggests: .step/.stp/.p21/.stpz (and .gz of those) are STEP,
-// .igs/.iges are IGES.
+// .igs/.iges IGES, .stl STL, .obj OBJ, .gltf/.glb glTF.
 FileFormat formatFromExtension(const std::string& utf8Path);
 
 // IGES global section unit flag (parameter 14) to a length unit; nullopt for units the viewer
