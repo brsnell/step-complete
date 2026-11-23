@@ -37,6 +37,12 @@ add_library(sc_core STATIC
   PartsList.cpp
   Clash.h
   Clash.cpp
+  PartMesh.h
+  PartMesh.cpp
+  MeshDistance.h
+  MeshDistance.cpp
+  Comparison.h
+  Comparison.cpp
   WallThickness.h
   WallThickness.cpp
   GeometryCheck.h

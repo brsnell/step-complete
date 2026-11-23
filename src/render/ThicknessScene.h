@@ -66,6 +66,7 @@ private:
   SceneManager& _scene;
   std::shared_ptr<const core::ThicknessResult> _result;
   std::vector<OccHandle<AIS_InteractiveObject>> _presentations;
+  std::vector<core::NodeId> _parts; // the parts this view overrides
   OccHandle<AIS_ColorScale> _legend;
   double _thin = 0.0;
   double _thick = 1.0;

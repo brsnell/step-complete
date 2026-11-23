@@ -47,7 +47,7 @@ cap can come out wrong, and today the user has no way to tell (TODOS v1.1).
 ## Out of scope
 
 - Repairing geometry (OCCT's ShapeFix): this is a viewer.
-- Checks between parts (interference is the clash detection item in v2).
+- Checks between parts (interference is the clash detection item in v1.2).
 - Tolerance analysis and a configurable tiny-edge length.
 
 ## Tests

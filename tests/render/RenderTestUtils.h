@@ -51,6 +51,7 @@ inline void dumpImage(const QImage& image, const char* name) {
 int runViewportSmokeTests(int argc, char** argv);
 int runSceneManagerTests(int argc, char** argv);
 int runThicknessSceneTests(int argc, char** argv);
+int runComparisonSceneTests(int argc, char** argv);
 int runMeasureToolTests(int argc, char** argv);
 int runPmiSceneTests(int argc, char** argv);
 int runSectionToolTests(int argc, char** argv);

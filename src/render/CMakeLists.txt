@@ -20,6 +20,10 @@ add_library(sc_render STATIC
   SectionTool.cpp
   ThicknessScene.h
   ThicknessScene.cpp
+  ColorMapPresentation.h
+  ColorMapPresentation.cpp
+  ComparisonScene.h
+  ComparisonScene.cpp
 )
 add_library(sc::render ALIAS sc_render)
 

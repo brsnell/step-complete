@@ -34,6 +34,7 @@ class MeasureTool;
 class SectionTool;
 class PmiScene;
 class ThicknessScene;
+class ComparisonScene;
 class OcctViewport;
 class SceneManager;
 } // namespace sc::render
@@ -46,6 +47,8 @@ class ImportJob;
 class MeasurementsPanel;
 class ExportJob;
 class ClashJob;
+class ComparisonJob;
+class ComparisonPanel;
 class ClashPanel;
 class GeometryCheckJob;
 class GeometryCheckPanel;
@@ -110,6 +113,13 @@ public:
   void showWallThickness(bool on);
   bool isMeasuringThickness() const;
   bool isThicknessShown() const;
+
+  // --- Model comparison (docs/designs/model-comparison.md) ----------------------------
+  // What File > Compare With does once a file is chosen: import it as the other revision and
+  // compare the open model with it in the background, then color the changes.
+  void compareWith(const QString& path);
+  bool isComparing() const;       // the comparison job runs
+  bool isComparisonShown() const; // the comparison view is on
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -177,6 +187,12 @@ private:
   void onThicknessFinished();
   void onThicknessHover();
   void stopThickness(); // cancels, clears the view and the panel, unchecks the menu item
+  void compareWithDialog();
+  void startComparison(const QString& path, std::shared_ptr<const core::AssemblyIndex> other,
+                       double tolerance);
+  void onComparisonFinished();
+  void showChange(int changeIndex, bool zoom);
+  void stopComparison(); // cancels, clears the view and the panel
   // The red highlight is shared by the Geometry Check and Clashes panels; each clears only its own.
   enum class Highlight { None, GeometryIssue, Clash };
   void showHighlight(Highlight owner, const TopoDS_Shape& worldShape);
@@ -268,6 +284,12 @@ private:
   QDockWidget* _thicknessDock = nullptr;
   QPointer<ThicknessJob> _thicknessJob;
   bool _thicknessMarker = false; // the overlay marker shows the thickness readout
+  std::unique_ptr<render::ComparisonScene> _comparisonScene;
+  QAction* _compareAction = nullptr;
+  ComparisonPanel* _comparisonPanel = nullptr;
+  QDockWidget* _comparisonDock = nullptr;
+  QPointer<ComparisonJob> _comparisonJob;
+  QString _comparisonPath; // the other revision's file
   core::MeasureDisplayOptions _measureOptions;
   QDockWidget* _messagesDock = nullptr;
   QLabel* _emptyHint = nullptr;

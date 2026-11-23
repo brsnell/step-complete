@@ -6,6 +6,8 @@
 #include "app/AssemblyTreeModel.h"
 #include "app/ClashJob.h"
 #include "app/ClashPanel.h"
+#include "app/ComparisonJob.h"
+#include "app/ComparisonPanel.h"
 #include "app/ExportJob.h"
 #include "app/GeometryCheckJob.h"
 #include "app/GeometryCheckPanel.h"
@@ -21,6 +23,9 @@
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <StlAPI_Writer.hxx>
+#include <TDataStd_Name.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
 #include <gp_Dir.hxx>
 
 #include <QAction>
@@ -80,6 +85,17 @@ private Q_SLOTS:
     BRepMesh_IncrementalMesh mesher(box, 0.1);
     _stlPath = QString::fromStdString(sc::test::tempPath("main_window_box.stl"));
     QVERIFY(StlAPI_Writer().Write(box, _stlPath.toStdString().c_str()));
+    // Another revision for File > Compare With: the plate alone, 2 mm thicker.
+    auto revision = std::make_shared<sc::core::Document>();
+    const auto shapes = XCAFDoc_DocumentTool::ShapeTool(revision->ocaf()->Main());
+    const TDF_Label root = shapes->NewShape();
+    TDataStd_Name::Set(root, "Fixture");
+    const TDF_Label plate = shapes->AddShape(BRepPrimAPI_MakeBox(100.0, 60.0, 12.0).Shape(), false);
+    TDataStd_Name::Set(plate, "Base plate");
+    shapes->AddComponent(root, plate, TopLoc_Location());
+    shapes->UpdateAssemblies();
+    _revisionPath = QString::fromStdString(sc::test::tempPath("main_window_revision.step"));
+    QVERIFY(sc::test::writeStep(revision, _revisionPath.toStdString()));
   }
 
   void init() {
@@ -714,6 +730,58 @@ private Q_SLOTS:
     QVERIFY(menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Distance"))->isEnabled());
   }
 
+  // File > Compare With (docs/designs/model-comparison.md): the other revision's plate is 2 mm
+  // thicker and it has no pins, so the plate changed and the four pins were added.
+  void compareWithListsTheChanges() {
+    QAction* compare = menuAction(*_window, QStringLiteral("&File"), QStringLiteral("Compare &With..."));
+    QVERIFY(compare != nullptr);
+    QVERIFY(!compare->isEnabled());
+    openFixture();
+    QVERIFY(compare->isEnabled());
+    auto* panel = _window->findChild<sc::app::ComparisonPanel*>();
+    auto* dock = _window->findChild<QDockWidget*>(QStringLiteral("ComparisonDock"));
+    QVERIFY(panel != nullptr && dock != nullptr);
+
+    _window->compareWith(_revisionPath);
+    QVERIFY(_window->isComparing());
+    QVERIFY(dock->isVisible());
+    QTRY_VERIFY_WITH_TIMEOUT(!_window->isComparing(), 120000);
+    QTRY_VERIFY(_window->findChild<sc::app::ComparisonJob*>() == nullptr);
+    QVERIFY2(_window->isComparisonShown(), qPrintable(panel->summary()));
+    QCOMPARE(panel->summary(), QStringLiteral("Compared with %1: 1 changed, 4 added, 0 unchanged.")
+                                   .arg(QFileInfo(_revisionPath).fileName()));
+    QCOMPARE(panel->rowCount(), 5);
+
+    panel->setCurrentRow(0); // the plate: selected in the tree too
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    const QModelIndexList rows = tree->selectionModel()->selectedRows();
+    QCOMPARE(rows.size(), 1);
+    QCOMPARE(rows.front().data().toString(), QStringLiteral("Base plate"));
+
+    // Measuring needs the parts' own faces: it ends the comparison. So does End Comparison.
+    menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Distance"))->trigger();
+    QVERIFY(!_window->isComparisonShown());
+    menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Stop Measuring"))->trigger();
+    _window->compareWith(_revisionPath);
+    QTRY_VERIFY_WITH_TIMEOUT(_window->isComparisonShown(), 120000);
+    Q_EMIT panel->endRequested();
+    QVERIFY(!_window->isComparisonShown());
+    QCOMPARE(panel->rowCount(), 0);
+
+    // A file that is not a model.
+    const QString text = QString::fromStdString(sc::test::tempPath("notes.txt"));
+    QFile file(text);
+    QVERIFY(file.open(QIODevice::WriteOnly));
+    file.write("not a model\n");
+    file.close();
+    _window->compareWith(text);
+    QTRY_VERIFY_WITH_TIMEOUT(!_window->isComparing(), 60000);
+    QVERIFY(!_window->isComparisonShown());
+    QVERIFY2(panel->summary().startsWith(QStringLiteral("Could not open notes")) ||
+                 panel->summary().contains(QStringLiteral("not a STEP or IGES")),
+             qPrintable(panel->summary()));
+  }
+
 private:
   void openFixture() {
     _window->openFileWhenReady(_path); // GL is ready (init), so the import starts now
@@ -726,6 +794,7 @@ private:
   QString _path;
   QString _igesPath;
   QString _stlPath;
+  QString _revisionPath;
   MainWindow* _window = nullptr;
   MeasurementsPanel* _panel = nullptr;
   MeasureTool* _tool = nullptr;

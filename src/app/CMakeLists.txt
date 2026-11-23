@@ -28,6 +28,10 @@ add_library(sc_app STATIC
   ClashJob.cpp
   ClashPanel.h
   ClashPanel.cpp
+  ComparisonJob.h
+  ComparisonJob.cpp
+  ComparisonPanel.h
+  ComparisonPanel.cpp
   GeometryCheckJob.h
   ThicknessJob.h
   ThicknessJob.cpp

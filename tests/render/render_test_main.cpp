@@ -27,5 +27,6 @@ int main(int argc, char** argv) {
   failures += sc::test::runSectionToolTests(argc, argv);
   failures += sc::test::runViewSettingsTests(argc, argv);
   failures += sc::test::runThicknessSceneTests(argc, argv);
+  failures += sc::test::runComparisonSceneTests(argc, argv);
   return failures == 0 ? 0 : 1;
 }

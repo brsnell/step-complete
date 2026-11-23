@@ -11,8 +11,8 @@ mass properties, sections, the geometry and clash checks, wall thickness, export
 
 ## Why
 
-People are often sent IGES instead of STEP, and other viewers open it (TODOS v2, PLAN §1 lists
-"other formats" as a v1 non-goal planned for v2). IGES carries B-rep geometry, so it fits the
+People are often sent IGES instead of STEP, and other viewers open it (TODOS v1.2, PLAN §1 lists
+"other formats" as a v1 non-goal planned for later). IGES carries B-rep geometry, so it fits the
 viewer without a fallback; mesh formats (STL, OBJ, glTF) do not, and come later.
 
 ## Decisions
@@ -41,7 +41,7 @@ viewer without a fallback; mesh formats (STL, OBJ, glTF) do not, and come later.
 
 ## Out of scope
 
-- Mesh formats (STL, OBJ, glTF): next, with a mesh fallback for measuring (TODOS v2).
+- Mesh formats (STL, OBJ, glTF): next, with a mesh fallback for measuring (TODOS v1.2).
 - Sewing surface-only IGES files (trimmed surfaces with no solids) into solids. Their faces are
   shown and measurable, but volume and mass need closed shells; the geometry check reports the
   gaps. Revisit if users send such files.
