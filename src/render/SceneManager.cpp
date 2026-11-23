@@ -199,8 +199,8 @@ OccHandle<AIS_InteractiveObject> SceneManager::createInstance(const core::Assemb
 
 void SceneManager::detach(core::NodeId id) {
   PartEntry* part = entry(id);
-  if (part == nullptr || part->detached || part->object.IsNull()) {
-    return;
+  if (part == nullptr || part->detached || part->object.IsNull() || !part->own.IsNull()) {
+    return; // an overridden part keeps its own presentation as it is until restored
   }
   const core::AssemblyNode& node = _index->node(id);
   const bool wasSelected = _context->IsSelected(part->object);
@@ -222,6 +222,57 @@ void SceneManager::detach(core::NodeId id) {
       _context->AddOrRemoveSelected(own, false);
     }
   }
+}
+
+void SceneManager::replaceObject(core::NodeId id, PartEntry& part,
+                                 const OccHandle<AIS_InteractiveObject>& object) {
+  const bool wasSelected = _context->IsSelected(part.object);
+  _objectToPart.erase(part.object.get());
+  _context->Remove(part.object, false);
+  part.object = object;
+  _objectToPart[object.get()] = id;
+  if (part.visible) {
+    displayPart(object);
+    if (wasSelected) {
+      _context->AddOrRemoveSelected(object, false);
+    }
+  }
+}
+
+void SceneManager::setPartOverride(core::NodeId id, const OccHandle<AIS_InteractiveObject>& presentation) {
+  PartEntry* part = entry(id);
+  if (part == nullptr) {
+    return;
+  }
+  if (presentation.IsNull()) {
+    if (!part->own.IsNull()) {
+      const OccHandle<AIS_InteractiveObject> own = part->own;
+      part->own.Nullify();
+      if (part->detached) {
+        applyStyleTo(own); // the display style may have changed while it was away
+      }
+      own->SetDisplayMode(aisMode(_style));
+      replaceObject(id, *part, own);
+    }
+    return;
+  }
+  if (part->own.IsNull()) {
+    part->own = part->object;
+  }
+  replaceObject(id, *part, presentation);
+}
+
+void SceneManager::clearPartOverrides() {
+  for (size_t i = 0; i < _parts.size(); ++i) {
+    if (!_parts[i].own.IsNull()) {
+      setPartOverride(static_cast<core::NodeId>(i), nullptr);
+    }
+  }
+}
+
+bool SceneManager::hasOverride(core::NodeId id) const {
+  const PartEntry* part = entry(id);
+  return part != nullptr && !part->own.IsNull();
 }
 
 void SceneManager::applyStyleTo(const OccHandle<AIS_InteractiveObject>& object) {

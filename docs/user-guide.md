@@ -318,6 +318,29 @@ closest points; for touching parts, the contact points). Double-clicking zooms t
 has changed the selection. At most 2,000 rows are listed; the summary counts every clash.
 Opening another file or closing the model clears the panel.
 
+### Wall thickness
+
+**Measure > Wall Thickness** colors the selected parts (assemblies expand to their parts), or every
+visible part when nothing is selected, by their local wall thickness: red at or below the **thin
+limit**, through yellow and green, to blue at or above the **thick limit**. A legend in the
+lower-left corner of the 3D view shows the scale in the Measure menu's length unit. Hovering over
+a colored part shows the thickness under the cursor. Choose the menu item again to go back to the
+normal display.
+
+The thickness at a point is measured straight into the part, along the surface normal, to where
+it comes out the other side (the "ray method"). It is measured on the display mesh, refined so
+large flat faces get enough points, so it is accurate to about the mesh deflection. Measuring runs
+in the background with progress and **Cancel** in the **Wall Thickness** panel (right dock). The
+panel shows the range found and the two limits, which recolor at once when changed; **Reset**
+goes back to the range found. The range leaves out the most extreme 0.1% of points at each end,
+because single points at sharp corners of curved faces can read far off.
+
+- Sheets (faces with no solid behind them) have no wall and keep their own look.
+- Grey areas found no wall behind them, usually where the file's mesh has a gap; the panel says
+  how much of the surface that is.
+- Selecting, hiding, isolating and section views keep working on colored parts. Measuring needs
+  the parts' own faces and edges, so starting a measurement turns the view off.
+
 ### Units
 
 Under **Measure** choose **Length Unit** (micrometer, millimeter, centimeter, meter, inch, foot),
@@ -522,7 +545,7 @@ Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + le
 left click select; Shift + click add to selection; right click context menu.
 
 Menu items without shortcuts: Open Recent, Export Geometry, Export Parts List, Manage Saved Views, Set Material,
-Clear Material, Check Geometry, Check Clashes, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
+Clear Material, Check Geometry, Check Clashes, Wall Thickness, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 
 ## 12. Troubleshooting

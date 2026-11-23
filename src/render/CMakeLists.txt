@@ -18,6 +18,8 @@ add_library(sc_render STATIC
   PmiFont.cpp
   SectionTool.h
   SectionTool.cpp
+  ThicknessScene.h
+  ThicknessScene.cpp
 )
 add_library(sc::render ALIAS sc_render)
 

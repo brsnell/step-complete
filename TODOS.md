@@ -62,18 +62,6 @@ Shipped as v1.1.0 on 2026-11-22 (see `CHANGELOG.md`).
 
 ## v2 (M7)
 
-### Wall thickness analysis
-
-**What:** Color the model by local wall thickness with a min/max legend and threshold, plus a pick readout of the thickness at a point.
-
-**Why:** Listed as a v2 candidate (PLAN §1). Used to check castings, moldings and printed parts.
-
-**Context:** Read-only analysis, so it fits the current design best of the v2 items. Choose between exact B-rep thickness (accurate, slow) and ray casting on the display mesh (fast, approximate) in the design. Either way it must stay usable on the PLAN §2a reference machine: run it in the background with progress and cancel.
-
-**Effort:** L
-**Priority:** P2
-**Depends on:** Design approved.
-
 ### Other import formats
 
 **What:** Open IGES first, then mesh formats (STL, OBJ, glTF).

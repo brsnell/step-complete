@@ -20,6 +20,8 @@
 #include "app/PropertiesPanel.h"
 #include "app/SavedViewsDialog.h"
 #include "app/SectionPanel.h"
+#include "app/ThicknessJob.h"
+#include "app/ThicknessPanel.h"
 #include "core/Memory.h"
 #include "core/OcctInfo.h"
 #include "core/Version.h"
@@ -29,9 +31,13 @@
 #include "render/SceneManager.h"
 #include "render/SceneStyle.h"
 #include "render/SectionTool.h"
+#include "render/ThicknessScene.h"
 
 #include <BRepBndLib.hxx>
 #include <Bnd_Box.hxx>
+#include <Graphic3d_Camera.hxx>
+#include <StdSelect_ViewerSelector3d.hxx>
+#include <V3d_View.hxx>
 
 #include <QAction>
 #include <QActionGroup>
@@ -114,6 +120,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   setCentralWidget(_viewport);
   _scene = std::make_unique<render::SceneManager>(_viewport->context());
   _pmiScene = std::make_unique<render::PmiScene>(_viewport->context());
+  _thicknessScene = std::make_unique<render::ThicknessScene>(_viewport->context(), *_scene);
   _sectionTool = new render::SectionTool(_viewport, _scene.get(), this);
   // PMI labels are screen-space boxes: re-separate them once the camera stops moving.
   _declutterTimer = new QTimer(this);
@@ -157,6 +164,7 @@ MainWindow::~MainWindow() {
   delete _import;           // cancels and waits for a running import
   delete _geometryCheckJob; // likewise for a running geometry check
   delete _clashJob;         // and a running clash check
+  delete _thicknessJob;     // and a running thickness measurement
   // The panel and its dock still emit while child widgets are torn down; nothing may reach
   // syncMeasurementWitnesses once the tool is gone.
   disconnect(_measurements, nullptr, this, nullptr);
@@ -165,11 +173,13 @@ MainWindow::~MainWindow() {
   disconnect(_geometryCheckDock->toggleViewAction(), nullptr, this, nullptr);
   disconnect(_clashPanel, nullptr, this, nullptr);
   disconnect(_clashDock->toggleViewAction(), nullptr, this, nullptr);
+  disconnect(_thicknessPanel, nullptr, this, nullptr);
   disconnect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this, nullptr);
   delete _measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
   delete _sectionTool; // removes its handles and the parts' clip planes
   _pmiScene.reset();
+  _thicknessScene.reset(); // gives the parts their own presentations back
   _scene.reset();
 }
 
@@ -345,6 +355,24 @@ void MainWindow::createDocks() {
   // Both panels draw with the same red highlight: whichever is closed stops drawing it.
   connect(_clashDock->toggleViewAction(), &QAction::toggled, this,
           [this] { showClash(_clashPanel->currentIndex(), false); });
+
+  _thicknessPanel = new ThicknessPanel(this);
+  _thicknessDock = new QDockWidget(tr("Wall Thickness"), this);
+  _thicknessDock->setObjectName(QStringLiteral("ThicknessDock"));
+  _thicknessDock->setWidget(_thicknessPanel);
+  addDockWidget(Qt::RightDockWidgetArea, _thicknessDock);
+  tabifyDockWidget(_pmiDock, _thicknessDock);
+  _thicknessDock->hide();
+  connect(_thicknessPanel, &ThicknessPanel::cancelRequested, this, [this] {
+    if (_thicknessJob) {
+      _thicknessJob->cancel();
+    }
+  });
+  connect(_thicknessPanel, &ThicknessPanel::limitsChanged, this, [this](double thin, double thick) {
+    _thicknessScene->setLimits(thin, thick);
+    _viewport->invalidateScene();
+  });
+  connect(_viewport, &render::OcctViewport::hoverUpdated, this, &MainWindow::onThicknessHover);
 }
 
 void MainWindow::declutterPmi() {
@@ -587,6 +615,11 @@ void MainWindow::createMeasureMenu() {
       tr("Look for invalid geometry, open shells and tiny edges in the selected parts (all visible parts "
          "when nothing is selected)"));
   _checkClashesAction = menu->addAction(tr("Check &Clashes..."), this, &MainWindow::checkClashes);
+  _thicknessAction = menu->addAction(tr("Wall &Thickness"));
+  _thicknessAction->setCheckable(true);
+  _thicknessAction->setStatusTip(
+      tr("Color the selected parts (all visible parts when nothing is selected) by their wall thickness"));
+  connect(_thicknessAction, &QAction::toggled, this, &MainWindow::showWallThickness);
   _checkClashesAction->setStatusTip(
       tr("Find parts that overlap, touch or come too close among the selected parts (all visible parts "
          "when nothing is selected)"));
@@ -660,11 +693,20 @@ void MainWindow::createMeasureMenu() {
   menu->addAction(_measurementsDock->toggleViewAction());
   menu->addAction(_geometryCheckDock->toggleViewAction());
   menu->addAction(_clashDock->toggleViewAction());
+  menu->addAction(_thicknessDock->toggleViewAction());
 }
 
 void MainWindow::applyMeasureOptions() {
   // New results use the new units; existing results keep the text they were measured with.
   _measureTool->setDisplayOptions(_measureOptions);
+  _thicknessScene->setUnit(_measureOptions.lengthUnit, _measureOptions.decimals);
+  if (_thicknessScene->isShown()) {
+    const double thin = _thicknessPanel->thinLimit();
+    const double thick = _thicknessPanel->thickLimit();
+    _thicknessPanel->setResult(*_thicknessScene->result(), _measureOptions);
+    _thicknessPanel->setLimits(thin, thick);
+    _viewport->invalidateScene();
+  }
   statusBar()->showMessage(tr("New measurements use %1, %n decimal(s).", nullptr, _measureOptions.decimals)
                                .arg(QString::fromUtf8(core::displayName(_measureOptions.lengthUnit).data())),
                            5000);
@@ -682,6 +724,11 @@ void MainWindow::setMeasureMode(int mode) {
   }
   if (newMode) {
     _sectionTool->cancelPick(); // one tool owns clicks at a time
+    // Measuring picks faces, edges and vertices, which the thickness colors do not offer.
+    if (_thicknessScene->isShown() || _thicknessJob) {
+      stopThickness();
+      statusBar()->showMessage(tr("Wall thickness view turned off to measure."), 4000);
+    }
     // Measuring works on sub-shapes: drop the part selection first.
     _syncingSelection = true;
     _treeView->clearSelection();
@@ -951,6 +998,109 @@ void MainWindow::stopClashCheck() {
   clearHighlight(Highlight::Clash);
 }
 
+bool MainWindow::isMeasuringThickness() const {
+  return !_thicknessJob.isNull();
+}
+
+bool MainWindow::isThicknessShown() const {
+  return _thicknessScene->isShown();
+}
+
+void MainWindow::showWallThickness(bool on) {
+  if (_thicknessAction->isChecked() != on) {
+    _thicknessAction->setChecked(on); // comes back here through toggled
+    return;
+  }
+  if (!on) {
+    stopThickness();
+    _viewport->invalidateScene();
+    return;
+  }
+  const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
+  const std::vector<core::NodeId> selection =
+      _measureTool->isActive() ? std::vector<core::NodeId>{} : selectedNodes();
+  std::vector<core::NodeId> parts = visiblePartsOf(selection);
+  if (!index || parts.empty()) {
+    statusBar()->showMessage(!index              ? tr("Open a model to measure its wall thickness.")
+                             : selection.empty() ? tr("There are no visible parts to measure.")
+                                                 : tr("The selection has no visible parts."),
+                             5000);
+    const QSignalBlocker blocker(_thicknessAction);
+    _thicknessAction->setChecked(false);
+    return;
+  }
+  setMeasureMode(-1); // the colored parts cannot be picked for measuring
+  _thicknessDock->show();
+  _thicknessDock->raise();
+  _thicknessPanel->setRunning(0, QString());
+  _thicknessJob = new ThicknessJob(index, std::move(parts), this);
+  connect(_thicknessJob, &ThicknessJob::progress, _thicknessPanel, &ThicknessPanel::setRunning);
+  connect(_thicknessJob, &ThicknessJob::finished, this, &MainWindow::onThicknessFinished);
+  statusBar()->showMessage(tr("Measuring wall thickness..."));
+  _thicknessJob->start();
+}
+
+void MainWindow::onThicknessFinished() {
+  ThicknessJob* job = _thicknessJob;
+  if (job == nullptr) {
+    return;
+  }
+  const std::shared_ptr<const core::ThicknessResult> result = job->result();
+  job->deleteLater();
+  _thicknessJob = nullptr;
+  if (!result || job->index() != _scene->model()) {
+    stopThickness();
+    return;
+  }
+  _thicknessPanel->setResult(*result, _measureOptions);
+  if (result->cancelled) {
+    const QSignalBlocker blocker(_thicknessAction);
+    _thicknessAction->setChecked(false);
+    statusBar()->showMessage(_thicknessPanel->summary(), 5000);
+    return;
+  }
+  _thicknessScene->setUnit(_measureOptions.lengthUnit, _measureOptions.decimals);
+  _thicknessScene->show(result, *job->index());
+  statusBar()->showMessage(_thicknessPanel->summary(), 10000);
+  _viewport->invalidateScene();
+}
+
+// While the thickness view is on, the overlay marker shows the thickness under the cursor.
+void MainWindow::onThicknessHover() {
+  if (!_thicknessScene->isShown() || _measureTool->isActive()) {
+    return;
+  }
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
+  std::optional<double> thickness;
+  gp_Pnt point;
+  if (context->HasDetected()) {
+    point = context->MainSelector()->PickedPoint(1);
+    thickness = _thicknessScene->thicknessAt(context->DetectedInteractive(), point,
+                                             _viewport->view()->Camera()->Direction());
+  }
+  if (thickness) {
+    _viewport->setOverlayMarker(render::OcctViewport::OverlayMarker{
+        point, QString::fromStdString(
+                   core::formatLength(*thickness, _measureOptions.lengthUnit, _measureOptions.decimals))});
+    _thicknessMarker = true;
+  } else if (_thicknessMarker) {
+    _viewport->setOverlayMarker(std::nullopt);
+    _thicknessMarker = false;
+  }
+}
+
+void MainWindow::stopThickness() {
+  delete _thicknessJob; // cancels and waits; its result is not wanted
+  _thicknessScene->clear();
+  _thicknessPanel->clear();
+  if (_thicknessMarker) {
+    _viewport->setOverlayMarker(std::nullopt);
+    _thicknessMarker = false;
+  }
+  const QSignalBlocker blocker(_thicknessAction);
+  _thicknessAction->setChecked(false);
+}
+
 void MainWindow::measureMassProperties() {
   const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
   if (!index) {
@@ -1020,6 +1170,7 @@ void MainWindow::updateActions() {
     _massPropertiesAction->setEnabled(hasModel);
     _checkGeometryAction->setEnabled(hasModel && !_geometryCheckJob);
     _checkClashesAction->setEnabled(hasModel && !_clashJob);
+    _thicknessAction->setEnabled(hasModel);
     for (QAction* action : _measureGroup->actions()) {
       action->setEnabled(hasModel);
     }
@@ -1127,6 +1278,7 @@ void MainWindow::onImportFinished() {
     _transparentParts.clear();
     stopGeometryCheck(); // problems belong to the previous model
     stopClashCheck();
+    stopThickness();
     _measureTool->reset();
     _measurements->clear(); // results belong to the previous model
     _pmiScene->clearViewClipping(_viewport->view());
@@ -1202,6 +1354,7 @@ void MainWindow::onImportFinished() {
 void MainWindow::closeModel() {
   stopGeometryCheck();
   stopClashCheck();
+  stopThickness();
   setMeasureMode(-1);
   _measureTool->reset();
   _measurements->clear();

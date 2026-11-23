@@ -35,6 +35,8 @@ add_library(sc_core STATIC
   PartsList.cpp
   Clash.h
   Clash.cpp
+  WallThickness.h
+  WallThickness.cpp
   GeometryCheck.h
   GeometryCheck.cpp
 )

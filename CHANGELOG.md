@@ -6,6 +6,10 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- Measure > Wall Thickness: colors the selected or visible parts by local wall thickness (the ray
+  method on a refined display mesh, computed in parallel in the background), with a legend, a
+  readout of the thickness under the cursor, and thin and thick limits in the Wall Thickness
+  panel that recolor at once.
 - Measure > Check Clashes: finds parts that overlap (with the overlap volume), and optionally
   parts that touch or come closer than a clearance, among the selected or visible parts. A
   bounding-box pass keeps large assemblies quick, and pairs are checked in parallel in the
