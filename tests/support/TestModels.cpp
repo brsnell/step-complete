@@ -3,6 +3,8 @@
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRepPrimAPI_MakeCylinder.hxx>
 #include <IFSelect_ReturnStatus.hxx>
+#include <IGESCAFControl_Writer.hxx>
+#include <IGESControl_Controller.hxx>
 #include <Interface_Static.hxx>
 #include <Quantity_Color.hxx>
 #include <STEPCAFControl_Writer.hxx>
@@ -85,6 +87,23 @@ bool writeStep(const core::DocumentPtr& document, const std::string& utf8Path, c
   const bool transferred = writer.Transfer(ocaf, STEPControl_AsIs);
   const bool written = transferred && writer.Write(utf8Path.c_str()) == IFSelect_RetDone;
   Interface_Static::SetCVal("write.step.unit", "MM");
+  return written;
+}
+
+bool writeIges(const core::DocumentPtr& document, const std::string& utf8Path, const char* unit) {
+  IGESControl_Controller::Init();
+  const std::string previous = Interface_Static::CVal("write.iges.unit");
+  if (!Interface_Static::SetCVal("write.iges.unit", unit) ||
+      !Interface_Static::SetIVal("write.iges.brep.mode", 1)) {
+    return false;
+  }
+  IGESCAFControl_Writer writer; // takes the unit when constructed
+  writer.SetNameMode(true);
+  writer.SetColorMode(true);
+  writer.SetLayerMode(true);
+  OccHandle<TDocStd_Document> ocaf = document->ocaf();
+  const bool written = writer.Transfer(ocaf) && writer.Write(utf8Path.c_str());
+  Interface_Static::SetCVal("write.iges.unit", previous.c_str());
   return written;
 }
 

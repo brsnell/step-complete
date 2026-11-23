@@ -78,14 +78,17 @@ The option affects Linux only; it has no effect on Windows and macOS.
 ## 3. Opening files
 
 **Formats.** STEP AP203, AP214 and AP242 files with the extensions `.step`, `.stp` and `.p21`,
-plus compressed `.stpz` files (gzip or zip containers).
+plus compressed `.stpz` files (gzip or zip containers), and IGES files (`.igs`, `.iges`). The
+content decides: a STEP file with an IGES name (or the reverse) opens as what it is, and
+Properties shows the **Format**. IGES has no assembly structure, so its parts sit at the top of
+the Assembly tree with their names, colors and layers; it has no PMI or saved views.
 
 **Ways to open a file**
 
 - **File > Open...** (`Ctrl+O`). The dialog remembers the last folder.
 - **File > Open Recent**. Lists the last 10 files; entries whose file has gone are disabled;
   **Clear Recent Files** empties the list.
-- **Drag and drop** one file onto the window. Only a single local file with a STEP extension is
+- **Drag and drop** one file onto the window. Only a single local file with a STEP or IGES extension is
   accepted.
 - **Command line:** `StepComplete model.step` opens the file as soon as the 3D view is ready.
 
@@ -97,7 +100,7 @@ When loading finishes the status bar reports the number of part instances, uniqu
 load time, and the model is fitted to the window. The file's length unit is shown at the lower
 right ("File unit: mm"). The window title shows the file name.
 
-**Import messages.** Messages from the STEP translator (warnings and errors, with repeat counts)
+**Import messages.** Messages from the STEP or IGES translator (warnings and errors, with repeat counts)
 are collected in the **Import Messages** panel. It is hidden by default; open it with
 **View > Panels > Import Messages**. If any warnings or errors occurred, the status bar says so.
 

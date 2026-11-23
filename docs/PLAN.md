@@ -32,7 +32,8 @@ Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22; v2 (M7) is drafted in §
 ### Non-goals (v1.0)
 - Editing geometry or PMI, writing STEP. (Read-only viewer; keeps scope and risk down.)
 - Other formats besides STEP. The architecture keeps the door open (OCCT's `DE_Wrapper` handles
-  IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1. IGES and mesh formats are planned for v2 (§7a).
+  IGES, glTF, OBJ, STL, VRML), but we won't polish them for v1. IGES and mesh formats are planned for v2 (§7a);
+  IGES is in since v2 work started ([design](designs/iges-import.md)).
 - Model comparison, wall-thickness analysis and markup. Candidates for v2 (see §7a).
   Collaboration was a candidate too and was dropped on 2026-11-21.
 
@@ -391,10 +392,11 @@ Feedback from v1.0 users can reorder v1.1 and v2.
 - ✅ **Wall thickness analysis** (Measure > Wall Thickness): ray casting on the refined display
   mesh, a color map with a legend and adjustable limits, and a hover readout
   ([design](designs/wall-thickness.md)). About 300,000 points a second on a 4-core machine.
-- **Other import formats.** IGES first (it has B-rep, so measurement works), then mesh formats
-  (STL, OBJ, glTF) through OCCT's `DE_Wrapper`. Mesh files have no exact geometry, so
-  measurement has to fall back to the mesh or be disabled for them, and the UI must say which.
-  The cache, file associations and the open dialog need updating too. PMI stays AP242 only.
+- ✅ **IGES import**: names, colors, layers and units through the XCAF IGES reader, the format
+  detected from the content, and "Open with" associations ([design](designs/iges-import.md)).
+- **Mesh import formats** (STL, OBJ, glTF) through OCCT's `DE_Wrapper`. Mesh files have no exact
+  geometry, so measurement has to fall back to the mesh or be disabled for them, and the UI must
+  say which. PMI stays AP242 only.
 - **Model comparison.** Open two revisions of a model, align them, and color the geometry that
   was added, removed or changed, with a deviation legend. Needs two documents in one scene
   (`SceneManager` holds one today) and a way to pair parts between revisions.

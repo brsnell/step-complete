@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/FileFormat.h"
 #include "core/OccHandle.h"
 #include "core/StepCamera.h"
 #include "core/Units.h"
@@ -36,6 +37,10 @@ public:
   const std::string& sourcePath() const { return _sourcePath; }
   void setSourcePath(std::string path) { _sourcePath = std::move(path); }
 
+  // The format the document was read from.
+  FileFormat format() const { return _format; }
+  void setFormat(FileFormat format) { _format = format; }
+
   // Length unit declared in the source file, e.g. "inch". Empty if unknown.
   const std::string& fileUnitName() const { return _fileUnitName; }
   std::optional<LengthUnit> fileUnit() const { return _fileUnit; }
@@ -48,6 +53,7 @@ public:
 private:
   OccHandle<TDocStd_Document> _doc;
   std::string _sourcePath;
+  FileFormat _format = FileFormat::Unknown;
   std::string _fileUnitName;
   std::optional<LengthUnit> _fileUnit;
   std::vector<StepCamera> _cameras;

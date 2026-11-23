@@ -39,6 +39,16 @@
       <key>CFBundleTypeExtensions</key>
       <array><string>stpz</string></array>
     </dict>
+    <dict>
+      <key>CFBundleTypeName</key><string>IGES CAD model</string>
+      <key>CFBundleTypeRole</key><string>Viewer</string>
+      <key>LSHandlerRank</key><string>Alternate</string>
+      <key>CFBundleTypeIconFile</key><string>${MACOSX_BUNDLE_ICON_FILE}</string>
+      <key>LSItemContentTypes</key>
+      <array><string>org.stepcomplete.iges</string></array>
+      <key>CFBundleTypeExtensions</key>
+      <array><string>igs</string><string>iges</string></array>
+    </dict>
   </array>
   <key>UTImportedTypeDeclarations</key>
   <array>
@@ -66,6 +76,21 @@
         <array><string>stpz</string></array>
         <key>public.mime-type</key>
         <array><string>model/step+zip</string></array>
+      </dict>
+    </dict>
+    <dict>
+      <!-- macOS declares no IGES type of its own: an imported declaration, so another app's
+           declaration of the same extensions takes precedence. -->
+      <key>UTTypeIdentifier</key><string>org.stepcomplete.iges</string>
+      <key>UTTypeDescription</key><string>IGES CAD model</string>
+      <key>UTTypeConformsTo</key>
+      <array><string>public.data</string></array>
+      <key>UTTypeTagSpecification</key>
+      <dict>
+        <key>public.filename-extension</key>
+        <array><string>igs</string><string>iges</string></array>
+        <key>public.mime-type</key>
+        <array><string>model/iges</string></array>
       </dict>
     </dict>
   </array>

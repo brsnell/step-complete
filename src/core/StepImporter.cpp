@@ -2,12 +2,16 @@
 
 #include "core/CompressedStep.h"
 #include "core/DocumentCache.h"
+#include "core/FileFormat.h"
 #include "core/OccCompat.h"
 #include "core/OccHandle.h"
 #include "core/ProgressBridge.h"
 
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <IFSelect_ReturnStatus.hxx>
+#include <IGESCAFControl_Reader.hxx>
+#include <IGESData_GlobalSection.hxx>
+#include <IGESData_IGESModel.hxx>
 #include <Interface_Check.hxx>
 #include <Interface_CheckIterator.hxx>
 #include <Interface_EntityIterator.hxx>
@@ -453,10 +457,74 @@ bool storeLocked(const std::string& key, const ImportResult& result, const Impor
       .store(key, *result.document, result.messages, result.stats.rootCount, result.stats.uniqueParts);
 }
 
+// The format of a file as stored (a compressed file by its name); STEP when unknown.
+FileFormat formatOf(const std::string& utf8Path) {
+  const FileFormat format = detectFileFormat(utf8Path);
+  return format == FileFormat::Unknown ? FileFormat::Step : format;
+}
+
+// Reads an IGES file into the document: names, colors, layers and the file unit. IGES has no
+// assembly structure, PMI or saved views: each top-level entity becomes a part. Fills the
+// result's error, cancelled flag, messages and stats; false when the import must stop.
+bool readIges(const std::string& readPath, Document& document, Message_ProgressScope& root,
+              ProgressBridge& bridge, const CancelToken* cancel, ImportResult& result) {
+  bridge.setStage("Reading file");
+  const Clock::time_point readStart = Clock::now();
+  IGESCAFControl_Reader reader;
+  reader.SetNameMode(true);
+  reader.SetColorMode(true);
+  reader.SetLayerMode(true);
+  const IFSelect_ReturnStatus status = reader.ReadFile(readPath.c_str());
+  result.stats.readSeconds = secondsSince(readStart);
+  collectChecks(reader.WS()->ModelCheckList(), result.messages);
+  if (status != IFSelect_RetDone) {
+    result.error = status == IFSelect_RetVoid ? "The file is empty or contains no IGES data."
+                                              : "The file could not be read as IGES.";
+    return false;
+  }
+  if (cancelled(cancel)) {
+    result.cancelled = true;
+    return false;
+  }
+  root.Next(10.0); // parsing reports no progress of its own
+
+  bridge.setStage("Building model");
+  const Clock::time_point transferStart = Clock::now();
+  result.stats.rootCount = reader.NbRootsForTransfer();
+  OccHandle<TDocStd_Document> ocaf = document.ocaf();
+  const bool transferred = reader.Transfer(ocaf, root.Next(65.0));
+  result.stats.transferSeconds = secondsSince(transferStart);
+  if (cancelled(cancel) || !root.More()) {
+    result.cancelled = cancelled(cancel);
+    if (!result.cancelled) {
+      result.error = "Import was interrupted.";
+    }
+    return false;
+  }
+  if (!transferred) {
+    result.error = "The file contains no geometry that could be translated.";
+    return false;
+  }
+
+  // The unit of the global section; OCCT has already converted the geometry to millimetres.
+  const OccHandle<IGESData_IGESModel> model = OccHandle<IGESData_IGESModel>::DownCast(reader.WS()->Model());
+  if (!model.IsNull()) {
+    const IGESData_GlobalSection& global = model->GlobalSection();
+    const OccHandle<TCollection_HAsciiString> unitName = global.UnitName();
+    std::string name = unitName.IsNull() ? std::string() : std::string(unitName->ToCString());
+    std::optional<LengthUnit> unit = lengthUnitFromIgesFlag(global.UnitFlag());
+    if (!unit && !name.empty()) {
+      unit = lengthUnitFromStepName(name); // flag 3: the unit is named
+    }
+    document.setFileUnit(std::move(name), unit);
+  }
+  return true;
+}
+
 } // namespace
 
-ImportResult importStep(const std::string& utf8Path, const ImportOptions& options,
-                        const ProgressCallback& progress, const CancelToken* cancel) {
+ImportResult importModel(const std::string& utf8Path, const ImportOptions& options,
+                         const ProgressCallback& progress, const CancelToken* cancel) {
   ImportResult result;
   std::lock_guard<std::mutex> lock(g_importMutex);
 
@@ -467,6 +535,7 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
       const Clock::time_point loadStart = Clock::now();
       if (auto cached = DocumentCache(std::filesystem::u8path(options.cacheDir)).load(cacheId)) {
         cached->document->setSourcePath(utf8Path);
+        cached->document->setFormat(formatOf(utf8Path));
         result.document = std::move(cached->document);
         result.messages = std::move(cached->messages);
         result.messages.push_back({ImportMessage::Severity::Info, "Loaded from cache", 1});
@@ -516,75 +585,90 @@ ImportResult importStep(const std::string& utf8Path, const ImportOptions& option
       root.Next(DecompressShare);
     }
 
-    // --- Parse ---------------------------------------------------------------
-    bridge->setStage("Reading file");
-    const Clock::time_point readStart = Clock::now();
-    STEPCAFControl_Reader reader;
-    reader.SetNameMode(true);
-    reader.SetColorMode(true);
-    reader.SetLayerMode(true);
-    reader.SetPropsMode(true);
-    reader.SetSHUOMode(true);
-    reader.SetMatMode(true);
-    reader.SetGDTMode(options.readPmi);
-    reader.SetViewMode(options.readPmi);
+    // The format from the content (a .stp holding IGES opens as IGES); a compressed file's from
+    // its inflated content and its own name.
+    const FileFormat format = detectFileFormat(readPath, utf8Path);
+    document->setFormat(format == FileFormat::Unknown ? FileFormat::Step : format);
+    if (format == FileFormat::Iges) {
+      if (!readIges(readPath, *document, root, *bridge, cancel, result)) {
+        return result;
+      }
+      temp.reset();
+    } else {
+      // --- Parse ---------------------------------------------------------------
+      bridge->setStage("Reading file");
+      const Clock::time_point readStart = Clock::now();
+      STEPCAFControl_Reader reader;
+      reader.SetNameMode(true);
+      reader.SetColorMode(true);
+      reader.SetLayerMode(true);
+      reader.SetPropsMode(true);
+      reader.SetSHUOMode(true);
+      reader.SetMatMode(true);
+      reader.SetGDTMode(options.readPmi);
+      reader.SetViewMode(options.readPmi);
 #if OCC_VERSION_HEX >= 0x070700
-    reader.SetMetaMode(true);
+      reader.SetMetaMode(true);
 #endif
 
-    // OCCT handles UTF-8 paths on all platforms (wide-char APIs on Windows).
-    const IFSelect_ReturnStatus status = reader.ReadFile(readPath.c_str());
-    temp.reset();
-    result.stats.readSeconds = secondsSince(readStart);
-    collectChecks(reader.Reader().WS()->ModelCheckList(), result.messages);
-    if (status != IFSelect_RetDone) {
-      result.error = status == IFSelect_RetVoid ? "The file is empty or contains no STEP data."
-                                                : "The file could not be read as STEP.";
-      return result;
-    }
-    if (cancelled(cancel)) {
-      result.cancelled = true;
-      return result;
-    }
-    if (std::string broken = neutralizeBrokenSplines(reader.Reader().Model(), result.messages);
-        !broken.empty()) {
-      result.error = std::move(broken);
-      return result;
-    }
-    root.Next(10.0); // parsing reports no progress of its own
-
-    // --- Transfer to XCAF ----------------------------------------------------
-    bridge->setStage("Building model");
-    const Clock::time_point transferStart = Clock::now();
-    result.stats.rootCount = reader.NbRootsForTransfer();
-    OccHandle<TDocStd_Document> ocaf = document->ocaf();
-    const bool transferred = reader.Transfer(ocaf, root.Next(65.0));
-    result.stats.transferSeconds = secondsSince(transferStart);
-    if (cancelled(cancel) || !root.More()) {
-      result.cancelled = cancelled(cancel);
-      if (!result.cancelled) {
-        result.error = "Import was interrupted.";
+      // OCCT handles UTF-8 paths on all platforms (wide-char APIs on Windows).
+      const IFSelect_ReturnStatus status = reader.ReadFile(readPath.c_str());
+      temp.reset();
+      result.stats.readSeconds = secondsSince(readStart);
+      collectChecks(reader.Reader().WS()->ModelCheckList(), result.messages);
+      if (status != IFSelect_RetDone) {
+        if (format == FileFormat::Unknown) {
+          result.error = "The file is not a STEP or IGES file.";
+        } else {
+          result.error = status == IFSelect_RetVoid ? "The file is empty or contains no STEP data."
+                                                    : "The file could not be read as STEP.";
+        }
+        return result;
       }
-      return result;
-    }
-    if (!transferred) {
-      result.error = "The file contains no geometry that could be translated.";
-      return result;
-    }
+      if (cancelled(cancel)) {
+        result.cancelled = true;
+        return result;
+      }
+      if (std::string broken = neutralizeBrokenSplines(reader.Reader().Model(), result.messages);
+          !broken.empty()) {
+        result.error = std::move(broken);
+        return result;
+      }
+      root.Next(10.0); // parsing reports no progress of its own
 
-    occ::AsciiStringSequence lengthUnits, angleUnits, solidAngleUnits;
-    reader.ChangeReader().FileUnits(lengthUnits, angleUnits, solidAngleUnits);
-    if (!lengthUnits.IsEmpty()) {
-      const std::string unitName = lengthUnits.First().ToCString();
-      document->setFileUnit(unitName, lengthUnitFromStepName(unitName));
-    }
+      // --- Transfer to XCAF ----------------------------------------------------
+      bridge->setStage("Building model");
+      const Clock::time_point transferStart = Clock::now();
+      result.stats.rootCount = reader.NbRootsForTransfer();
+      OccHandle<TDocStd_Document> ocaf = document->ocaf();
+      const bool transferred = reader.Transfer(ocaf, root.Next(65.0));
+      result.stats.transferSeconds = secondsSince(transferStart);
+      if (cancelled(cancel) || !root.More()) {
+        result.cancelled = cancelled(cancel);
+        if (!result.cancelled) {
+          result.error = "Import was interrupted.";
+        }
+        return result;
+      }
+      if (!transferred) {
+        result.error = "The file contains no geometry that could be translated.";
+        return result;
+      }
 
-    // Saved-view cameras: lengths in the file's unit, converted like the geometry.
-    const std::optional<LengthUnit> fileUnit = document->fileUnit();
-    document->setCameras(readCameras(reader.Reader().Model(), fileUnit ? millimetersPer(*fileUnit) : 1.0));
+      occ::AsciiStringSequence lengthUnits, angleUnits, solidAngleUnits;
+      reader.ChangeReader().FileUnits(lengthUnits, angleUnits, solidAngleUnits);
+      if (!lengthUnits.IsEmpty()) {
+        const std::string unitName = lengthUnits.First().ToCString();
+        document->setFileUnit(unitName, lengthUnitFromStepName(unitName));
+      }
+
+      // Saved-view cameras: lengths in the file's unit, converted like the geometry.
+      const std::optional<LengthUnit> fileUnit = document->fileUnit();
+      document->setCameras(readCameras(reader.Reader().Model(), fileUnit ? millimetersPer(*fileUnit) : 1.0));
+    }
 
     // --- Pre-mesh unique parts -------------------------------------------------
-    OccHandle<XCAFDoc_ShapeTool> shapeTool = XCAFDoc_DocumentTool::ShapeTool(ocaf->Main());
+    OccHandle<XCAFDoc_ShapeTool> shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->ocaf()->Main());
     occ::LabelSequence shapeLabels;
     shapeTool->GetShapes(shapeLabels);
     std::vector<TopoDS_Shape> parts;

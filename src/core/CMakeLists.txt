@@ -12,6 +12,8 @@ add_library(sc_core STATIC
   Document.h
   Document.cpp
   StepCamera.h
+  FileFormat.h
+  FileFormat.cpp
   CompressedStep.h
   CompressedStep.cpp
   StepImporter.h

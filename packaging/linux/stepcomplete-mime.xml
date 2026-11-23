@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Supplements shared-mime-info on systems whose database predates the STEP types.
+<!-- Supplements shared-mime-info on systems whose database predates the STEP and IGES types.
      Definitions are merged with (and identical in glob to) the upstream ones. -->
 <mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
   <mime-type type="model/step">
@@ -14,5 +14,11 @@
     <comment>Compressed STEP CAD model</comment>
     <alias type="application/step+zip"/>
     <glob pattern="*.stpz"/>
+  </mime-type>
+  <mime-type type="model/iges">
+    <comment>IGES CAD model</comment>
+    <alias type="application/iges"/>
+    <glob pattern="*.igs"/>
+    <glob pattern="*.iges"/>
   </mime-type>
 </mime-info>

@@ -27,6 +27,11 @@ core::DocumentPtr buildFixtureAssembly(bool withHiddenInstance = true);
 // Returns false on failure.
 bool writeStep(const core::DocumentPtr& document, const std::string& utf8Path, const char* unit = "MM");
 
+// Writes the document as IGES (B-rep mode) with names, colors and layers, in the given unit
+// ("MM", "INCH", ...). IGES has no assembly structure: each free shape is one top-level entity.
+// Returns false on failure.
+bool writeIges(const core::DocumentPtr& document, const std::string& utf8Path, const char* unit = "MM");
+
 // A unique path in the test temp directory.
 std::string tempPath(const std::string& fileName);
 
