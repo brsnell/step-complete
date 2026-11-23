@@ -292,6 +292,32 @@ the model; double-clicking zooms to it. A part lists at most 200 problems, but t
 them all. **Check Again** reruns the check on the current selection. Closing the panel hides the
 highlight; opening another file or closing the model clears the panel.
 
+### Clash check
+
+**Measure > Check Clashes...** finds parts that collide, among the selected parts (assemblies
+expand to their parts) or every visible part when nothing is selected. Each instance counts on
+its own, so two copies of the same bolt can clash. A dialog asks what to report besides
+**interference** (parts that share a volume), which is always reported:
+
+- **Also report parts that touch:** faces in contact without overlapping. Seated parts touch
+  everywhere in a real assembly, so this is off by default.
+- **Also report gaps smaller than** _x_ mm: pairs closer than the clearance that neither overlap
+  nor touch.
+
+The choices are remembered. The check runs in the background in the **Clashes** panel (bottom
+dock), with progress and **Cancel**; only pairs whose bounding boxes meet are checked exactly, so
+large assemblies stay quick. The summary reads, for example, "3 interferences, 1 touching pair
+among 45 parts (120 pairs checked)." Each row lists both parts (hover for the full path), the
+kind, and the overlap volume or the gap in the Measure menu's length unit. Interferences come
+first, largest overlap first, then touching pairs, then gaps, smallest first. A pair OCCT could
+not check is listed as "Could not be checked".
+
+Choosing a row selects both parts and draws the overlap in red (for a gap, the line between the
+closest points; for touching parts, the contact points). Double-clicking zooms to the pair.
+**Check Again** repeats the last check with the same parts and options, even after choosing a row
+has changed the selection. At most 2,000 rows are listed; the summary counts every clash.
+Opening another file or closing the model clears the panel.
+
 ### Units
 
 Under **Measure** choose **Length Unit** (micrometer, millimeter, centimeter, meter, inch, foot),
@@ -496,7 +522,7 @@ Mouse: left drag orbit; middle drag or Shift + left drag pan; wheel or Ctrl + le
 left click select; Shift + click add to selection; right click context menu.
 
 Menu items without shortcuts: Open Recent, Export Geometry, Export Parts List, Manage Saved Views, Set Material,
-Clear Material, Check Geometry, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
+Clear Material, Check Geometry, Check Clashes, Mass Unit, Preferences, Show All PMI, PMI Labels from Semantics,
 Antialiasing, Show Frame Rate, Panels, Length Unit, Precision, Angle Unit, Help items.
 
 ## 12. Troubleshooting

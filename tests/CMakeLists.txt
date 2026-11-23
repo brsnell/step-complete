@@ -28,6 +28,7 @@ add_executable(sc_core_tests
   core/test_geometry_export.cpp
   core/test_parts_list.cpp
   core/test_geometry_check.cpp
+  core/test_clash.cpp
 )
 target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support ZLIB::ZLIB GTest::gtest_main)
 sc_target_defaults(sc_core_tests)
@@ -72,6 +73,7 @@ add_executable(sc_app_tests
   app/test_material_dialog.cpp
   app/test_parts_list_dialog.cpp
   app/test_geometry_check_panel.cpp
+  app/test_clash_panel.cpp
 )
 target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
 sc_target_defaults(sc_app_tests)

@@ -22,6 +22,12 @@ add_library(sc_app STATIC
   ExportGeometryDialog.cpp
   ExportJob.h
   ExportJob.cpp
+  ClashDialog.h
+  ClashDialog.cpp
+  ClashJob.h
+  ClashJob.cpp
+  ClashPanel.h
+  ClashPanel.cpp
   GeometryCheckJob.h
   GeometryCheckJob.cpp
   GeometryCheckPanel.h

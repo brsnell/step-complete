@@ -3,6 +3,7 @@
 #include "app/PropertiesPanel.h"
 #include "app/UserViews.h"
 #include "core/AssemblyIndex.h"
+#include "core/Clash.h"
 #include "core/GeometryExport.h"
 #include "core/Measurement.h"
 #include "core/PartsList.h"
@@ -43,6 +44,8 @@ class AssemblyTreeModel;
 class ImportJob;
 class MeasurementsPanel;
 class ExportJob;
+class ClashJob;
+class ClashPanel;
 class GeometryCheckJob;
 class GeometryCheckPanel;
 class PmiPanel;
@@ -90,6 +93,13 @@ public:
   // Does nothing while a check runs.
   void checkGeometry();
   bool isCheckingGeometry() const;
+
+  // --- Clash detection (docs/designs/clash-detection.md) -------------------------------
+  // What Measure > Check Clashes does once its dialog is answered: check the selected parts (every
+  // visible part when nothing is selected) against each other in the background and list the
+  // pairs in the Clashes panel. Does nothing while a clash check runs.
+  void checkClashesWith(const core::ClashOptions& options);
+  bool isCheckingClashes() const;
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
@@ -146,6 +156,15 @@ private:
   void onGeometryCheckFinished();
   void showGeometryIssue(int index, bool zoom);
   void stopGeometryCheck(); // cancels a running check and clears the panel and highlight
+  void checkClashes();      // asks for the options, then checkClashesWith
+  void startClashJob(std::vector<core::NodeId> parts, const core::ClashOptions& options);
+  void onClashCheckFinished();
+  void showClash(int index, bool zoom);
+  void stopClashCheck();
+  // The red highlight is shared by the Geometry Check and Clashes panels; each clears only its own.
+  enum class Highlight { None, GeometryIssue, Clash };
+  void showHighlight(Highlight owner, const TopoDS_Shape& worldShape);
+  void clearHighlight(Highlight owner);
 
   void setSectionView(bool on);
 
@@ -219,6 +238,14 @@ private:
   QDockWidget* _geometryCheckDock = nullptr;
   QPointer<GeometryCheckJob> _geometryCheckJob;
   std::shared_ptr<const core::AssemblyIndex> _checkedIndex; // the model the listed problems are in
+  QAction* _checkClashesAction = nullptr;
+  ClashPanel* _clashPanel = nullptr;
+  QDockWidget* _clashDock = nullptr;
+  QPointer<ClashJob> _clashJob;
+  std::shared_ptr<const core::AssemblyIndex> _clashIndex; // the model the listed clashes are in
+  std::vector<core::NodeId> _clashParts;                  // what the last check covered, for Check Again
+  core::ClashOptions _clashOptions;
+  Highlight _highlight = Highlight::None;
   core::MeasureDisplayOptions _measureOptions;
   QDockWidget* _messagesDock = nullptr;
   QLabel* _emptyHint = nullptr;

@@ -6,6 +6,7 @@
 #include <Graphic3d_ZLayerId.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <Prs3d_LineAspect.hxx>
+#include <Prs3d_PointAspect.hxx>
 #include <Quantity_NameOfColor.hxx>
 #include <StdSelect_BRepOwner.hxx>
 #include <TCollection_AsciiString.hxx>
@@ -138,6 +139,8 @@ void SceneManager::showIssue(const TopoDS_Shape& worldShape) {
   issue->SetColor(Quantity_NOC_RED);
   issue->SetWidth(3.0);
   issue->SetZLayer(Graphic3d_ZLayerId_Topmost); // drawn over the part it belongs to
+  // Contact points of a clash are vertices: draw them as dots large enough to see.
+  issue->Attributes()->SetPointAspect(new Prs3d_PointAspect(Aspect_TOM_BALL, Quantity_NOC_RED, 2.5));
   const bool hasFaces = TopExp_Explorer(worldShape, TopAbs_FACE).More();
   _context->Display(issue, hasFaces ? AIS_Shaded : AIS_WireFrame, -1, false);
   _context->Deactivate(issue);

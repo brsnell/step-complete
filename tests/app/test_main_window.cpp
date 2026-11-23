@@ -4,6 +4,8 @@
 #include "TestModels.h"
 
 #include "app/AssemblyTreeModel.h"
+#include "app/ClashJob.h"
+#include "app/ClashPanel.h"
 #include "app/ExportJob.h"
 #include "app/GeometryCheckJob.h"
 #include "app/GeometryCheckPanel.h"
@@ -549,6 +551,57 @@ private Q_SLOTS:
     QVERIFY(!_window->isCheckingGeometry());
     QVERIFY(_window->findChild<sc::app::GeometryCheckJob*>() == nullptr);
     QVERIFY(panel->summary().startsWith(QStringLiteral("Measure > Check Geometry")));
+    QVERIFY(!check->isEnabled());
+  }
+
+  // Measure > Check Clashes (docs/designs/clash-detection.md): the four pins stand on the plate
+  // (this file has no hidden instance), so with Touching on there are four pairs; choosing one
+  // selects both parts.
+  void checkClashesListsTouchingPairs() {
+    QAction* check = menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("Check &Clashes..."));
+    QVERIFY(check != nullptr);
+    QVERIFY(!check->isEnabled());
+    openFixture();
+    QVERIFY(check->isEnabled());
+
+    auto* panel = _window->findChild<sc::app::ClashPanel*>();
+    auto* dock = _window->findChild<QDockWidget*>(QStringLiteral("ClashDock"));
+    QVERIFY(panel != nullptr && dock != nullptr);
+    sc::core::ClashOptions options;
+    options.touching = true;
+    _window->checkClashesWith(options);
+    QVERIFY(_window->isCheckingClashes());
+    QVERIFY(!check->isEnabled());
+    QVERIFY(dock->isVisible());
+    QTRY_VERIFY_WITH_TIMEOUT(!_window->isCheckingClashes(), 60000);
+    QTRY_VERIFY(_window->findChild<sc::app::ClashJob*>() == nullptr);
+    QCOMPARE(panel->summary(), QStringLiteral("4 touching pairs among 5 parts (4 pairs checked)."));
+    QCOMPARE(panel->rowCount(), 4);
+    QCOMPARE(_window->statusBar()->currentMessage(), panel->summary());
+
+    panel->setCurrentIndex(0);
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    const QModelIndexList rows = tree->selectionModel()->selectedRows();
+    QCOMPARE(rows.size(), 2);
+    QStringList names;
+    for (const QModelIndex& row : rows) {
+      names << row.data().toString();
+    }
+    QVERIFY2(names.contains(QStringLiteral("Base plate")), qPrintable(names.join(QLatin1Char(','))));
+
+    // A new check covers the selection (now that pair); without Touching it is clean.
+    _window->checkClashesWith(sc::core::ClashOptions());
+    QTRY_VERIFY_WITH_TIMEOUT(!_window->isCheckingClashes(), 60000);
+    QCOMPARE(panel->summary(), QStringLiteral("No clashes among 2 parts (1 pair checked)."));
+
+    // Check Again repeats the last check's parts and options, whatever is selected now.
+    Q_EMIT panel->rerunRequested();
+    QVERIFY(_window->isCheckingClashes());
+    QTRY_VERIFY_WITH_TIMEOUT(!_window->isCheckingClashes(), 60000);
+    QCOMPARE(panel->summary(), QStringLiteral("No clashes among 2 parts (1 pair checked)."));
+
+    _close->trigger();
+    QCOMPARE(panel->rowCount(), 0);
     QVERIFY(!check->isEnabled());
   }
 

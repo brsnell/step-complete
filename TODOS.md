@@ -62,18 +62,6 @@ Shipped as v1.1.0 on 2026-11-22 (see `CHANGELOG.md`).
 
 ## v2 (M7)
 
-### Clash and interference detection
-
-**What:** Find parts that intersect or touch, with an optional clearance distance. List each pair with its overlap volume or minimum gap, and highlight the pair in 3D when selected.
-
-**Why:** Checking an assembly for interference is a common review task that other viewers offer.
-
-**Context:** Pairs grow with the square of the part count, so start with a bounding-box pass and check exact geometry only for the pairs that overlap (`BRepExtrema_ShapeProximity` for touching and gaps, a Boolean common for overlap volume). Must work on transformed instances and run in the background with progress and cancel.
-
-**Effort:** L
-**Priority:** P2
-**Depends on:** Design approved.
-
 ### Wall thickness analysis
 
 **What:** Color the model by local wall thickness with a min/max legend and threshold, plus a pick readout of the thickness at a point.

@@ -384,10 +384,10 @@ Feedback from v1.0 users can reorder v1.1 and v2.
   selected ([design](designs/geometry-check.md)).
 
 ### M7: v2 (≈5–7 months): 📝 drafted
-- **Clash and interference detection.** Find parts that intersect or touch, with an optional
-  clearance distance. List each pair with its overlap volume or minimum gap and highlight it in
-  3D. Pair checks grow fast with part count, so it needs a bounding-box pass first and must run
-  in the background with progress and cancel.
+- ✅ **Clash and interference detection** (Measure > Check Clashes): interference with its overlap
+  volume, and optionally touching and clearance, among the selected or visible parts; a
+  bounding-box pass, then exact checks in parallel in the background
+  ([design](designs/clash-detection.md)).
 - **Wall thickness analysis.** Color the model by local thickness with a min/max legend, and add
   a point-pick readout. Exact (B-rep) thickness or ray casting on the mesh is a design decision;
   either has to stay usable on the §2a reference machine.

@@ -3,6 +3,9 @@
 #include "app/AboutDialog.h"
 #include "app/AssemblyFilterProxy.h"
 #include "app/AssemblyTreeModel.h"
+#include "app/ClashDialog.h"
+#include "app/ClashJob.h"
+#include "app/ClashPanel.h"
 #include "app/ExportGeometryDialog.h"
 #include "app/ExportImageDialog.h"
 #include "app/ExportJob.h"
@@ -153,12 +156,15 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 MainWindow::~MainWindow() {
   delete _import;           // cancels and waits for a running import
   delete _geometryCheckJob; // likewise for a running geometry check
+  delete _clashJob;         // and a running clash check
   // The panel and its dock still emit while child widgets are torn down; nothing may reach
   // syncMeasurementWitnesses once the tool is gone.
   disconnect(_measurements, nullptr, this, nullptr);
   disconnect(_measurementsDock->toggleViewAction(), nullptr, this, nullptr);
   disconnect(_geometryCheck, nullptr, this, nullptr);
   disconnect(_geometryCheckDock->toggleViewAction(), nullptr, this, nullptr);
+  disconnect(_clashPanel, nullptr, this, nullptr);
+  disconnect(_clashDock->toggleViewAction(), nullptr, this, nullptr);
   disconnect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this, nullptr);
   delete _measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
@@ -316,6 +322,29 @@ void MainWindow::createDocks() {
   // The highlight belongs to the panel: closing it removes the highlight, reopening restores it.
   connect(_geometryCheckDock->toggleViewAction(), &QAction::toggled, this,
           [this] { showGeometryIssue(_geometryCheck->currentIndex(), false); });
+
+  _clashPanel = new ClashPanel(this);
+  _clashDock = new QDockWidget(tr("Clashes"), this);
+  _clashDock->setObjectName(QStringLiteral("ClashDock"));
+  _clashDock->setWidget(_clashPanel);
+  addDockWidget(Qt::BottomDockWidgetArea, _clashDock);
+  tabifyDockWidget(_messagesDock, _clashDock);
+  _clashDock->hide();
+  connect(_clashPanel, &ClashPanel::clashChosen, this, [this](int index) { showClash(index, false); });
+  connect(_clashPanel, &ClashPanel::clashActivated, this, [this](int index) { showClash(index, true); });
+  connect(_clashPanel, &ClashPanel::cancelRequested, this, [this] {
+    if (_clashJob) {
+      _clashJob->cancel();
+    }
+  });
+  connect(_clashPanel, &ClashPanel::rerunRequested, this, [this] {
+    if (_clashIndex && _clashIndex == _scene->model() && !_clashJob) {
+      startClashJob(_clashParts, _clashOptions);
+    }
+  });
+  // Both panels draw with the same red highlight: whichever is closed stops drawing it.
+  connect(_clashDock->toggleViewAction(), &QAction::toggled, this,
+          [this] { showClash(_clashPanel->currentIndex(), false); });
 }
 
 void MainWindow::declutterPmi() {
@@ -557,6 +586,10 @@ void MainWindow::createMeasureMenu() {
   _checkGeometryAction->setStatusTip(
       tr("Look for invalid geometry, open shells and tiny edges in the selected parts (all visible parts "
          "when nothing is selected)"));
+  _checkClashesAction = menu->addAction(tr("Check &Clashes..."), this, &MainWindow::checkClashes);
+  _checkClashesAction->setStatusTip(
+      tr("Find parts that overlap, touch or come too close among the selected parts (all visible parts "
+         "when nothing is selected)"));
   menu->addSeparator();
   _stopMeasureAction = menu->addAction(tr("&Stop Measuring"), this, [this] { setMeasureMode(-1); });
   _stopMeasureAction->setShortcut(Qt::Key_Escape);
@@ -626,6 +659,7 @@ void MainWindow::createMeasureMenu() {
   menu->addSeparator();
   menu->addAction(_measurementsDock->toggleViewAction());
   menu->addAction(_geometryCheckDock->toggleViewAction());
+  menu->addAction(_clashDock->toggleViewAction());
 }
 
 void MainWindow::applyMeasureOptions() {
@@ -732,7 +766,7 @@ void MainWindow::checkGeometry() {
                              5000);
     return;
   }
-  _scene->clearIssue();
+  clearHighlight(Highlight::GeometryIssue);
   _checkedIndex.reset();
   _geometryCheckDock->show();
   _geometryCheckDock->raise();
@@ -773,13 +807,13 @@ void MainWindow::showGeometryIssue(int index, bool zoom) {
   const bool panelOpen = _geometryCheckDock->toggleViewAction()->isChecked();
   if (!panelOpen || !_checkedIndex || _checkedIndex != _scene->model() || index < 0 ||
       index >= static_cast<int>(issues.size())) {
-    _scene->clearIssue();
+    clearHighlight(Highlight::GeometryIssue);
     _viewport->invalidateScene();
     return;
   }
   const core::GeometryIssue& issue = issues[static_cast<size_t>(index)];
   const TopoDS_Shape worldShape = issue.shape.Moved(_checkedIndex->node(issue.part).location);
-  _scene->showIssue(worldShape);
+  showHighlight(Highlight::GeometryIssue, worldShape);
   if (zoom) {
     Bnd_Box box;
     BRepBndLib::Add(worldShape, box);
@@ -799,7 +833,122 @@ void MainWindow::stopGeometryCheck() {
   delete _geometryCheckJob; // cancels and waits; its result is not wanted
   _checkedIndex.reset();
   _geometryCheck->clear();
-  _scene->clearIssue();
+  clearHighlight(Highlight::GeometryIssue);
+}
+
+void MainWindow::checkClashes() {
+  if (!_scene->model() || _clashJob) {
+    return;
+  }
+  ClashDialog dialog(this);
+  if (dialog.exec() == QDialog::Accepted) {
+    checkClashesWith(dialog.options());
+  }
+}
+
+bool MainWindow::isCheckingClashes() const {
+  return !_clashJob.isNull();
+}
+
+void MainWindow::checkClashesWith(const core::ClashOptions& options) {
+  if (!_scene->model()) {
+    statusBar()->showMessage(tr("Open a model to check it for clashes."), 4000);
+    return;
+  }
+  if (_clashJob) {
+    return;
+  }
+  const std::vector<core::NodeId> selection =
+      _measureTool->isActive() ? std::vector<core::NodeId>{} : selectedNodes();
+  std::vector<core::NodeId> parts = visiblePartsOf(selection);
+  if (parts.size() < 2) {
+    statusBar()->showMessage(selection.empty()
+                                 ? tr("A clash check needs at least two visible parts.")
+                                 : tr("Select at least two visible parts to check for clashes."),
+                             5000);
+    return;
+  }
+  startClashJob(std::move(parts), options);
+}
+
+void MainWindow::startClashJob(std::vector<core::NodeId> parts, const core::ClashOptions& options) {
+  const std::shared_ptr<const core::AssemblyIndex> index = _scene->model();
+  clearHighlight(Highlight::Clash);
+  _clashIndex.reset();
+  _clashParts = parts;
+  _clashOptions = options;
+  _clashDock->show();
+  _clashDock->raise();
+  _clashPanel->setRunning(0, QString());
+  _clashJob = new ClashJob(index, std::move(parts), options, this);
+  connect(_clashJob, &ClashJob::progress, _clashPanel, &ClashPanel::setRunning);
+  connect(_clashJob, &ClashJob::finished, this, &MainWindow::onClashCheckFinished);
+  statusBar()->showMessage(tr("Checking clashes..."));
+  _clashJob->start();
+  updateActions();
+  _viewport->invalidateScene();
+}
+
+void MainWindow::onClashCheckFinished() {
+  ClashJob* job = _clashJob;
+  if (job == nullptr) {
+    return;
+  }
+  const core::ClashResult& result = job->result();
+  if (job->index() == _scene->model()) {
+    _clashIndex = job->index();
+    _clashPanel->setResult(result, *_clashIndex, _measureOptions);
+    statusBar()->showMessage(ClashPanel::summaryOf(result), 10000);
+  } else {
+    _clashPanel->clear(); // the model changed while the check ran
+  }
+  job->deleteLater();
+  _clashJob = nullptr;
+  updateActions();
+}
+
+void MainWindow::showClash(int index, bool zoom) {
+  const std::vector<core::Clash>& clashes = _clashPanel->clashes();
+  const bool panelOpen = _clashDock->toggleViewAction()->isChecked();
+  if (!panelOpen || !_clashIndex || _clashIndex != _scene->model() || index < 0 ||
+      index >= static_cast<int>(clashes.size())) {
+    clearHighlight(Highlight::Clash);
+    _viewport->invalidateScene();
+    return;
+  }
+  const core::Clash& clash = clashes[static_cast<size_t>(index)];
+  showHighlight(Highlight::Clash, clash.witness); // already in world coordinates
+  if (!_measureTool->isActive() && !_sectionTool->isPicking()) {
+    _scene->select({clash.a, clash.b});
+    onViewportSelectionChanged(); // the tree and Properties follow
+  }
+  if (zoom) {
+    Bnd_Box box = _scene->boundingBox({clash.a, clash.b});
+    if (!box.IsVoid()) {
+      _viewport->view()->FitAll(box, 0.05, false);
+    }
+  }
+  _viewport->invalidateScene();
+}
+
+void MainWindow::showHighlight(Highlight owner, const TopoDS_Shape& worldShape) {
+  _scene->showIssue(worldShape);
+  _highlight = worldShape.IsNull() ? Highlight::None : owner;
+}
+
+void MainWindow::clearHighlight(Highlight owner) {
+  if (_highlight == owner) {
+    _scene->clearIssue();
+    _highlight = Highlight::None;
+  }
+}
+
+void MainWindow::stopClashCheck() {
+  delete _clashJob; // cancels and waits; its result is not wanted
+  _clashIndex.reset();
+  _clashParts.clear();
+  _clashPanel->clear();
+  clearHighlight(Highlight::Clash);
 }
 
 void MainWindow::measureMassProperties() {
@@ -870,6 +1019,7 @@ void MainWindow::updateActions() {
     _stopMeasureAction->setEnabled(_measureTool->isActive());
     _massPropertiesAction->setEnabled(hasModel);
     _checkGeometryAction->setEnabled(hasModel && !_geometryCheckJob);
+    _checkClashesAction->setEnabled(hasModel && !_clashJob);
     for (QAction* action : _measureGroup->actions()) {
       action->setEnabled(hasModel);
     }
@@ -976,6 +1126,7 @@ void MainWindow::onImportFinished() {
     std::shared_ptr<const core::AssemblyIndex> index = job->index();
     _transparentParts.clear();
     stopGeometryCheck(); // problems belong to the previous model
+    stopClashCheck();
     _measureTool->reset();
     _measurements->clear(); // results belong to the previous model
     _pmiScene->clearViewClipping(_viewport->view());
@@ -1050,6 +1201,7 @@ void MainWindow::onImportFinished() {
 
 void MainWindow::closeModel() {
   stopGeometryCheck();
+  stopClashCheck();
   setMeasureMode(-1);
   _measureTool->reset();
   _measurements->clear();
