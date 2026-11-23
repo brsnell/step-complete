@@ -5,6 +5,11 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-23
+
+Windows installer and portable zip, Linux AppImage. The macOS DMGs are still built but held
+back until they pass a hands-on test on a real Mac (see `TODOS.md`).
+
 ### Added
 - Markup menu: notes pinned to a clicked face (Add Note, `Ctrl+Shift+N`) and freehand sketches
   drawn over the model (Sketch, `Ctrl+Shift+K`). They are kept with the model's own data, never

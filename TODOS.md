@@ -2,7 +2,7 @@
 
 State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. The Windows packages passed a hands-on test on real hardware (2026-11-16). v1.0.0 ships for Windows and Linux only; the release workflow builds the macOS DMGs but does not publish them until the hands-on macOS check below passes.
 
-Update 2026-11-23: v1.1 (M6) and v1.2 (M7) shipped (the v1.2 milestone was drafted as "v2"; it shipped as 1.2 because it only adds to the viewer). Markup is v1.3 (M8). See [docs/PLAN.md](docs/PLAN.md) §7a. Every open item under Release and Viewport is blocked on hardware or a cost decision. Each item gets a design in `docs/designs/` before work starts.
+Update 2026-11-23: v1.1 (M6), v1.2 (M7) and v1.3 (M8, markup) shipped (the v1.2 milestone was drafted as "v2"; it shipped as 1.2 because it only adds to the viewer). See [docs/PLAN.md](docs/PLAN.md) §7a. Every open item under Release and Viewport is blocked on hardware or a cost decision. Each item gets a design in `docs/designs/` before work starts.
 
 ## Release
 
@@ -66,9 +66,9 @@ Shipped as v1.2.0 on 2026-11-23 (see `CHANGELOG.md`).
 
 ## v1.3 (M8)
 
-Markup is built ([design](docs/designs/markup.md), `CHANGELOG.md` under Unreleased) and ships
-with the next release. Moving a note's box, shapes and colors of one's own, and replies or
-statuses are out of its scope; add them here if users ask.
+Shipped as v1.3.0 on 2026-11-23 with markup ([design](docs/designs/markup.md), `CHANGELOG.md`).
+Moving a note's box, shapes and colors of one's own, and replies or statuses are out of its
+scope; add them here if users ask.
 
 ## Deferred
 

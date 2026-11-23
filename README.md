@@ -9,11 +9,11 @@ Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/
 
 **Documentation:** [User guide](docs/user-guide.md) · [Packaging](packaging/README.md) · [Performance](docs/performance.md)
 
-> **Status: v1.2 (Windows and Linux packages; macOS packages follow once tested on a Mac).** Opens STEP assemblies (and IGES, STL, OBJ and glTF files) with names, colors
+> **Status: v1.3 (Windows and Linux packages; macOS packages follow once tested on a Mac).** Opens STEP assemblies (and IGES, STL, OBJ and glTF files) with names, colors
 > and structure; assembly tree, properties, hide/isolate/transparency; measurement on the exact
 > geometry (distance, point to point, angle, radius, entity info, mass properties with
 > validation-property check); PMI from AP242 files (dimensions, tolerances, datums, saved views,
-> cross-highlighting); section view with capping; image export; view preferences; compressed `.stpz` files and a cache that reopens files near-instantly. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
+> cross-highlighting); review notes and sketches (markup); section view with capping; image export; view preferences; compressed `.stpz` files and a cache that reopens files near-instantly. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
 > [docs/pmi-coverage.md](docs/pmi-coverage.md) for what PMI is supported.
 
 ![Measuring a distance](docs/images/m2-distance.png)
