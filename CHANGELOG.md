@@ -5,6 +5,13 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+### Added
+- Measure > Check Clashes: finds parts that overlap (with the overlap volume), and optionally
+  parts that touch or come closer than a clearance, among the selected or visible parts. A
+  bounding-box pass keeps large assemblies quick, and pairs are checked in parallel in the
+  background with Cancel. The Clashes panel lists each pair; choosing one selects both parts and
+  highlights the overlap, gap or contact in red, and double-clicking zooms to it.
+
 ## [1.1.0] - 2026-11-22
 
 Windows installer and portable zip, Linux AppImage. The macOS DMGs are still built but held

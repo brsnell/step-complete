@@ -33,6 +33,8 @@ add_library(sc_core STATIC
   GeometryExport.cpp
   PartsList.h
   PartsList.cpp
+  Clash.h
+  Clash.cpp
   GeometryCheck.h
   GeometryCheck.cpp
 )

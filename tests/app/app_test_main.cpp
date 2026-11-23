@@ -15,6 +15,7 @@ int runUserViewsTests(int argc, char** argv);
 int runMaterialDialogTests(int argc, char** argv);
 int runPartsListDialogTests(int argc, char** argv);
 int runGeometryCheckPanelTests(int argc, char** argv);
+int runClashPanelTests(int argc, char** argv);
 
 int main(int argc, char** argv) {
   // Keep a failure readable in CI logs. Unbuffered output survives a crash or abort (on Windows a
@@ -37,5 +38,6 @@ int main(int argc, char** argv) {
   failures += runMaterialDialogTests(argc, argv);
   failures += runPartsListDialogTests(argc, argv);
   failures += runGeometryCheckPanelTests(argc, argv);
+  failures += runClashPanelTests(argc, argv);
   return failures == 0 ? 0 : 1;
 }
