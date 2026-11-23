@@ -8,8 +8,8 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 **License:** MIT · **Repo:** github.com/brsnell/step-complete
 
 **Status:** M0–M4 are done; M5 (ship v1.0) is in progress, and v1.0.0 shipped for Windows and
-Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22; every v1.2 (M7) feature is built (not yet
-released), and markup is planned for v1.3 (M8), in §7a. Open work is in
+Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22 and v1.2.0 (M7) on 2026-11-23; markup is planned for v1.3
+(M8), in §7a. Open work is in
 [TODOS.md](../TODOS.md).
 
 ---
@@ -388,7 +388,7 @@ Feedback from users can reorder what is left.
   tiny edges in the selected or visible parts, listed in a panel and highlighted in 3D when
   selected ([design](designs/geometry-check.md)).
 
-### M7: v1.2: ✅ features done (unreleased)
+### M7: v1.2: ✅ shipped as v1.2.0 (2026-11-23)
 - ✅ **Clash and interference detection** (Measure > Check Clashes): interference with its overlap
   volume, and optionally touching and clearance, among the selected or visible parts; a
   bounding-box pass, then exact checks in parallel in the background
@@ -455,5 +455,5 @@ overrides. The deferred items in `TODOS.md` (exploded view and others) are uncha
 2. ✅ M0–M4; M5 mostly done (see §7).
 3. The remaining work (release checks, signing, reference-machine performance, deferred items) is
    tracked in [TODOS.md](../TODOS.md).
-4. M6 (v1.1) shipped and M7 (v1.2) is built (§7a). M8 (v1.3, markup) is next; each feature gets a
+4. M6 (v1.1) and M7 (v1.2) shipped (§7a). M8 (v1.3, markup) is next; each feature gets a
    design before it is built.

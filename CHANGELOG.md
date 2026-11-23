@@ -5,6 +5,11 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-23
+
+Windows installer and portable zip, Linux AppImage. The macOS DMGs are still built but held
+back until they pass a hands-on test on a real Mac (see `TODOS.md`).
+
 ### Added
 - File > Compare With: opens another revision of the model and colors what changed: changed parts
   by their deviation (with a legend), moved, added and unchanged parts by kind, and removed parts
