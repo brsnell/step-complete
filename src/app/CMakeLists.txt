@@ -42,6 +42,10 @@ add_library(sc_app STATIC
   GeometryCheckPanel.cpp
   UserViews.h
   UserViews.cpp
+  MarkupJson.h
+  MarkupJson.cpp
+  MarkupPanel.h
+  MarkupPanel.cpp
   SavedViewsDialog.h
   SavedViewsDialog.cpp
   MaterialDialog.h

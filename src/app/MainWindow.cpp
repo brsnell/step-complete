@@ -14,6 +14,8 @@
 #include "app/GeometryCheckJob.h"
 #include "app/GeometryCheckPanel.h"
 #include "app/ImportJob.h"
+#include "app/MarkupJson.h"
+#include "app/MarkupPanel.h"
 #include "app/MaterialDialog.h"
 #include "app/MeasurementsPanel.h"
 #include "app/PartsListDialog.h"
@@ -29,6 +31,7 @@
 #include "core/OcctInfo.h"
 #include "core/Version.h"
 #include "render/ComparisonScene.h"
+#include "render/MarkupScene.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
 #include "render/PmiScene.h"
@@ -53,11 +56,13 @@
 #include <QDockWidget>
 #include <QDragEnterEvent>
 #include <QDropEvent>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QFontDatabase>
 #include <QHeaderView>
 #include <QInputDialog>
+#include <QJsonDocument>
 #include <QKeySequence>
 #include <QLabel>
 #include <QLineEdit>
@@ -144,6 +149,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   connect(_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
   connect(_viewport, &render::OcctViewport::glInitialized, this, &MainWindow::onGlInitialized);
   connect(_viewport, &render::OcctViewport::selectionChanged, this, &MainWindow::onViewportSelectionChanged);
+  // After the connection above: the window ignores a note pick's face selection first.
+  _markupScene = new render::MarkupScene(_viewport, _scene.get(), this);
   // Witnesses and PMI are sized in device pixels: rebuild them on a screen with other scaling.
   connect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this,
           &MainWindow::onDevicePixelRatioChanged);
@@ -188,6 +195,9 @@ MainWindow::~MainWindow() {
   disconnect(_thicknessPanel, nullptr, this, nullptr);
   disconnect(_comparisonPanel, nullptr, this, nullptr);
   disconnect(_viewport, &render::OcctViewport::devicePixelRatioChanged, this, nullptr);
+  disconnect(_markupPanel, nullptr, this, nullptr);
+  disconnect(_markupScene, nullptr, this, nullptr);
+  delete _markupScene; // removes the notes and strokes while the viewer exists
   delete _measureTool; // removes its witnesses while the viewer exists
   // Presentations must be removed while the viewer still exists.
   delete _sectionTool; // removes its handles and the parts' clip planes
@@ -286,6 +296,8 @@ void MainWindow::createDocks() {
     if (_measureTool->isActive()) {
       setMeasureMode(-1); // before the tool makes faces pickable
     }
+    _markupScene->cancelNotePick();
+    setSketching(false);
     statusBar()->showMessage(tr("Click a flat face for plane %1 (Esc cancels).").arg(index + 1));
     updateActions();
   });
@@ -309,7 +321,11 @@ void MainWindow::createDocks() {
   _cancelPickAction = new QAction(tr("Cancel Face Pick"), this);
   _cancelPickAction->setShortcut(Qt::Key_Escape); // never enabled together with Stop Measuring
   _cancelPickAction->setEnabled(false);
-  connect(_cancelPickAction, &QAction::triggered, _sectionTool, &render::SectionTool::cancelPick);
+  connect(_cancelPickAction, &QAction::triggered, this, [this] {
+    _sectionTool->cancelPick();
+    _markupScene->cancelNotePick();
+    setSketching(false);
+  });
   addAction(_cancelPickAction);
 
   _measurements = new MeasurementsPanel(this);
@@ -413,6 +429,55 @@ void MainWindow::createDocks() {
           [this](int index) { showChange(index, false); });
   connect(_comparisonPanel, &ComparisonPanel::changeActivated, this,
           [this](int index) { showChange(index, true); });
+
+  _markupPanel = new MarkupPanel(this);
+  _markupDock = new QDockWidget(tr("Markup"), this);
+  _markupDock->setObjectName(QStringLiteral("MarkupDock"));
+  _markupDock->setWidget(_markupPanel);
+  addDockWidget(Qt::RightDockWidgetArea, _markupDock);
+  tabifyDockWidget(_pmiDock, _markupDock);
+  _markupDock->hide();
+  connect(_markupPanel, &MarkupPanel::itemChosen, this, [this](int id) {
+    _markupScene->setEmphasized(id);
+    _viewport->invalidateScene();
+  });
+  connect(_markupPanel, &MarkupPanel::itemActivated, this, [this](int id) {
+    if (_markup.note(id) != nullptr) {
+      editMarkupNote(id);
+    } else {
+      zoomToMarkup(id);
+    }
+  });
+  connect(_markupPanel, &MarkupPanel::deleteRequested, this,
+          [this] { deleteMarkup(_markupPanel->selectedIds()); });
+
+  // One tool owns clicks at a time: placing a note stops measuring and the section pick, and
+  // the colored views, whose parts have no faces to pick.
+  connect(_markupScene, &render::MarkupScene::notePickStarted, this, [this] {
+    if (_measureTool->isActive()) {
+      setMeasureMode(-1);
+    }
+    _sectionTool->cancelPick();
+    setSketching(false);
+    if (_thicknessScene->isShown() || _thicknessJob) {
+      stopThickness();
+    }
+    if (_comparisonScene->isShown() || _comparisonJob) {
+      stopComparison();
+    }
+    statusBar()->showMessage(tr("Click a face to pin the note to (Esc cancels)."));
+    updateActions();
+  });
+  connect(_markupScene, &render::MarkupScene::notePicked, this, &MainWindow::onNotePicked);
+  connect(_markupScene, &render::MarkupScene::notePickEnded, this, [this](bool picked) {
+    if (!picked) {
+      statusBar()->clearMessage();
+    }
+    _viewport->invalidateScene();
+    updateActions();
+  });
+  connect(_markupScene, &render::MarkupScene::strokeDrawn, this,
+          [this](const core::MarkupStroke& stroke) { addMarkupStroke(stroke); });
 }
 
 void MainWindow::declutterPmi() {
@@ -425,6 +490,7 @@ void MainWindow::declutterPmi() {
 void MainWindow::onDevicePixelRatioChanged() {
   syncMeasurementWitnesses();
   _pmiScene->setDevicePixelRatio(_viewport->devicePixelRatioF());
+  _markupScene->refresh();
   _viewport->invalidateScene();
   declutterPmi(); // the rebuilt labels start from their base positions
 }
@@ -589,6 +655,7 @@ void MainWindow::createActions() {
   }
 
   createMeasureMenu();
+  createMarkupMenu();
   _measurements->setHint(tr("Choose a measurement from the Measure menu."));
 
   // --- Help -----------------------------------------------------------------
@@ -775,6 +842,8 @@ void MainWindow::setMeasureMode(int mode) {
   }
   if (newMode) {
     _sectionTool->cancelPick(); // one tool owns clicks at a time
+    _markupScene->cancelNotePick();
+    setSketching(false);
     // Measuring picks faces, edges and vertices, which the thickness colors do not offer.
     if (_thicknessScene->isShown() || _thicknessJob) {
       stopThickness();
@@ -1349,7 +1418,15 @@ void MainWindow::updateActions() {
   _semanticLabelsAction->setEnabled(_pmi && !_pmi->isEmpty());
   _sectionAction->setEnabled(hasModel);
   if (_cancelPickAction != nullptr) {
-    _cancelPickAction->setEnabled(_sectionTool->isPicking());
+    _cancelPickAction->setEnabled(_sectionTool->isPicking() || _markupScene->isPickingNote() ||
+                                  _markupScene->isSketching());
+  }
+  if (_addNoteAction != nullptr) {
+    _addNoteAction->setEnabled(hasModel);
+    _sketchAction->setEnabled(hasModel);
+    _importMarkupAction->setEnabled(hasModel);
+    _exportMarkupAction->setEnabled(hasModel && !_markup.empty());
+    _deleteAllMarkupAction->setEnabled(hasModel && !_markup.empty());
   }
   if (_stopMeasureAction != nullptr) {
     _stopMeasureAction->setEnabled(_measureTool->isActive());
@@ -1551,6 +1628,10 @@ void MainWindow::closeModel() {
   _measureTool->reset();
   _measurements->clear();
   setSectionView(false);
+  setSketching(false);
+  _markupScene->clear();
+  _markup.clear();
+  _markupPanel->clear();
   _pmiScene->clearViewClipping(_viewport->view());
   _pmiScene->clear();
   _pmiPanel->clear();
@@ -1704,7 +1785,8 @@ bool MainWindow::expandToMatches(const QModelIndex& parent) {
 }
 
 void MainWindow::onViewportSelectionChanged() {
-  if (_syncingSelection || _measureTool->isActive() || _sectionTool->isPicking()) {
+  if (_syncingSelection || _measureTool->isActive() || _sectionTool->isPicking() ||
+      _markupScene->isPickingNote()) {
     return;
   }
   _syncingSelection = true;
@@ -1752,6 +1834,7 @@ void MainWindow::onViewportSelectionChanged() {
 
 void MainWindow::afterVisibilityChange() {
   _treeModel->refreshVisibility();
+  _markupScene->updateVisibility(); // markup is hidden with its part
   _viewport->invalidateScene();
   updateActions();
 }
@@ -2250,6 +2333,8 @@ void MainWindow::loadModelData(const QString& modelPath) {
           core::Material{stored.value(QStringLiteral("name")).toString().toStdString(), density};
     }
   }
+  _markup = markupFromJson(_modelData.value(QStringLiteral("markup")).toObject());
+  refreshMarkup();
   if (!loaded.ok) {
     statusBar()->showMessage(tr("The saved views of this model could not be read (%1).").arg(loaded.error),
                              8000);
@@ -2534,6 +2619,300 @@ void MainWindow::showAbout() {
     dialog.setGraphicsInfo(_viewport->glInfo());
   }
   dialog.exec();
+}
+
+// ---------------------------------------------------------------------------------
+// Markup (docs/designs/markup.md)
+
+void MainWindow::createMarkupMenu() {
+  QMenu* menu = menuBar()->addMenu(tr("Mar&kup"));
+  _addNoteAction = menu->addAction(tr("Add &Note"), this, &MainWindow::startAddNote);
+  _addNoteAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  _addNoteAction->setStatusTip(tr("Click a face and pin a note to it"));
+  _sketchAction = menu->addAction(tr("&Sketch"));
+  _sketchAction->setCheckable(true);
+  _sketchAction->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_K));
+  _sketchAction->setStatusTip(tr("Draw on the model with the left mouse button"));
+  connect(_sketchAction, &QAction::toggled, this, &MainWindow::setSketching);
+  menu->addSeparator();
+  _showMarkupAction = menu->addAction(tr("S&how Markup"));
+  _showMarkupAction->setCheckable(true);
+  _showMarkupAction->setChecked(true);
+  connect(_showMarkupAction, &QAction::toggled, this, [this](bool shown) {
+    _markupScene->setShown(shown);
+    _viewport->invalidateScene();
+  });
+  menu->addAction(_markupDock->toggleViewAction());
+  menu->addSeparator();
+  _exportMarkupAction = menu->addAction(tr("&Export Markup..."), this, &MainWindow::exportMarkup);
+  _importMarkupAction = menu->addAction(tr("&Import Markup..."), this, &MainWindow::importMarkup);
+  menu->addSeparator();
+  _deleteAllMarkupAction =
+      menu->addAction(tr("&Delete All Markup..."), this, &MainWindow::confirmDeleteAllMarkup);
+}
+
+void MainWindow::writeMarkup() {
+  if (_markup.empty()) {
+    _modelData.remove(QStringLiteral("markup"));
+  } else {
+    _modelData.insert(QStringLiteral("markup"), toJson(_markup));
+  }
+  saveModelData();
+  refreshMarkup();
+}
+
+void MainWindow::refreshMarkup() {
+  _markupScene->setMarkup(_markup);
+  _markupPanel->setMarkup(_markup, [this](int id) { return _markupScene->isMissing(id); });
+  _viewport->invalidateScene();
+  updateActions();
+}
+
+void MainWindow::startAddNote() {
+  if (_scene->model()) {
+    _markupScene->startNotePick();
+  }
+}
+
+void MainWindow::onNotePicked(const core::MarkupNote& note) {
+  bool ok = false;
+  const QString text =
+      QInputDialog::getMultiLineText(this, tr("Add Note"), tr("Note:"), QString(), &ok).trimmed();
+  if (!ok || text.isEmpty()) {
+    statusBar()->clearMessage();
+    return;
+  }
+  core::MarkupNote added = note;
+  added.text = text.toStdString();
+  if (addMarkupNote(added) != 0) {
+    statusBar()->showMessage(tr("Note added."), 4000);
+  }
+}
+
+int MainWindow::addMarkupNote(const core::MarkupNote& note) {
+  if (!_scene->model() || QString::fromStdString(note.text).trimmed().isEmpty()) {
+    return 0;
+  }
+  const int id = _markup.addNote(note);
+  writeMarkup();
+  _markupDock->show();
+  _markupDock->raise();
+  _markupPanel->setCurrentId(id);
+  return id;
+}
+
+int MainWindow::addMarkupStroke(const core::MarkupStroke& stroke) {
+  if (!_scene->model() || stroke.points.size() < 2) {
+    return 0;
+  }
+  const int id = _markup.addStroke(stroke);
+  writeMarkup();
+  _markupDock->show();
+  return id;
+}
+
+bool MainWindow::setMarkupNoteText(int id, const QString& text) {
+  const QString trimmed = text.trimmed();
+  if (trimmed.isEmpty() || !_markup.setNoteText(id, trimmed.toStdString())) {
+    return false;
+  }
+  writeMarkup();
+  return true;
+}
+
+void MainWindow::editMarkupNote(int id) {
+  const core::MarkupNote* note = _markup.note(id);
+  if (note == nullptr) {
+    return;
+  }
+  bool ok = false;
+  const QString text = QInputDialog::getMultiLineText(this, tr("Edit Note"), tr("Note:"),
+                                                      QString::fromStdString(note->text), &ok);
+  if (ok && !setMarkupNoteText(id, text) && text.trimmed().isEmpty()) {
+    statusBar()->showMessage(tr("A note needs some text; use Delete to remove it."), 5000);
+  }
+}
+
+void MainWindow::deleteMarkup(const std::vector<int>& ids) {
+  bool removed = false;
+  for (const int id : ids) {
+    removed = _markup.remove(id) || removed;
+  }
+  if (removed) {
+    writeMarkup();
+  }
+}
+
+void MainWindow::deleteAllMarkup() {
+  if (!_markup.empty()) {
+    _markup.clear();
+    writeMarkup();
+  }
+}
+
+void MainWindow::confirmDeleteAllMarkup() {
+  if (_markup.empty()) {
+    return;
+  }
+  const QMessageBox::StandardButton answer =
+      QMessageBox::question(this, tr("Delete All Markup"),
+                            tr("Delete all %n note(s) and sketch(es) of this model? This cannot be undone.",
+                               nullptr, _markup.size()),
+                            QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel);
+  if (answer == QMessageBox::Yes) {
+    deleteAllMarkup();
+  }
+}
+
+void MainWindow::setSketching(bool on) {
+  on = on && _scene->model() != nullptr;
+  const bool was = _markupScene->isSketching();
+  if (on && !was) {
+    if (_measureTool->isActive()) {
+      setMeasureMode(-1); // both want the left button
+    }
+    _sectionTool->cancelPick();
+    _markupScene->cancelNotePick();
+    _markupDock->show();
+    statusBar()->showMessage(tr("Drag with the left button to sketch (Esc ends sketching)."));
+  }
+  _markupScene->setSketching(on);
+  if (_sketchAction != nullptr) {
+    const QSignalBlocker blocker(_sketchAction);
+    _sketchAction->setChecked(on);
+  }
+  if (was && !on) {
+    statusBar()->clearMessage();
+  }
+  updateActions();
+}
+
+void MainWindow::zoomToMarkup(int id) {
+  Bnd_Box box = _markupScene->worldBox(id);
+  if (box.IsVoid()) {
+    return;
+  }
+  box.Enlarge(1.0); // a short stroke still leaves some room
+  _viewport->view()->FitAll(box, 0.2, false);
+  _viewport->invalidateScene();
+}
+
+namespace {
+
+std::optional<MarkupFile> readMarkupFile(const QString& path, QString* error) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    *error = file.errorString();
+    return std::nullopt;
+  }
+  QJsonParseError parseError{};
+  const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+  if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+    *error =
+        QCoreApplication::translate("sc::app::MainWindow", "The file is not a STEP Complete markup file.");
+    return std::nullopt;
+  }
+  return markupFromFileDocument(document.object(), error);
+}
+
+} // namespace
+
+bool MainWindow::exportMarkupTo(const QString& path) {
+  const QJsonObject document = markupFileDocument(_markup, QFileInfo(_modelPath).fileName());
+  QSaveFile file(path);
+  if (!file.open(QIODevice::WriteOnly) || file.write(QJsonDocument(document).toJson()) < 0 ||
+      !file.commit()) {
+    QMessageBox::warning(this, tr("Export Markup"),
+                         tr("The markup could not be written to %1.\n\n%2")
+                             .arg(QDir::toNativeSeparators(path), file.errorString()));
+    return false;
+  }
+  statusBar()->showMessage(tr("Markup exported to %1.").arg(QFileInfo(path).fileName()), 5000);
+  return true;
+}
+
+void MainWindow::exportMarkup() {
+  if (_markup.empty()) {
+    return;
+  }
+  const QFileInfo model(_modelPath);
+  const QString suggested = model.dir().filePath(model.completeBaseName() + QStringLiteral(".scmarkup"));
+  const QString path =
+      QFileDialog::getSaveFileName(this, tr("Export Markup"), suggested, tr("Markup (*.scmarkup)"));
+  if (!path.isEmpty()) {
+    exportMarkupTo(path);
+  }
+}
+
+int MainWindow::appendMarkup(const core::Markup& markup) {
+  const auto missingCount = [this] {
+    int count = 0;
+    for (const core::MarkupNote& note : _markup.notes()) {
+      count += _markupScene->isMissing(note.id) ? 1 : 0;
+    }
+    for (const core::MarkupStroke& stroke : _markup.strokes()) {
+      count += _markupScene->isMissing(stroke.id) ? 1 : 0;
+    }
+    return count;
+  };
+  const int missingBefore = missingCount();
+  _markup.append(markup);
+  writeMarkup();
+  if (!markup.empty()) {
+    _markupDock->show();
+    _markupDock->raise();
+  }
+  const int missing = missingCount() - missingBefore;
+  QString message = tr("Imported %n note(s) and sketch(es).", nullptr, markup.size());
+  if (missing > 0) {
+    message += QLatin1Char(' ') + tr("%n are on parts this model does not have.", nullptr, missing);
+  }
+  statusBar()->showMessage(message, 8000);
+  return markup.size();
+}
+
+int MainWindow::importMarkupFrom(const QString& path, QString* error) {
+  QString reason;
+  if (!_scene->model()) {
+    reason = tr("Open a model first.");
+  } else if (const std::optional<MarkupFile> file = readMarkupFile(path, &reason)) {
+    return appendMarkup(file->markup);
+  }
+  if (error != nullptr) {
+    *error = reason;
+  }
+  return -1;
+}
+
+void MainWindow::importMarkup() {
+  if (!_scene->model()) {
+    return;
+  }
+  const QString path = QFileDialog::getOpenFileName(this, tr("Import Markup"), QFileInfo(_modelPath).path(),
+                                                    tr("Markup (*.scmarkup);;All files (*)"));
+  if (path.isEmpty()) {
+    return;
+  }
+  QString error;
+  const std::optional<MarkupFile> file = readMarkupFile(path, &error);
+  if (!file) {
+    QMessageBox::warning(this, tr("Import Markup"),
+                         tr("%1 could not be imported.\n\n%2").arg(QFileInfo(path).fileName(), error));
+    return;
+  }
+  const QString modelName = QFileInfo(_modelPath).fileName();
+  if (!file->modelName.isEmpty() && file->modelName.compare(modelName, Qt::CaseInsensitive) != 0) {
+    const QMessageBox::StandardButton answer = QMessageBox::question(
+        this, tr("Import Markup"),
+        tr("This markup was made for %1, not %2. Notes and sketches on parts this model does not have "
+           "are listed but not shown.\n\nImport it anyway?")
+            .arg(file->modelName, modelName),
+        QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Yes);
+    if (answer != QMessageBox::Yes) {
+      return;
+    }
+  }
+  appendMarkup(file->markup);
 }
 
 } // namespace sc::app

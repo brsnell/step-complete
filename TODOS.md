@@ -66,17 +66,9 @@ Shipped as v1.2.0 on 2026-11-23 (see `CHANGELOG.md`).
 
 ## v1.3 (M8)
 
-### Markup
-
-**What:** 3D notes and simple sketches pinned to geometry, saved to a sidecar file next to the model and included in image export.
-
-**Why:** Listed as a candidate in PLAN §1. Reviewers need to point at things.
-
-**Context:** It must never write into the STEP file. Notes have to stay attached when the same file is reopened, so they need a stable reference to the geometry (assembly path plus face). Store it per file with `ModelDataStore` (as user saved views do), under its own key; a shareable export can sit on top of the same JSON.
-
-**Effort:** L
-**Priority:** P3
-**Depends on:** Design approved.
+Markup is built ([design](docs/designs/markup.md), `CHANGELOG.md` under Unreleased) and ships
+with the next release. Moving a note's box, shapes and colors of one's own, and replies or
+statuses are out of its scope; add them here if users ask.
 
 ## Deferred
 

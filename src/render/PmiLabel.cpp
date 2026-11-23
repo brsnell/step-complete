@@ -2,9 +2,6 @@
 
 #include "render/PmiFont.h"
 
-#include <Font_FTFont.hxx>
-#include <Font_FontAspect.hxx>
-#include <Font_TextFormatter.hxx>
 #include <Graphic3d_ArrayOfPolylines.hxx>
 #include <Graphic3d_ArrayOfSegments.hxx>
 #include <Graphic3d_ArrayOfTriangles.hxx>
@@ -14,7 +11,6 @@
 #include <Graphic3d_Group.hxx>
 #include <Graphic3d_TransformPers.hxx>
 #include <Graphic3d_ZLayerId.hxx>
-#include <NCollection_String.hxx>
 #include <Prs3d_Drawer.hxx>
 #include <Prs3d_Presentation.hxx>
 #include <Prs3d_Text.hxx>
@@ -44,29 +40,6 @@ constexpr double RowHeight = 24.0;
 constexpr double RowGap = 4.0;
 constexpr double CellPadding = 7.0;
 constexpr double DatumStem = 12.0;
-
-// Width of `text` in pixels when drawn at `fontSize` with the bundled font, as OCCT
-// lays it out.
-double textWidth(const std::string& text, double fontSize) {
-  if (text.empty()) {
-    return 0.0;
-  }
-  const auto size = static_cast<unsigned int>(std::lround(fontSize));
-  try {
-    const OccHandle<Font_FTFont> font =
-        Font_FTFont::FindAndCreate(pmiFontName(), Font_FontAspect_Regular, Font_FTFontParams(size, 72));
-    if (!font.IsNull()) {
-      OccHandle<Font_TextFormatter> formatter = new Font_TextFormatter();
-      formatter->SetupAlignment(Graphic3d_HTA_LEFT, Graphic3d_VTA_TOP);
-      formatter->Append(NCollection_String(text.c_str()), *font);
-      formatter->Format();
-      return static_cast<double>(formatter->ResultWidth());
-    }
-  } catch (...) {
-    // fall through to the estimate
-  }
-  return static_cast<double>(text.size()) * fontSize * 0.6;
-}
 
 } // namespace
 
@@ -122,7 +95,7 @@ void PmiLabel::layout(const core::PmiItem& item) {
     Cell cell;
     cell.x0 = x;
     // A datum letter or a single symbol makes a square cell.
-    cell.x1 = x + std::max(_rowHeight, std::ceil(textWidth(text, fontSize)) + 2.0 * padding);
+    cell.x1 = x + std::max(_rowHeight, std::ceil(pmiTextWidth(text, fontSize)) + 2.0 * padding);
     cell.text = std::move(text);
     x = cell.x1;
     _cells.push_back(std::move(cell));

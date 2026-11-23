@@ -47,6 +47,8 @@ add_library(sc_core STATIC
   WallThickness.cpp
   GeometryCheck.h
   GeometryCheck.cpp
+  Markup.h
+  Markup.cpp
 )
 add_library(sc::core ALIAS sc_core)
 
