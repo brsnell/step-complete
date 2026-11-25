@@ -4,6 +4,7 @@
 #include "core/Version.h"
 
 #include <Standard_Failure.hxx>
+#include <Standard_Version.hxx>
 
 #include <QByteArray>
 #include <QDir>
@@ -282,10 +283,12 @@ void onTerminate() {
   if (const std::exception_ptr current = std::current_exception()) {
     try {
       std::rethrow_exception(current);
-    } catch (const std::exception& ex) {
+    } catch (const std::exception& ex) { // OCCT 8's Standard_Failure is one too
       message += QByteArray(": ") + ex.what();
-    } catch (const Standard_Failure& ex) {
+#if OCC_VERSION_HEX < 0x080000
+    } catch (const Standard_Failure& ex) { // a separate hierarchy before OCCT 8
       message += QByteArray(" (Open CASCADE ") + ex.DynamicType()->Name() + "): " + ex.GetMessageString();
+#endif
     } catch (...) {
       message += " of an unknown type";
     }
