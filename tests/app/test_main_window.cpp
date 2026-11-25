@@ -319,8 +319,15 @@ private Q_SLOTS:
     const QString path = QString::fromStdString(sc::test::tempPath("main_window_export.stl"));
     _window->exportGeometryTo(path, sc::core::GeometryExportOptions(), false);
     QVERIFY(_window->findChild<sc::app::ExportJob*>() != nullptr);
+    // Value: protects=the crash report's Activity line while an export runs and after;
+    // fails_when=exportGeometryTo stops tracking its job, or the line is not refreshed once the job is gone;
+    // why_new=only the import and wall thickness jobs' activity was checked; seam=none; no_claim=a real crash
+    // in the job.
+    QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("exporting geometry")),
+             qPrintable(sc::app::crashContextText()));
     QVERIFY(!exportGeometry->isEnabled()); // one export at a time
     QTRY_VERIFY_WITH_TIMEOUT(_window->findChild<sc::app::ExportJob*>() == nullptr, 60000);
+    QTRY_VERIFY(!sc::app::crashContextText().contains(QStringLiteral("exporting geometry")));
     QVERIFY(exportGeometry->isEnabled());
     QVERIFY(QFileInfo(path).size() > 84 + 50); // an STL header and at least one triangle
     QVERIFY2(_window->statusBar()->currentMessage().startsWith(QStringLiteral("Exported 5 part")),
@@ -707,10 +714,17 @@ private Q_SLOTS:
     QVERIFY(dock != nullptr && panel != nullptr);
     check->trigger();
     QVERIFY(_window->isCheckingGeometry());
+    // Value: protects=the crash report's Activity line while a geometry check runs and after;
+    // fails_when=checkGeometry stops tracking its job, or the line is not refreshed once the job is gone;
+    // why_new=only the import and wall thickness jobs' activity was checked; seam=none; no_claim=a real crash
+    // in the job.
+    QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("checking geometry")),
+             qPrintable(sc::app::crashContextText()));
     QVERIFY(!check->isEnabled()); // one check at a time
     QVERIFY(dock->isVisible());
     QTRY_VERIFY_WITH_TIMEOUT(!_window->isCheckingGeometry(), 60000);
     QTRY_VERIFY(_window->findChild<sc::app::GeometryCheckJob*>() == nullptr);
+    QTRY_VERIFY(!sc::app::crashContextText().contains(QStringLiteral("checking geometry")));
     // 3 visible instances (the second pin pair is hidden) of 2 parts.
     QCOMPARE(panel->summary(), QStringLiteral("No problems found in 2 parts."));
     QCOMPARE(panel->rowCount(), 0);
@@ -743,10 +757,17 @@ private Q_SLOTS:
     options.touching = true;
     _window->checkClashesWith(options);
     QVERIFY(_window->isCheckingClashes());
+    // Value: protects=the crash report's Activity line while a clash check runs and after;
+    // fails_when=startClashJob stops tracking its job, or the line is not refreshed once the job is gone;
+    // why_new=only the import and wall thickness jobs' activity was checked; seam=none; no_claim=a real crash
+    // in the job.
+    QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("checking clashes")),
+             qPrintable(sc::app::crashContextText()));
     QVERIFY(!check->isEnabled());
     QVERIFY(dock->isVisible());
     QTRY_VERIFY_WITH_TIMEOUT(!_window->isCheckingClashes(), 60000);
     QTRY_VERIFY(_window->findChild<sc::app::ClashJob*>() == nullptr);
+    QTRY_VERIFY(!sc::app::crashContextText().contains(QStringLiteral("checking clashes")));
     QCOMPARE(panel->summary(), QStringLiteral("4 touching pairs among 5 parts (4 pairs checked)."));
     QCOMPARE(panel->rowCount(), 4);
     QCOMPARE(_window->statusBar()->currentMessage(), panel->summary());
@@ -792,9 +813,18 @@ private Q_SLOTS:
     thickness->trigger();
     QVERIFY(thickness->isChecked());
     QVERIFY(dock->isVisible());
+    // Value: protects=the crash report's Activity line while and after wall thickness measures;
+    // fails_when=showWallThickness stops tracking its job, because nothing else refreshes the line
+    // for this job (neither showWallThickness nor onThicknessFinished calls updateActions); why_new=only the
+    // import job's activity was checked; seam=none; no_claim=a real crash inside ThicknessJob.
+    QVERIFY(_window->findChild<sc::app::ThicknessJob*>() != nullptr);
+    QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("Activity: measuring wall thickness")),
+             qPrintable(sc::app::crashContextText()));
     QTRY_VERIFY_WITH_TIMEOUT(!_window->isMeasuringThickness(), 120000);
     QTRY_VERIFY(_window->findChild<sc::app::ThicknessJob*>() == nullptr);
     QVERIFY(_window->isThicknessShown());
+    QTRY_VERIFY_WITH_TIMEOUT(
+        sc::app::crashContextText().contains(QStringLiteral("Activity: wall thickness view\n")), 5000);
     // The plate (10 mm thick, 100 mm long) and the 6 mm pins.
     QVERIFY2(panel->summary().startsWith(QStringLiteral("Wall thickness ")), qPrintable(panel->summary()));
     QVERIFY2(panel->summary().contains(QStringLiteral(" in 2 parts.")), qPrintable(panel->summary()));
@@ -888,9 +918,16 @@ private Q_SLOTS:
 
     _window->compareWith(_revisionPath);
     QVERIFY(_window->isComparing());
+    // Value: protects=the crash report's Activity line while a comparison runs and after;
+    // fails_when=startComparison stops tracking its job, or the line is not refreshed once the job is gone;
+    // why_new=only the import and wall thickness jobs' activity was checked; seam=none; no_claim=a real crash
+    // in the job.
+    QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("comparing revisions")),
+             qPrintable(sc::app::crashContextText()));
     QVERIFY(dock->isVisible());
     QTRY_VERIFY_WITH_TIMEOUT(!_window->isComparing(), 120000);
     QTRY_VERIFY(_window->findChild<sc::app::ComparisonJob*>() == nullptr);
+    QTRY_VERIFY(!sc::app::crashContextText().contains(QStringLiteral("comparing revisions")));
     QVERIFY2(_window->isComparisonShown(), qPrintable(panel->summary()));
     QCOMPARE(panel->summary(), QStringLiteral("Compared with %1: 1 changed, 4 added, 0 unchanged.")
                                    .arg(QFileInfo(_revisionPath).fileName()));
