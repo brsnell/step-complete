@@ -114,25 +114,38 @@ QUrl CrashReports::issueUrl(const QString& reportText, bool hasDump) {
   QString intro = QStringLiteral("**What were you doing when it crashed?**\n\n\n\n");
   if (hasDump) {
     intro +=
-        QStringLiteral("**Please attach the minidump** (the `.dmp` file with the same name as the report, "
-                       "in Help > Crash Reports).\n\n");
+        QStringLiteral("**If you can, attach the minidump** (the `.dmp` file with the same name as the "
+                       "report, in Help > Crash Reports). It holds the program's stack memory, which can "
+                       "include small pieces of the open model.\n\n");
   }
   const QString open = QStringLiteral("Crash report:\n\n```\n");
   const QString close = QStringLiteral("```\n");
   const QString cutMark =
       QStringLiteral("\n[... cut to fit the link; the full report is in the crash folder]\n");
-  QString report = reportText;
-  const int room = MaxIssueBody - static_cast<int>(intro.size() + open.size() + close.size());
-  if (report.size() > room) {
-    report = report.left(std::max(0, room - static_cast<int>(cutMark.size()))) + cutMark;
-  }
-  if (!report.endsWith(QLatin1Char('\n'))) {
-    report += QLatin1Char('\n');
-  }
+  const QByteArray base =
+      QByteArray(core::ProjectUrl) + "/issues/new?title=" + QUrl::toPercentEncoding(title) + "&body=";
+  const auto encode = [&](const QString& report) {
+    QString body = report;
+    if (!body.endsWith(QLatin1Char('\n'))) {
+      body += QLatin1Char('\n');
+    }
+    return base + QUrl::toPercentEncoding(intro + open + body + close);
+  };
 
-  const QByteArray query = "title=" + QUrl::toPercentEncoding(title) +
-                           "&body=" + QUrl::toPercentEncoding(intro + open + report + close);
-  return QUrl::fromEncoded(QByteArray(core::ProjectUrl) + "/issues/new?" + query, QUrl::StrictMode);
+  // The limit applies to the encoded link, where a space or a slash takes three bytes: drop whole
+  // lines from the end of the report until it fits.
+  QByteArray encoded = encode(reportText);
+  if (encoded.size() > MaxIssueUrl) {
+    QStringList lines = reportText.split(QLatin1Char('\n'));
+    while (!lines.isEmpty()) {
+      lines.removeLast();
+      encoded = encode(lines.join(QLatin1Char('\n')) + cutMark);
+      if (encoded.size() <= MaxIssueUrl) {
+        break;
+      }
+    }
+  }
+  return QUrl::fromEncoded(encoded, QUrl::StrictMode);
 }
 
 CrashReportDialog::CrashReportDialog(const QString& reportPath, int earlier, QWidget* parent)

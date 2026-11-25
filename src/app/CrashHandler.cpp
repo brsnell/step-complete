@@ -15,16 +15,17 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <csignal>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <exception>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
-
-#include <csignal>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -33,6 +34,7 @@
 #else
 #include <execinfo.h>
 #include <fcntl.h>
+#include <pthread.h>
 #include <unistd.h>
 #endif
 
@@ -46,11 +48,16 @@ constexpr size_t TextSize = 16384;
 constexpr size_t MessageSize = 2048;
 constexpr size_t PathSize = 2048;
 constexpr int MaxFrames = 64;
+constexpr size_t ContextBuffers = 3;
+// How long a second crashing thread waits for the first one's report before ending the process
+// itself, in tenths of a second.
+constexpr int SecondCrashWaitTenths = 300;
 
-// Two buffers: the setters fill the one not in use and then publish it, so a handler never reads
-// a half-written text.
-std::array<std::array<char, TextSize>, 2> s_contextText{};
-std::atomic<int> s_contextIndex{0};
+// A ring of buffers: the setters fill the next one and then publish it, so a handler never reads
+// a half-written text. Once a handler has started, the setters stop (nothing after the crash
+// belongs in the report), so the buffer a handler took is never rewritten under it.
+std::array<std::array<char, TextSize>, ContextBuffers> s_contextText{};
+std::atomic<size_t> s_contextIndex{0};
 std::array<char, MessageSize> s_message{};
 std::atomic<bool> s_hasMessage{false};
 std::time_t s_startTime = 0;
@@ -69,9 +76,10 @@ using MiniDumpWriteDumpFn = BOOL(WINAPI*)(HANDLE, DWORD, HANDLE, MINIDUMP_TYPE,
                                           PMINIDUMP_CALLBACK_INFORMATION);
 MiniDumpWriteDumpFn s_writeDump = nullptr;
 LPTOP_LEVEL_EXCEPTION_FILTER s_previousFilter = nullptr;
+std::atomic<DWORD> s_handlingThread{0};
 #else
 std::array<char, PathSize> s_folder{};
-std::array<char, 65536> s_alternateStack{};
+std::atomic<std::uintptr_t> s_handlingThread{0};
 #endif
 
 QtMessageHandler s_previousQtHandler = nullptr;
@@ -95,7 +103,31 @@ void copyText(char* target, size_t size, const QByteArray& text) {
   target[count] = '\0';
 }
 
+// Appends the C string 'source' to 'target' (of 'size' characters, 'used' so far), stopping one
+// short of the end for the terminator. Returns the new length.
+template <typename Char, typename Source>
+size_t appendText(Char* target, size_t size, size_t used, const Source* source) {
+  for (; *source != 0 && used + 1 < size; ++source) {
+    target[used++] = static_cast<Char>(*source);
+  }
+  target[used] = 0;
+  return used;
+}
+
+// Like the context: once a handler has started, another thread's message must not change the
+// one it is writing.
+void recordMessage(const QByteArray& message) {
+  if (s_handling.load()) {
+    return;
+  }
+  copyText(s_message.data(), MessageSize, message);
+  s_hasMessage.store(true);
+}
+
 void publishContext() {
+  if (s_handling.load()) {
+    return;
+  }
   QString text = s_environment;
   if (!text.isEmpty() && !text.endsWith(QLatin1Char('\n'))) {
     text += QLatin1Char('\n');
@@ -103,8 +135,8 @@ void publishContext() {
   for (const auto& [key, value] : s_context) {
     text += QStringLiteral("%1: %2\n").arg(QLatin1String(contextLabel(key)), value);
   }
-  const int next = 1 - s_contextIndex.load();
-  copyText(s_contextText[static_cast<size_t>(next)].data(), TextSize, text.toUtf8());
+  const size_t next = (s_contextIndex.load() + 1) % ContextBuffers;
+  copyText(s_contextText[next].data(), TextSize, text.toUtf8());
   s_contextIndex.store(next);
 }
 
@@ -168,11 +200,11 @@ public:
   }
 
 private:
-  void put(char c) {
+  void put(char character) {
     if (_used == _buffer.size()) {
       flush();
     }
-    _buffer[_used++] = c;
+    _buffer[_used++] = character;
   }
 
 #if defined(_WIN32)
@@ -220,10 +252,7 @@ void reportName(char* name, size_t size, std::time_t now) {
   const UtcTime time = utcFrom(now);
   const int fields[] = {time.year, time.month, time.day, -1, time.hour, time.minute, time.second};
   const int widths[] = {4, 2, 2, 0, 2, 2, 2};
-  size_t used = 0;
-  for (const char* p = CrashReportPrefix; *p != '\0' && used + 1 < size; ++p) {
-    name[used++] = *p;
-  }
+  size_t used = appendText(name, size, 0, CrashReportPrefix);
   for (size_t i = 0; i < 7; ++i) {
     if (fields[i] < 0) {
       if (used + 1 < size) {
@@ -233,12 +262,12 @@ void reportName(char* name, size_t size, std::time_t now) {
     }
     int value = fields[i];
     std::array<char, 8> digits{};
-    for (int d = widths[i] - 1; d >= 0; --d) {
-      digits[static_cast<size_t>(d)] = static_cast<char>('0' + value % 10);
+    for (int position = widths[i] - 1; position >= 0; --position) {
+      digits[static_cast<size_t>(position)] = static_cast<char>('0' + value % 10);
       value /= 10;
     }
-    for (int d = 0; d < widths[i] && used + 1 < size; ++d) {
-      name[used++] = digits[static_cast<size_t>(d)];
+    for (int position = 0; position < widths[i] && used + 1 < size; ++position) {
+      name[used++] = digits[static_cast<size_t>(position)];
     }
   }
   name[used] = '\0';
@@ -272,7 +301,7 @@ void writeEnvironment(ReportWriter& out) {
     out.text("\n");
   }
   out.text("\n");
-  out.text(s_contextText[static_cast<size_t>(s_contextIndex.load())].data());
+  out.text(s_contextText[s_contextIndex.load()].data());
 }
 
 // --- Uncaught exceptions and Qt fatal messages -----------------------------------------
@@ -299,28 +328,35 @@ void onTerminate() {
   } else {
     message = "std::terminate called without an exception";
   }
-  copyText(s_message.data(), MessageSize, message);
-  s_hasMessage.store(true);
+  recordMessage(message);
   std::abort();
 }
 
 void onQtMessage(QtMsgType type, const QMessageLogContext& context, const QString& text) {
   if (type == QtFatalMsg) {
-    copyText(s_message.data(), MessageSize, (QStringLiteral("Qt fatal message: ") + text).toUtf8());
-    s_hasMessage.store(true);
+    recordMessage((QStringLiteral("Qt fatal message: ") + text).toUtf8());
     reportFatalMessage();
   }
   if (s_previousQtHandler != nullptr) {
     s_previousQtHandler(type, context, text);
-  } else {
-    // Qt's default: print, and abort on a fatal message.
-    qt_message_output(type, context, text);
+    return;
+  }
+  // No handler to hand on to (Qt 6 always returns its default one, so this is a safeguard):
+  // print, and end on a fatal message as Qt would. Never qt_message_output(), which would call
+  // this handler again.
+  std::fprintf(stderr, "%s\n", text.toLocal8Bit().constData());
+  if (type == QtFatalMsg) {
+    std::abort();
   }
 }
 
 #if defined(_WIN32)
 
 // --- Windows ------------------------------------------------------------------------
+//
+// The report is written by a reporter thread started at install: the crashed thread may have
+// no stack left (a stack overflow) and MiniDumpWriteDump is meant to run on another thread.
+// The crashed thread only records what happened, wakes the reporter and waits for it.
 
 const char* exceptionName(DWORD code) {
   switch (code) {
@@ -347,6 +383,22 @@ const char* exceptionName(DWORD code) {
   }
 }
 
+// What the crashed thread hands the reporter.
+struct CrashRequest {
+  const char* cause = nullptr;
+  DWORD code = 0;
+  const void* address = nullptr;
+  EXCEPTION_POINTERS* pointers = nullptr;
+  DWORD threadId = 0;
+  ULONG_PTR stackLow = 0;
+  ULONG_PTR stackHigh = 0;
+  CONTEXT context{};
+};
+CrashRequest s_request;
+HANDLE s_requestEvent = nullptr;
+HANDLE s_doneEvent = nullptr;
+std::atomic<DWORD> s_reporterThread{0}; // its own faults end the report at once
+
 void writeFrame(ReportWriter& out, DWORD64 address) {
   out.text("  ");
   HMODULE module = nullptr;
@@ -366,8 +418,8 @@ void writeFrame(ReportWriter& out, DWORD64 address) {
     // shown as '?' rather than converted, which needs no code page API in a crashed process.
     std::array<char, MAX_PATH> ascii{};
     size_t used = 0;
-    for (const wchar_t* c = name; *c != L'\0' && used + 1 < ascii.size(); ++c) {
-      ascii[used++] = *c < 0x80 ? static_cast<char>(*c) : '?';
+    for (const wchar_t* wide = name; *wide != L'\0' && used + 1 < ascii.size(); ++wide) {
+      ascii[used++] = *wide < 0x80 ? static_cast<char>(*wide) : '?';
     }
     ascii[used] = '\0';
     out.text(ascii.data());
@@ -380,13 +432,10 @@ void writeFrame(ReportWriter& out, DWORD64 address) {
 }
 
 #if defined(_M_X64)
-// Unwinds from 'frame' into 'frames' and returns how many it found. The walk stays inside this
-// thread's stack and is guarded with SEH, so a damaged stack ends the walk rather than the
-// process (no objects with destructors here: __try does not allow them).
-int unwindStack(CONTEXT frame, DWORD64* frames, int capacity) {
-  ULONG_PTR low = 0;
-  ULONG_PTR high = 0;
-  GetCurrentThreadStackLimits(&low, &high);
+// Unwinds from 'frame' into 'frames' and returns how many it found. The walk stays inside the
+// crashed thread's stack (low..high) and is guarded with SEH, so a damaged stack ends the walk
+// rather than the process (no objects with destructors here: __try does not allow them).
+int unwindStack(CONTEXT frame, ULONG_PTR low, ULONG_PTR high, DWORD64* frames, int capacity) {
   int count = 0;
   __try {
     while (count < capacity && frame.Rip != 0 && frame.Rsp >= low && frame.Rsp < high) {
@@ -411,18 +460,15 @@ int unwindStack(CONTEXT frame, DWORD64* frames, int capacity) {
 }
 #endif
 
-void writeStack(ReportWriter& out, const CONTEXT* context) {
+void writeStack(ReportWriter& out, const CrashRequest& request) {
   out.text("\nStack (module+offset):\n");
   std::array<DWORD64, MaxFrames> frames{};
 #if defined(_M_X64)
-  const int count = unwindStack(*context, frames.data(), MaxFrames);
+  const int count =
+      unwindStack(request.context, request.stackLow, request.stackHigh, frames.data(), MaxFrames);
 #else
-  (void)context;
-  std::array<void*, MaxFrames> addresses{};
-  const int count = CaptureStackBackTrace(0, MaxFrames, addresses.data(), nullptr);
-  for (int i = 0; i < count; ++i) {
-    frames[static_cast<size_t>(i)] = reinterpret_cast<DWORD64>(addresses[static_cast<size_t>(i)]);
-  }
+  (void)request;
+  const int count = 0; // only x64 Windows is built
 #endif
   for (int i = 0; i < count; ++i) {
     writeFrame(out, frames[static_cast<size_t>(i)]);
@@ -432,73 +478,101 @@ void writeStack(ReportWriter& out, const CONTEXT* context) {
 
 HANDLE createReportFile(const char* name, const wchar_t* extension) {
   std::array<wchar_t, PathSize + 64> path{};
-  size_t used = 0;
-  for (const wchar_t* p = s_folder.data(); *p != L'\0' && used + 1 < path.size(); ++p) {
-    path[used++] = *p;
-  }
-  if (used + 1 < path.size()) {
-    path[used++] = L'\\';
-  }
-  for (const char* p = name; *p != '\0' && used + 1 < path.size(); ++p) {
-    path[used++] = static_cast<wchar_t>(*p);
-  }
-  for (const wchar_t* p = extension; *p != L'\0' && used + 1 < path.size(); ++p) {
-    path[used++] = *p;
-  }
-  path[used] = L'\0';
+  size_t used = appendText(path.data(), path.size(), 0, s_folder.data());
+  used = appendText(path.data(), path.size(), used, L"\\");
+  used = appendText(path.data(), path.size(), used, name);
+  appendText(path.data(), path.size(), used, extension);
   return CreateFileW(path.data(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 }
 
-void writeReport(const char* cause, DWORD code, const void* address, EXCEPTION_POINTERS* pointers) {
-  if (s_handling.exchange(true)) {
-    return;
-  }
+// On the reporter thread: the minidump first, then the text report, which says whether the
+// minidump is there.
+void writeReportFiles(const CrashRequest& request) {
   const std::time_t now = std::time(nullptr);
   std::array<char, 64> name{};
   reportName(name.data(), name.size(), now);
 
-  const HANDLE file = createReportFile(name.data(), L".txt");
-  if (file != INVALID_HANDLE_VALUE) {
-    {
-      ReportWriter out(file);
-      writeHeader(out, now);
-      out.text("Cause: ");
-      out.text(cause);
-      if (code != 0) {
-        out.text(" (");
-        out.hex(code);
-        out.text(")");
-      }
-      if (address != nullptr) {
-        out.text(" at ");
-        writeFrame(out, reinterpret_cast<DWORD64>(address));
-      } else {
-        out.text("\n");
-      }
-      writeEnvironment(out);
-      out.flush(); // keep what is written if walking a damaged stack faults
-      CONTEXT here{};
-      const CONTEXT* context = pointers != nullptr ? pointers->ContextRecord : nullptr;
-      if (context == nullptr) {
-        RtlCaptureContext(&here);
-        context = &here;
-      }
-      writeStack(out, context);
-      out.text("\nA minidump with the same name (.dmp) is in the same folder.\n");
-    }
-    CloseHandle(file);
-  }
-
+  const char* dumpNote = "\nNo minidump: dbghelp.dll could not be loaded.\n";
   if (s_writeDump != nullptr) {
     const HANDLE dump = createReportFile(name.data(), L".dmp");
-    if (dump != INVALID_HANDLE_VALUE) {
-      MINIDUMP_EXCEPTION_INFORMATION exception{GetCurrentThreadId(), pointers, FALSE};
+    if (dump == INVALID_HANDLE_VALUE) {
+      dumpNote = "\nNo minidump: the file could not be created.\n";
+    } else {
+      MINIDUMP_EXCEPTION_INFORMATION exception{request.threadId, request.pointers, FALSE};
       const auto type =
           static_cast<MINIDUMP_TYPE>(MiniDumpNormal | MiniDumpWithThreadInfo | MiniDumpWithUnloadedModules);
-      s_writeDump(GetCurrentProcess(), GetCurrentProcessId(), dump, type,
-                  pointers != nullptr ? &exception : nullptr, nullptr, nullptr);
+      const BOOL written = s_writeDump(GetCurrentProcess(), GetCurrentProcessId(), dump, type,
+                                       request.pointers != nullptr ? &exception : nullptr, nullptr, nullptr);
       CloseHandle(dump);
+      dumpNote = written ? "\nA minidump with the same name (.dmp) is in the same folder.\n"
+                         : "\nNo minidump: writing it failed.\n";
     }
+  }
+
+  const HANDLE file = createReportFile(name.data(), L".txt");
+  if (file == INVALID_HANDLE_VALUE) {
+    return;
+  }
+  {
+    ReportWriter out(file);
+    writeHeader(out, now);
+    out.text("Cause: ");
+    out.text(request.cause);
+    if (request.code != 0) {
+      out.text(" (");
+      out.hex(request.code);
+      out.text(")");
+    }
+    if (request.address != nullptr) {
+      out.text(" at ");
+      writeFrame(out, reinterpret_cast<DWORD64>(request.address));
+    } else {
+      out.text("\n");
+    }
+    writeEnvironment(out);
+    out.flush(); // keep what is written if walking a damaged stack faults
+    writeStack(out, request);
+    out.text(dumpNote);
+  }
+  CloseHandle(file);
+}
+
+DWORD WINAPI reporterMain(void*) {
+  if (WaitForSingleObject(s_requestEvent, INFINITE) == WAIT_OBJECT_0) {
+    writeReportFiles(s_request);
+    SetEvent(s_doneEvent);
+  }
+  return 0;
+}
+
+// On the crashed thread. A second thread that crashes meanwhile waits for the first one's report
+// (whose end ends the process); the same thread failing again inside its own report, or the
+// reporter thread failing while it writes, returns at once.
+void writeReport(const char* cause, DWORD code, const void* address, EXCEPTION_POINTERS* pointers) {
+  const DWORD self = GetCurrentThreadId();
+  if (s_handling.exchange(true)) {
+    if (s_handlingThread.load() != self && s_reporterThread.load() != self) {
+      Sleep(SecondCrashWaitTenths * 100);
+    }
+    return;
+  }
+  s_handlingThread.store(self);
+  s_request.cause = cause;
+  s_request.code = code;
+  s_request.address = address;
+  s_request.pointers = pointers;
+  s_request.threadId = self;
+  GetCurrentThreadStackLimits(&s_request.stackLow, &s_request.stackHigh);
+  if (pointers != nullptr && pointers->ContextRecord != nullptr) {
+    s_request.context = *pointers->ContextRecord;
+  } else {
+    RtlCaptureContext(&s_request.context);
+  }
+  if (s_requestEvent != nullptr && s_doneEvent != nullptr) {
+    SetEvent(s_requestEvent);
+    WaitForSingleObject(s_doneEvent, SecondCrashWaitTenths * 100);
+  } else {
+    writeReportFiles(s_request); // no reporter thread: write it here
   }
 }
 
@@ -508,7 +582,7 @@ LONG WINAPI onUnhandledException(EXCEPTION_POINTERS* pointers) {
   // records the exception's text and aborts into onAbort. Should the runtime ever reach
   // std::terminate without the exception, the report still says what kind it was.
   if (code == 0xE06D7363 && s_previousFilter != nullptr) {
-    if (!s_hasMessage.load()) {
+    if (!s_hasMessage.load() && !s_handling.load()) {
       copyText(s_message.data(), MessageSize, "Uncaught C++ exception");
       s_hasMessage.store(true);
     }
@@ -529,6 +603,13 @@ void onAbort(int) {
   TerminateProcess(GetCurrentProcess(), 3);
 }
 
+void preparePlatformThread() {
+  // Stack the filter can still use after a stack overflow (it hands the work to the reporter).
+  ULONG guarantee = 32 * 1024;
+  SetThreadStackGuarantee(&guarantee);
+  std::set_terminate(onTerminate); // per thread in MSVC's runtime
+}
+
 bool installPlatform(const QString& folder) {
   const std::wstring native = QDir::toNativeSeparators(folder).toStdWString();
   if (native.size() + 1 > s_folder.size()) {
@@ -541,9 +622,24 @@ bool installPlatform(const QString& folder) {
     s_writeDump = reinterpret_cast<MiniDumpWriteDumpFn>(
         reinterpret_cast<void*>(GetProcAddress(dbghelp, "MiniDumpWriteDump")));
   }
+  s_requestEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+  s_doneEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+  if (s_requestEvent != nullptr && s_doneEvent != nullptr) {
+    DWORD reporterId = 0;
+    if (const HANDLE reporter = CreateThread(nullptr, 256 * 1024, reporterMain, nullptr, 0, &reporterId)) {
+      s_reporterThread.store(reporterId);
+      CloseHandle(reporter);
+    } else {
+      CloseHandle(s_requestEvent);
+      CloseHandle(s_doneEvent);
+      s_requestEvent = nullptr;
+      s_doneEvent = nullptr;
+    }
+  }
   s_previousFilter = SetUnhandledExceptionFilter(onUnhandledException);
   std::signal(SIGABRT, onAbort);
   _set_abort_behavior(0, _WRITE_ABORT_MSG | _CALL_REPORTFAULT);
+  preparePlatformThread();
   return true;
 }
 
@@ -573,24 +669,61 @@ void reportFatalMessage() {}
 
 constexpr int HandledSignals[] = {SIGSEGV, SIGBUS, SIGFPE, SIGILL, SIGABRT};
 
+std::uintptr_t currentThreadId() {
+  const pthread_t self = pthread_self();
+  std::uintptr_t id = 0;
+  std::memcpy(&id, &self, std::min(sizeof(id), sizeof(self)));
+  return id;
+}
+
+// Each prepared thread's alternate signal stack, so a stack overflow there leaves the handler a
+// stack to run on. Released when the thread ends.
+struct AlternateStack {
+  std::unique_ptr<char[]> memory;
+  ~AlternateStack() {
+    if (memory) {
+      stack_t disable{};
+      disable.ss_flags = SS_DISABLE;
+      sigaltstack(&disable, nullptr);
+    }
+  }
+};
+thread_local AlternateStack s_threadStack;
+
+void preparePlatformThread() {
+  if (s_threadStack.memory) {
+    return;
+  }
+  const size_t size = std::max<size_t>(64 * 1024, static_cast<size_t>(SIGSTKSZ));
+  s_threadStack.memory.reset(new char[size]);
+  stack_t stack{};
+  stack.ss_sp = s_threadStack.memory.get();
+  stack.ss_size = size;
+  if (sigaltstack(&stack, nullptr) != 0) {
+    s_threadStack.memory.reset();
+  }
+}
+
 void onSignal(int signal, siginfo_t* info, void*) {
-  if (!s_handling.exchange(true)) {
+  if (s_handling.exchange(true)) {
+    // Another thread is writing the report: let it finish (its re-raise ends the process). The
+    // same thread failing inside its own report goes straight on.
+    if (s_handlingThread.load() != currentThreadId()) {
+      for (int i = 0; i < SecondCrashWaitTenths; ++i) {
+        timespec tenth{0, 100 * 1000 * 1000};
+        nanosleep(&tenth, nullptr);
+      }
+    }
+  } else {
+    s_handlingThread.store(currentThreadId());
     const std::time_t now = std::time(nullptr);
     std::array<char, 64> name{};
     reportName(name.data(), name.size(), now);
     std::array<char, PathSize + 64> path{};
-    size_t used = 0;
-    for (const char* p = s_folder.data(); *p != '\0' && used + 1 < path.size(); ++p) {
-      path[used++] = *p;
-    }
-    path[used++] = '/';
-    for (const char* p = name.data(); *p != '\0' && used + 1 < path.size(); ++p) {
-      path[used++] = *p;
-    }
-    for (const char* p = ".txt"; *p != '\0' && used + 1 < path.size(); ++p) {
-      path[used++] = *p;
-    }
-    path[used] = '\0';
+    size_t used = appendText(path.data(), path.size(), 0, s_folder.data());
+    used = appendText(path.data(), path.size(), used, "/");
+    used = appendText(path.data(), path.size(), used, name.data());
+    appendText(path.data(), path.size(), used, ".txt");
     const int file = ::open(path.data(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (file >= 0) {
       {
@@ -630,10 +763,7 @@ bool installPlatform(const QString& folder) {
   std::array<void*, 4> warmUp{};
   backtrace(warmUp.data(), static_cast<int>(warmUp.size()));
 
-  stack_t stack{};
-  stack.ss_sp = s_alternateStack.data();
-  stack.ss_size = s_alternateStack.size();
-  sigaltstack(&stack, nullptr); // a stack overflow leaves no stack to run the handler on
+  preparePlatformThread(); // this thread's alternate stack
 
   struct sigaction action {};
   action.sa_sigaction = onSignal;
@@ -675,6 +805,12 @@ bool isCrashHandlerInstalled() {
   return s_installResult;
 }
 
+void prepareCrashHandlerThread() {
+  if (s_installResult) {
+    preparePlatformThread();
+  }
+}
+
 void setCrashEnvironment(const QString& text) {
   const std::lock_guard<std::mutex> lock(s_contextMutex);
   s_environment = text;
@@ -701,8 +837,12 @@ void setCrashContext(CrashContext key, const QString& value) {
 }
 
 void setCrashMessage(const QString& message) {
-  copyText(s_message.data(), MessageSize, message.toUtf8());
-  s_hasMessage.store(true);
+  recordMessage(message.toUtf8());
+}
+
+QString crashContextText() {
+  const std::lock_guard<std::mutex> lock(s_contextMutex);
+  return QString::fromUtf8(s_contextText[s_contextIndex.load()].data());
 }
 
 } // namespace sc::app

@@ -28,9 +28,10 @@ public:
   // The minidump beside a report, or empty when there is none.
   static QString dumpFor(const QString& report);
 
-  // A GitHub "new issue" link with the report in its body, cut to fit a URL.
+  // A GitHub "new issue" link with the report in its body, cut (whole lines from the end) so the
+  // encoded link is at most MaxIssueUrl bytes, which browsers and GitHub accept.
   static QUrl issueUrl(const QString& reportText, bool hasDump);
-  static constexpr int MaxIssueBody = 6000;
+  static constexpr int MaxIssueUrl = 8000;
 
 private:
   QString lastSeen() const;

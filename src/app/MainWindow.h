@@ -244,6 +244,9 @@ private:
   void openCrashReports(); // Help > Crash Reports
   // Keeps the crash report's "Activity" line current (docs/designs/crash-reporting.md).
   void updateCrashActivity();
+  // A background job started: say so now and again when it is gone (updateActions is not
+  // called at either moment for every job).
+  void trackCrashActivity(QObject* job);
 
   // --- Export and view preferences ---------------------------------------------
   void exportImage();

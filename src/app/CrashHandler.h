@@ -18,6 +18,13 @@ namespace sc::app {
 bool installCrashHandler(const QString& folder);
 bool isCrashHandlerInstalled();
 
+// Call first thing on every thread the app starts (the background jobs), after installCrashHandler.
+// A crash on any thread is reported either way; this makes two cases work there too: a stack
+// overflow (POSIX: the thread's own alternate signal stack) and, on Windows, the text of an
+// uncaught exception (MSVC keeps std::set_terminate per thread). Does nothing when the handler
+// is not installed. OCCT's own pool threads cannot be prepared (design, out of scope).
+void prepareCrashHandlerThread();
+
 // Fixed facts for the report: versions, OS. Several lines.
 void setCrashEnvironment(const QString& text);
 // The default environment text: app, Qt and OCCT versions, OS, kernel and CPU architecture.
@@ -30,6 +37,9 @@ void setCrashContext(CrashContext key, const QString& value);
 // Recorded just before a deliberate abort (uncaught exception, Qt fatal message) so the report
 // says what it was.
 void setCrashMessage(const QString& message);
+
+// The environment and context text a report would contain now (for tests).
+QString crashContextText();
 
 // The report file name prefix and extensions (crash-<UTC yyyyMMdd-HHmmss>.txt / .dmp).
 inline constexpr const char* CrashReportPrefix = "crash-";

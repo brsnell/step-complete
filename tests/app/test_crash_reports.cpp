@@ -87,21 +87,51 @@ private Q_SLOTS:
     QVERIFY(body.contains(QStringLiteral("Model: STEP, 12.0 MB")));
     QVERIFY(body.contains(QStringLiteral("```\nSTEP Complete crash report")));
     QVERIFY(body.contains(QStringLiteral("attach the minidump")));
+    QVERIFY(body.contains(QStringLiteral("small pieces of the open model")));
     QVERIFY(!CrashReports::issueUrl(QString::fromUtf8(SampleReport), false)
                  .toString()
                  .contains(QStringLiteral("minidump")));
 
-    // A long report is cut, and says so.
+    // A short report is whole.
+    QVERIFY(!body.contains(QStringLiteral("cut to fit the link")));
+
+    // A long one is cut so the encoded link fits, by whole lines from the end, and says so. Linux
+    // stack lines are mostly characters that encode to three bytes each ('/', '(', ' ', ...).
     QString longReport = QString::fromUtf8(SampleReport);
-    for (int i = 0; i < 400; ++i) {
+    for (int i = 0; i < 64; ++i) {
       longReport +=
-          QStringLiteral("libsomething.so(+0x%1)[0x7f0000000000]\n").arg(i, 6, 16, QLatin1Char('0'));
+          QStringLiteral("/opt/StepComplete/usr/lib/libTKernel.so.8.0(_ZN15Standard_Failure5RaiseEv+0x%1) "
+                         "[0x7f%2]\n")
+              .arg(i, 4, 16, QLatin1Char('0'))
+              .arg(i, 10, 16, QLatin1Char('0'));
     }
-    const QString cut = QUrlQuery(CrashReports::issueUrl(longReport, false))
-                            .queryItemValue(QStringLiteral("body"), QUrl::FullyDecoded);
-    QVERIFY(cut.size() <= CrashReports::MaxIssueBody);
-    QVERIFY(cut.contains(QStringLiteral("cut to fit the link")));
+    QVERIFY(longReport.size() < 8000); // fits as text, not once encoded
+    const QUrl longUrl = CrashReports::issueUrl(longReport, false);
+    QVERIFY2(longUrl.toEncoded().size() <= CrashReports::MaxIssueUrl,
+             qPrintable(QString::number(longUrl.toEncoded().size())));
+    const QString cut = QUrlQuery(longUrl).queryItemValue(QStringLiteral("body"), QUrl::FullyDecoded);
+    QVERIFY(cut.contains(QStringLiteral("Cause: SIGSEGV")));
+    QVERIFY(cut.contains(QStringLiteral("libTKernel")));                  // some of the stack is kept
+    QVERIFY(cut.contains(QStringLiteral("]\n[... cut to fit the link"))); // after a whole line
     QVERIFY(cut.endsWith(QStringLiteral("```\n")));
+  }
+
+  // Value: protects=the issue link for a report that is one long line (nothing to cut by lines);
+  // fails_when=the cut loop leaves an over-long, invalid or unfenced link once every line is
+  // dropped; why_new=issueLink only cuts many short lines; seam=none; no_claim=that the header
+  // lines survive (the one line is dropped whole).
+  void issueLinkOneLongLine() {
+    QString oneLine;
+    for (int i = 0; i < 4000; ++i) {
+      oneLine += QStringLiteral("a/ ");
+    }
+    const QUrl url = CrashReports::issueUrl(oneLine, false);
+    QVERIFY(url.isValid());
+    QVERIFY2(url.toEncoded().size() <= CrashReports::MaxIssueUrl,
+             qPrintable(QString::number(url.toEncoded().size())));
+    const QString body = QUrlQuery(url).queryItemValue(QStringLiteral("body"), QUrl::FullyDecoded);
+    QVERIFY2(body.contains(QStringLiteral("cut to fit the link")), qPrintable(body));
+    QVERIFY2(body.endsWith(QStringLiteral("```\n")), qPrintable(body));
   }
 
   void dialog() {

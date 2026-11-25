@@ -1,5 +1,7 @@
 #include "app/ThicknessJob.h"
 
+#include "app/CrashHandler.h"
+
 #include <QThread>
 
 #include <cmath>
@@ -19,6 +21,7 @@ ThicknessJob::~ThicknessJob() {
 
 void ThicknessJob::start() {
   _thread = QThread::create([this] {
+    prepareCrashHandlerThread(); // docs/designs/crash-reporting.md
     const auto onProgress = [this](double fraction, std::string_view stage) {
       const int percent = static_cast<int>(std::lround(fraction * 100.0));
       const QString text = QString::fromUtf8(stage.data(), static_cast<qsizetype>(stage.size()));

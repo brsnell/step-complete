@@ -1,5 +1,7 @@
 #include "app/ComparisonJob.h"
 
+#include "app/CrashHandler.h"
+
 #include "app/ImportJob.h"
 #include "core/Memory.h"
 
@@ -29,6 +31,7 @@ void ComparisonJob::start() {
   }
   const std::string utf8Path = _otherPath.toStdString();
   _thread = QThread::create([this, utf8Path, importOptions] {
+    prepareCrashHandlerThread(); // docs/designs/crash-reporting.md
     // Importing is the first half of the bar, comparing the second (all of it when the other
     // revision is already loaded).
     const bool import = !_other;
