@@ -23,12 +23,15 @@
 #include <mutex>
 #include <string>
 
+#include <csignal>
+
 #if defined(_WIN32)
 #include <windows.h>
-// windows.h first: dbghelp.h needs its types.
+// windows.h first: these need its types. WIN32_LEAN_AND_MEAN leaves out the code page API.
 #include <dbghelp.h>
+#include <stringapiset.h>
+#include <winnls.h>
 #else
-#include <csignal>
 #include <execinfo.h>
 #include <fcntl.h>
 #include <unistd.h>
