@@ -16,6 +16,7 @@
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <ctime>
 #include <exception>
@@ -27,10 +28,8 @@
 
 #if defined(_WIN32)
 #include <windows.h>
-// windows.h first: these need its types. WIN32_LEAN_AND_MEAN leaves out the code page API.
+// windows.h first: dbghelp.h needs its types.
 #include <dbghelp.h>
-#include <stringapiset.h>
-#include <winnls.h>
 #else
 #include <execinfo.h>
 #include <fcntl.h>
@@ -363,9 +362,15 @@ void writeFrame(ReportWriter& out, DWORD64 address) {
         name = path.data() + i + 1;
       }
     }
-    std::array<char, MAX_PATH * 3> utf8{};
-    WideCharToMultiByte(CP_UTF8, 0, name, -1, utf8.data(), static_cast<int>(utf8.size()), nullptr, nullptr);
-    out.text(utf8.data());
+    // Module file names are ASCII (StepComplete.exe, Qt6Core.dll, TKernel.dll); anything else is
+    // shown as '?' rather than converted, which needs no code page API in a crashed process.
+    std::array<char, MAX_PATH> ascii{};
+    size_t used = 0;
+    for (const wchar_t* c = name; *c != L'\0' && used + 1 < ascii.size(); ++c) {
+      ascii[used++] = *c < 0x80 ? static_cast<char>(*c) : '?';
+    }
+    ascii[used] = '\0';
+    out.text(ascii.data());
     out.text("+");
     out.hex(address - reinterpret_cast<DWORD64>(module));
   } else {
