@@ -19,9 +19,15 @@ private:
     helper.setProcessChannelMode(QProcess::ForwardedChannels);
     helper.start(QStringLiteral(SC_CRASH_HELPER), {*folder, mode});
     if (!helper.waitForFinished(60000)) {
+      qWarning("helper %s did not finish: %s", qPrintable(mode), qPrintable(helper.errorString()));
       helper.kill();
       return {};
     }
+    const QStringList files = QDir(*folder).entryList(QDir::Files);
+    qInfo("helper %s: exit status %d, code %lld (0x%llx), files: %s", qPrintable(mode),
+          static_cast<int>(helper.exitStatus()), static_cast<long long>(helper.exitCode()),
+          static_cast<unsigned long long>(static_cast<unsigned int>(helper.exitCode())),
+          qPrintable(files.join(QStringLiteral(", "))));
     // Ended abnormally: a signal, or a non-zero code (Windows exception codes, abort()).
     if (helper.exitStatus() == QProcess::NormalExit && helper.exitCode() == 0) {
       return {};

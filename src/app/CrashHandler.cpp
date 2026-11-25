@@ -379,36 +379,55 @@ void writeFrame(ReportWriter& out, DWORD64 address) {
   out.text("\n");
 }
 
+#if defined(_M_X64)
+// Unwinds from 'frame' into 'frames' and returns how many it found. The walk stays inside this
+// thread's stack and is guarded with SEH, so a damaged stack ends the walk rather than the
+// process (no objects with destructors here: __try does not allow them).
+int unwindStack(CONTEXT frame, DWORD64* frames, int capacity) {
+  ULONG_PTR low = 0;
+  ULONG_PTR high = 0;
+  GetCurrentThreadStackLimits(&low, &high);
+  int count = 0;
+  __try {
+    while (count < capacity && frame.Rip != 0 && frame.Rsp >= low && frame.Rsp < high) {
+      frames[count++] = frame.Rip;
+      DWORD64 imageBase = 0;
+      PRUNTIME_FUNCTION function = RtlLookupFunctionEntry(frame.Rip, &imageBase, nullptr);
+      if (function == nullptr) {
+        // A leaf function: the return address is on top of the stack.
+        frame.Rip = *reinterpret_cast<const DWORD64*>(frame.Rsp);
+        frame.Rsp += 8;
+      } else {
+        PVOID handlerData = nullptr;
+        DWORD64 establisher = 0;
+        RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, frame.Rip, function, &frame, &handlerData,
+                         &establisher, nullptr);
+      }
+    }
+  } __except (EXCEPTION_EXECUTE_HANDLER) {
+    // keep the frames found so far
+  }
+  return count;
+}
+#endif
+
 void writeStack(ReportWriter& out, const CONTEXT* context) {
   out.text("\nStack (module+offset):\n");
+  std::array<DWORD64, MaxFrames> frames{};
 #if defined(_M_X64)
-  CONTEXT frame = *context;
-  for (int i = 0; i < MaxFrames && frame.Rip != 0; ++i) {
-    writeFrame(out, frame.Rip);
-    DWORD64 imageBase = 0;
-    PRUNTIME_FUNCTION function = RtlLookupFunctionEntry(frame.Rip, &imageBase, nullptr);
-    if (function == nullptr) {
-      // A leaf function: the return address is on top of the stack.
-      if (frame.Rsp == 0) {
-        break;
-      }
-      frame.Rip = *reinterpret_cast<const DWORD64*>(frame.Rsp);
-      frame.Rsp += 8;
-    } else {
-      PVOID handlerData = nullptr;
-      DWORD64 establisher = 0;
-      RtlVirtualUnwind(UNW_FLAG_NHANDLER, imageBase, frame.Rip, function, &frame, &handlerData, &establisher,
-                       nullptr);
-    }
-  }
+  const int count = unwindStack(*context, frames.data(), MaxFrames);
 #else
   (void)context;
-  std::array<void*, MaxFrames> frames{};
-  const USHORT count = CaptureStackBackTrace(0, MaxFrames, frames.data(), nullptr);
-  for (USHORT i = 0; i < count; ++i) {
-    writeFrame(out, reinterpret_cast<DWORD64>(frames[i]));
+  std::array<void*, MaxFrames> addresses{};
+  const int count = CaptureStackBackTrace(0, MaxFrames, addresses.data(), nullptr);
+  for (int i = 0; i < count; ++i) {
+    frames[static_cast<size_t>(i)] = reinterpret_cast<DWORD64>(addresses[static_cast<size_t>(i)]);
   }
 #endif
+  for (int i = 0; i < count; ++i) {
+    writeFrame(out, frames[static_cast<size_t>(i)]);
+    out.flush(); // each frame reaches the file even if a later one faults
+  }
 }
 
 HANDLE createReportFile(const char* name, const wchar_t* extension) {
