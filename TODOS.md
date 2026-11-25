@@ -72,18 +72,6 @@ scope; add them here if users ask.
 
 ## Crash reporting follow-ups
 
-### Fix the code review findings
-
-**What:** Fix the 10 findings from the crash reporting code review (6 important, 4 nit): a stale Activity line during imports, worker-thread stack overflows and uncaught exceptions, an issue link that can exceed URL limits, two threads crashing at once, a context buffer race, and four smaller items.
-
-**Why:** Crash reports are only useful if they are complete and accurate exactly when things go wrong, which is when these cases happen.
-
-**Context:** Findings and plan: [docs/superpowers/plans/2026-11-25-crash-reporting-review-fixes.md](docs/superpowers/plans/2026-11-25-crash-reporting-review-fixes.md). All 10 were checked against the merged code. Not released yet, so this should land before the next release.
-
-**Effort:** M
-**Priority:** P1
-**Depends on:** Nothing.
-
 ### Debug info for the Linux and macOS packages
 
 **What:** Publish separate debug info with each release (`objcopy --only-keep-debug` for the AppImage's binary, a dSYM for the macOS app), so their crash reports' module + offset lines resolve to functions and lines.

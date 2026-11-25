@@ -35,21 +35,30 @@ crashed" without a stack (TODOS, Deferred: crash reporting, now that v1.0 is in 
 2. **No crash library.** Crashpad and Breakpad need an out-of-process handler and an upload
    server to be worth their size; without a server they add little over the OS's own tools.
    The handler is about 400 lines of platform code:
-   - **Windows:** an unhandled-exception filter writes the minidump (`MiniDumpWriteDump`, in
-     `dbghelp.dll`, part of Windows) and the text report. The stack is unwound from the
-     exception's context with `RtlLookupFunctionEntry` / `RtlVirtualUnwind`, one line per frame
-     as module + offset (`StepComplete.exe+0x1a2b3c`).
+   - **Windows:** an unhandled-exception filter hands the crash to a reporter thread started at
+     install, which writes the minidump (`MiniDumpWriteDump`, in `dbghelp.dll`, part of Windows)
+     and then the text report. The crashed thread may have no stack left (a stack overflow), and
+     `MiniDumpWriteDump` is meant to run on another thread. The stack is unwound from the
+     exception's context with `RtlLookupFunctionEntry` / `RtlVirtualUnwind` inside the crashed
+     thread's stack limits, one line per frame as module + offset (`StepComplete.exe+0x1a2b3c`).
+     The report says whether the minidump was written.
    - **Linux and macOS:** handlers for `SIGSEGV`, `SIGBUS`, `SIGFPE`, `SIGILL` and `SIGABRT` run on
-     an alternate stack, write the report with `backtrace` / `backtrace_symbols_fd` (module,
+     the thread's alternate stack, write the report with `backtrace` / `backtrace_symbols_fd` (module,
      symbol where the binary exports one, offset), then restore the default action and re-raise,
      so the OS still sees a crash (core dump, macOS crash reporter).
    - **Everywhere:** an uncaught C++ exception (`std::set_terminate`) and a Qt fatal message
      (`qFatal`, by chaining the message handler) record their text, then abort into the handlers
      above, so the report says which exception or message it was.
+   - **Threads:** a crash on any thread is reported. Each thread the app starts (the background
+     jobs) calls `prepareCrashHandlerThread()` first, which gives it what two cases need there: an
+     alternate signal stack of its own (POSIX; one per thread, so a stack overflow there leaves
+     the handler room) and, on Windows, a stack guarantee for the filter and the terminate
+     handler (MSVC keeps it per thread). When two threads crash at once, the second waits for the
+     first one's report, whose end ends the process.
 3. **Signal safety.** A crashed process can't allocate or take locks. Everything the report
    needs that is known in advance (the folder, the versions, the graphics driver, what the app
    was doing) is formatted into fixed buffers while the app runs, published with an atomic
-   index so a crash never reads a half-written buffer. The handlers then only format numbers into
+   index over a ring of three buffers, so a crash never reads a half-written buffer. The handlers then only format numbers into
    stack buffers and call `open`/`write` (`CreateFileW`/`WriteFile` on Windows).
 4. **What the report contains, and what it does not.** App version, Qt and OCCT versions, OS and
    CPU architecture, the OpenGL driver summary, the uptime, what was running (importing, a
@@ -60,8 +69,8 @@ crashed" without a stack (TODOS, Deferred: crash reporting, now that v1.0 is in 
    `MiniDumpNormal` kind plus thread and module info, a few hundred KB), not the heap, so no model
    data is in it.
 5. **Symbols.** A module + offset line only becomes a function name with the build's debug
-   information. Windows release builds now produce a PDB (`/Zi`, linked `/DEBUG /OPT:REF
-   /OPT:ICF`, so the exe is no bigger) and each release publishes it as
+   information. Windows release builds now produce a PDB (`/Z7`, so parallel compiles share no
+   compiler PDB, linked `/DEBUG /OPT:REF /OPT:ICF`, so the exe is no bigger) and each release publishes it as
    `StepComplete-<version>-windows-x64-symbols.zip`: a minidump opened in Visual Studio or WinDbg
    with it shows the full stack. Linux and macOS packages keep their exported symbols only;
    shipping their separate debug info is a follow-up (TODOS) if reports come in from them.
@@ -71,8 +80,10 @@ crashed" without a stack (TODOS, Deferred: crash reporting, now that v1.0 is in 
    newest name shown), so the dialog never repeats and a crash loop shows one dialog per start
    at most.
 7. **The issue link.** `https://github.com/brsnell/step-complete/issues/new?title=...&body=...`
-   with the report in a code block, cut to fit the length browsers and GitHub accept (about 6,000
-   characters; the cut is marked), and a line asking to attach the minidump on Windows.
+   with the report in a code block, and a line asking to attach the minidump on Windows. The
+   report is cut by whole lines from the end until the encoded link is at most 8,000 bytes, which
+   browsers and GitHub accept (the limit counts the encoded link: a stack line's slashes, spaces
+   and brackets take three bytes each); the cut is marked.
 8. **Turning it off.** `--no-crash-handler` on the command line skips installing the handlers
    (for debugging the app under a debugger or with sanitizers, which install their own).
 9. **Code layout.**
@@ -91,13 +102,21 @@ crashed" without a stack (TODOS, Deferred: crash reporting, now that v1.0 is in 
 - Hang detection (a frozen UI is not a crash).
 - Separate debug info for the Linux and macOS packages (see Decision 5).
 - Symbols for OCCT and Qt DLLs: their frames show as module + offset.
+- Stack overflows on OCCT's own pool threads (`OSD_Parallel`, parallel meshing): the app cannot
+  prepare those threads, so an overflow there ends without a report. Other crashes on them are
+  reported.
 
 ## Tests
 
 - `app.crash_handler` (each platform's CI): a helper program installs the handler into a temp
-  folder and crashes four ways (a null pointer write, `abort()`, an uncaught exception, `qFatal`);
-  the test checks it ended abnormally and that the report names the cause, has the versions and
-  the context, and has stack frames; on Windows that the minidump is there and not empty.
+  folder and crashes seven ways (a null pointer write, `abort()`, an uncaught exception, `qFatal`,
+  and on prepared worker threads a stack overflow, an uncaught exception, and two threads
+  faulting at once); the test checks it ended abnormally and that the one report names the
+  cause (and the exception's text), has the versions and the context, and has stack frames; on
+  Windows that the minidump is there and not empty.
+- `app.main_window`: the context says "importing" while a file loads and "viewing" after, gives
+  the model's format and part count, and never its file name.
 - `app.pmi_panel` (offscreen): `CrashReports` finds new reports, keeps 10, remembers the last
-  seen; the issue link's title, body, encoding and cut; `CrashReportDialog` shows the report and
+  seen; the issue link's title, body and encoding, and that a long Linux stack is cut by whole
+  lines until the encoded link fits; `CrashReportDialog` shows the report and
   its buttons.

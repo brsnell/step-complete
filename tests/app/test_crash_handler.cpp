@@ -102,6 +102,50 @@ private Q_SLOTS:
     checkCommon(report, folder);
   }
 
+  // A stack overflow on a prepared worker thread: the handler needs stack of its own there.
+  void workerStackOverflow() {
+    QTemporaryDir dir;
+    QString folder;
+    const QString report = crash(QStringLiteral("thread-overflow"), &folder, dir);
+#if defined(_WIN32)
+    QVERIFY2(report.contains(QStringLiteral("Cause: stack overflow")), qPrintable(report));
+#else
+    // SIGSEGV, or SIGBUS on macOS, depending on where the guard page is hit.
+    QVERIFY2(report.contains(QStringLiteral("Cause: SIGSEGV")) ||
+                 report.contains(QStringLiteral("Cause: SIGBUS")),
+             qPrintable(report));
+#endif
+    checkCommon(report, folder);
+  }
+
+  // An uncaught exception on a prepared worker thread keeps its text (MSVC keeps the terminate
+  // handler per thread).
+  void workerException() {
+    QTemporaryDir dir;
+    QString folder;
+    const QString report = crash(QStringLiteral("thread-exception"), &folder, dir);
+    QVERIFY2(report.contains(QStringLiteral("Message: Uncaught exception: worker exception")),
+             qPrintable(report));
+    checkCommon(report, folder);
+  }
+
+  // Two threads fault together: one complete report, not one cut short by the other.
+  void twoThreadsAtOnce() {
+    QTemporaryDir dir;
+    QString folder;
+    const QString report = crash(QStringLiteral("two-threads"), &folder, dir);
+#if defined(_WIN32)
+    QVERIFY2(report.contains(QStringLiteral("Cause: access violation")), qPrintable(report));
+    QVERIFY2(report.contains(QStringLiteral("minidump with the same name")),
+             qPrintable(report)); // the last line
+#else
+    QVERIFY2(report.contains(QStringLiteral("Cause: SIGSEGV")) ||
+                 report.contains(QStringLiteral("Cause: SIGBUS")),
+             qPrintable(report));
+#endif
+    checkCommon(report, folder);
+  }
+
   void qtFatalMessage() {
     QTemporaryDir dir;
     QString folder;

@@ -1,11 +1,12 @@
 # Crash reporting: fixes from the code review
 
-Status: planned 2026-11-25. Source: `/code-review` of crash reporting (PR #34, merged as
+Status: done 2026-11-25 (branch `fix/crash-reporting-review`).
+Source: `/code-review` of crash reporting (PR #34, merged as
 `7cf5b29`), 10 findings (6 important, 4 nit). Each finding below was checked against the merged
 code before it was recorded; all 10 hold. Design: `docs/designs/crash-reporting.md`.
 
-All fixes land on `fix/crash-reporting-review` as one PR, one commit per group below, each with
-its test, before the next release (crash reporting is still under Unreleased, so no release has
+All fixes land on `fix/crash-reporting-review` as one PR, each with its test, before the next
+release (crash reporting is still under Unreleased, so no release has
 shipped the problems).
 
 ## Findings
@@ -36,10 +37,15 @@ shipped the problems).
   A writer then never touches the buffer a handler took, short of two publishes during one
   handler's read, which the `s_handling` check rules out.
 - Tests: `app.main_window`, opening the fixture shows "importing" in the context while the job
-  runs and "viewing" after; a unit test that publishing after `s_handling` is set leaves the text
-  unchanged.
+  runs and "viewing" after. Not tested directly: that a setter publishes nothing once a handler
+  has started (the flag is internal to the handler).
 
 ### B. Worker threads (findings 2, 5)
+
+As built, Windows goes further than planned: the filter hands the report to a reporter thread
+started at install, so an overflowed thread needs only enough stack to wake it (a 32 KB
+`SetThreadStackGuarantee`), and `MiniDumpWriteDump` runs on another thread as Microsoft
+recommends.
 
 - New `prepareCrashHandlerThread()` in `CrashHandler.h`, called first thing in every job's thread
   function (the six `QThread::create` lambdas in `app/*Job.cpp`):
@@ -66,8 +72,8 @@ shipped the problems).
 
 ### D. An issue link that always opens (finding 3)
 
-- `CrashReports::issueUrl`: measure the percent-encoded query, and cut the report (at a line
-  break) until the whole URL fits `MaxIssueUrl` = 8,000 bytes; keep the cut marker.
+- `CrashReports::issueUrl`: measure the percent-encoded link, and cut the report (whole lines
+  from the end) until it fits `MaxIssueUrl` = 8,000 bytes; keep the cut marker.
 - Test: a 64-frame Linux-style backtrace gives a URL of at most 8,000 bytes that still holds the
   header lines and the cut marker.
 

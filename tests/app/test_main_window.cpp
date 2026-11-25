@@ -8,6 +8,7 @@
 #include "app/ClashPanel.h"
 #include "app/ComparisonJob.h"
 #include "app/ComparisonPanel.h"
+#include "app/CrashHandler.h"
 #include "app/ExportJob.h"
 #include "app/GeometryCheckJob.h"
 #include "app/GeometryCheckPanel.h"
@@ -442,6 +443,23 @@ private Q_SLOTS:
     QVERIFY(plateShown());
     _window->restoreUserView(0);
     QVERIFY(!plateShown());
+  }
+
+  // Crash reports (docs/designs/crash-reporting.md): the context a report would contain follows
+  // the app, including while a background job runs, and never names the file.
+  void crashContextFollowsTheApp() {
+    _window->openFileWhenReady(_path);
+    QVERIFY(_window->findChild<sc::app::ImportJob*>() != nullptr);
+    QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("Activity: importing")),
+             qPrintable(sc::app::crashContextText()));
+    QTRY_VERIFY_WITH_TIMEOUT(_window->findChild<sc::app::ImportJob*>() == nullptr, 60000);
+    QTRY_VERIFY_WITH_TIMEOUT(sc::app::crashContextText().contains(QStringLiteral("Activity: viewing")), 5000);
+    const QString context = sc::app::crashContextText();
+    QVERIFY2(context.contains(QStringLiteral("Model: STEP, ")), qPrintable(context));
+    QVERIFY2(context.contains(QStringLiteral("5 part instances")), qPrintable(context));
+    QVERIFY(!context.contains(QFileInfo(_path).fileName()));
+    _close->trigger();
+    QVERIFY(sc::app::crashContextText().contains(QStringLiteral("Model: none")));
   }
 
   // Markup (docs/designs/markup.md): a note placed by clicking a face, a stroke, hidden with their

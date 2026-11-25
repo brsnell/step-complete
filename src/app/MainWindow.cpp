@@ -951,6 +951,7 @@ void MainWindow::checkGeometry() {
   connect(_geometryCheckJob, &GeometryCheckJob::finished, this, &MainWindow::onGeometryCheckFinished);
   statusBar()->showMessage(tr("Checking geometry..."));
   _geometryCheckJob->start();
+  trackCrashActivity(_geometryCheckJob);
   updateActions();
   _viewport->invalidateScene();
 }
@@ -1060,6 +1061,7 @@ void MainWindow::startClashJob(std::vector<core::NodeId> parts, const core::Clas
   connect(_clashJob, &ClashJob::finished, this, &MainWindow::onClashCheckFinished);
   statusBar()->showMessage(tr("Checking clashes..."));
   _clashJob->start();
+  trackCrashActivity(_clashJob);
   updateActions();
   _viewport->invalidateScene();
 }
@@ -1167,6 +1169,7 @@ void MainWindow::showWallThickness(bool on) {
   connect(_thicknessJob, &ThicknessJob::finished, this, &MainWindow::onThicknessFinished);
   statusBar()->showMessage(tr("Measuring wall thickness..."));
   _thicknessJob->start();
+  trackCrashActivity(_thicknessJob);
 }
 
 void MainWindow::onThicknessFinished() {
@@ -1278,6 +1281,7 @@ void MainWindow::startComparison(const QString& path, std::shared_ptr<const core
   connect(_comparisonJob, &ComparisonJob::finished, this, &MainWindow::onComparisonFinished);
   statusBar()->showMessage(tr("Comparing with %1...").arg(QFileInfo(path).fileName()));
   _comparisonJob->start();
+  trackCrashActivity(_comparisonJob);
   updateActions();
   _viewport->invalidateScene();
 }
@@ -1426,6 +1430,12 @@ void MainWindow::updateCrashActivity() {
   }
 }
 
+void MainWindow::trackCrashActivity(QObject* job) {
+  updateCrashActivity();
+  // Once the job is gone, its pointer reads null; queued so the check runs after the deletion.
+  connect(job, &QObject::destroyed, this, [this] { updateCrashActivity(); }, Qt::QueuedConnection);
+}
+
 void MainWindow::openCrashReports() {
   const CrashReports reports(CrashReports::defaultFolder());
   if (reports.reports().isEmpty()) {
@@ -1561,6 +1571,7 @@ void MainWindow::openFile(const QString& path) {
 
   statusBar()->showMessage(tr("Loading %1...").arg(QFileInfo(path).fileName()));
   _import->start();
+  trackCrashActivity(_import);
 }
 
 void MainWindow::onImportFinished() {
@@ -2198,6 +2209,7 @@ void MainWindow::exportGeometryTo(const QString& path, const core::GeometryExpor
   connect(_export, &ExportJob::finished, this, &MainWindow::onExportFinished);
   statusBar()->showMessage(tr("Exporting %1...").arg(name));
   _export->start();
+  trackCrashActivity(_export);
   updateActions();
 }
 
