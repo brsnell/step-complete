@@ -1,12 +1,15 @@
 // The crash handler (docs/designs/crash-reporting.md), end to end: a helper program installs it
 // and crashes; the report it leaves names the cause and has the context and a stack.
 
+#include <QCoreApplication>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
 #include <QProcess>
 #include <QTemporaryDir>
 #include <QTest>
+
+#include <cstdio>
 
 class CrashHandlerTest : public QObject {
   Q_OBJECT
@@ -114,5 +117,17 @@ private Q_SLOTS:
   }
 };
 
-QTEST_GUILESS_MAIN(CrashHandlerTest)
+int main(int argc, char** argv) {
+  // Keep the output readable when something goes wrong (as app_test_main does): unbuffered
+  // stdout survives an abnormal end, and Qt's own messages go to stderr instead of a debugger.
+  std::setvbuf(stdout, nullptr, _IONBF, 0);
+  if (qEnvironmentVariableIsEmpty("QT_FORCE_STDERR_LOGGING")) {
+    qputenv("QT_FORCE_STDERR_LOGGING", "1");
+  }
+  std::fprintf(stderr, "crash handler test: helper %s\n", SC_CRASH_HELPER);
+  QCoreApplication app(argc, argv);
+  CrashHandlerTest test;
+  return QTest::qExec(&test, argc, argv);
+}
+
 #include "test_crash_handler.moc"
