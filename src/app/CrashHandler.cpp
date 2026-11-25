@@ -114,6 +114,16 @@ size_t appendText(Char* target, size_t size, size_t used, const Source* source) 
   return used;
 }
 
+// Like the context: once a handler has started, another thread's message must not change the
+// one it is writing.
+void recordMessage(const QByteArray& message) {
+  if (s_handling.load()) {
+    return;
+  }
+  copyText(s_message.data(), MessageSize, message);
+  s_hasMessage.store(true);
+}
+
 void publishContext() {
   if (s_handling.load()) {
     return;
@@ -318,15 +328,13 @@ void onTerminate() {
   } else {
     message = "std::terminate called without an exception";
   }
-  copyText(s_message.data(), MessageSize, message);
-  s_hasMessage.store(true);
+  recordMessage(message);
   std::abort();
 }
 
 void onQtMessage(QtMsgType type, const QMessageLogContext& context, const QString& text) {
   if (type == QtFatalMsg) {
-    copyText(s_message.data(), MessageSize, (QStringLiteral("Qt fatal message: ") + text).toUtf8());
-    s_hasMessage.store(true);
+    recordMessage((QStringLiteral("Qt fatal message: ") + text).toUtf8());
     reportFatalMessage();
   }
   if (s_previousQtHandler != nullptr) {
@@ -389,6 +397,7 @@ struct CrashRequest {
 CrashRequest s_request;
 HANDLE s_requestEvent = nullptr;
 HANDLE s_doneEvent = nullptr;
+std::atomic<DWORD> s_reporterThread{0}; // its own faults end the report at once
 
 void writeFrame(ReportWriter& out, DWORD64 address) {
   out.text("  ");
@@ -537,11 +546,12 @@ DWORD WINAPI reporterMain(void*) {
 }
 
 // On the crashed thread. A second thread that crashes meanwhile waits for the first one's report
-// (whose end ends the process); the same thread failing again inside its own report returns.
+// (whose end ends the process); the same thread failing again inside its own report, or the
+// reporter thread failing while it writes, returns at once.
 void writeReport(const char* cause, DWORD code, const void* address, EXCEPTION_POINTERS* pointers) {
   const DWORD self = GetCurrentThreadId();
   if (s_handling.exchange(true)) {
-    if (s_handlingThread.load() != self) {
+    if (s_handlingThread.load() != self && s_reporterThread.load() != self) {
       Sleep(SecondCrashWaitTenths * 100);
     }
     return;
@@ -572,7 +582,7 @@ LONG WINAPI onUnhandledException(EXCEPTION_POINTERS* pointers) {
   // records the exception's text and aborts into onAbort. Should the runtime ever reach
   // std::terminate without the exception, the report still says what kind it was.
   if (code == 0xE06D7363 && s_previousFilter != nullptr) {
-    if (!s_hasMessage.load()) {
+    if (!s_hasMessage.load() && !s_handling.load()) {
       copyText(s_message.data(), MessageSize, "Uncaught C++ exception");
       s_hasMessage.store(true);
     }
@@ -615,7 +625,9 @@ bool installPlatform(const QString& folder) {
   s_requestEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
   s_doneEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
   if (s_requestEvent != nullptr && s_doneEvent != nullptr) {
-    if (const HANDLE reporter = CreateThread(nullptr, 256 * 1024, reporterMain, nullptr, 0, nullptr)) {
+    DWORD reporterId = 0;
+    if (const HANDLE reporter = CreateThread(nullptr, 256 * 1024, reporterMain, nullptr, 0, &reporterId)) {
+      s_reporterThread.store(reporterId);
       CloseHandle(reporter);
     } else {
       CloseHandle(s_requestEvent);
@@ -825,8 +837,7 @@ void setCrashContext(CrashContext key, const QString& value) {
 }
 
 void setCrashMessage(const QString& message) {
-  copyText(s_message.data(), MessageSize, message.toUtf8());
-  s_hasMessage.store(true);
+  recordMessage(message.toUtf8());
 }
 
 QString crashContextText() {

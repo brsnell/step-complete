@@ -114,8 +114,9 @@ QUrl CrashReports::issueUrl(const QString& reportText, bool hasDump) {
   QString intro = QStringLiteral("**What were you doing when it crashed?**\n\n\n\n");
   if (hasDump) {
     intro +=
-        QStringLiteral("**Please attach the minidump** (the `.dmp` file with the same name as the report, "
-                       "in Help > Crash Reports).\n\n");
+        QStringLiteral("**If you can, attach the minidump** (the `.dmp` file with the same name as the "
+                       "report, in Help > Crash Reports). It holds the program's stack memory, which can "
+                       "include small pieces of the open model.\n\n");
   }
   const QString open = QStringLiteral("Crash report:\n\n```\n");
   const QString close = QStringLiteral("```\n");

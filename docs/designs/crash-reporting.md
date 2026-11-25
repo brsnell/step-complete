@@ -65,9 +65,10 @@ crashed" without a stack (TODOS, Deferred: crash reporting, now that v1.0 is in 
    measurement mode, the wall thickness view, ...), and the open model's **format, size and
    number of parts**. Never the file's name or path, part names, or any geometry: model names
    are often confidential. Stack lines on Linux and macOS name each library by its path, so the
-   app's own install folder appears there (the user sees it before sending). The minidump holds the stack memory and loaded module list (the small
-   `MiniDumpNormal` kind plus thread and module info, a few hundred KB), not the heap, so no model
-   data is in it.
+   app's own install folder appears there (the user sees it before sending). The minidump holds each thread's stack memory and the loaded module list (the small
+   `MiniDumpNormal` kind plus thread and module info, a few hundred KB), not the heap. A
+   background job's stack can still hold fragments of the model (a few coordinates, a short
+   name), so attaching the minidump stays the user's choice, and the issue text says what it holds.
 5. **Symbols.** A module + offset line only becomes a function name with the build's debug
    information. Windows release builds now produce a PDB (`/Z7`, so parallel compiles share no
    compiler PDB, linked `/DEBUG /OPT:REF /OPT:ICF`, so the exe is no bigger) and each release publishes it as
@@ -80,8 +81,8 @@ crashed" without a stack (TODOS, Deferred: crash reporting, now that v1.0 is in 
    newest name shown), so the dialog never repeats and a crash loop shows one dialog per start
    at most.
 7. **The issue link.** `https://github.com/brsnell/step-complete/issues/new?title=...&body=...`
-   with the report in a code block, and a line asking to attach the minidump on Windows. The
-   report is cut by whole lines from the end until the encoded link is at most 8,000 bytes, which
+   with the report in a code block, and on Windows a line asking to attach the minidump if the
+   user can, saying what it holds. The report is cut by whole lines from the end until the encoded link is at most 8,000 bytes, which
    browsers and GitHub accept (the limit counts the encoded link: a stack line's slashes, spaces
    and brackets take three bytes each); the cut is marked.
 8. **Turning it off.** `--no-crash-handler` on the command line skips installing the handlers

@@ -87,6 +87,7 @@ private Q_SLOTS:
     QVERIFY(body.contains(QStringLiteral("Model: STEP, 12.0 MB")));
     QVERIFY(body.contains(QStringLiteral("```\nSTEP Complete crash report")));
     QVERIFY(body.contains(QStringLiteral("attach the minidump")));
+    QVERIFY(body.contains(QStringLiteral("small pieces of the open model")));
     QVERIFY(!CrashReports::issueUrl(QString::fromUtf8(SampleReport), false)
                  .toString()
                  .contains(QStringLiteral("minidump")));
