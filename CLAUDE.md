@@ -24,8 +24,9 @@ cmake --build --preset dev --target tidy   # naming check (clang-tidy; build fir
 ```
 
 <!-- gstack:verify: cmake --build --preset dev && xvfb-run -a -s '-screen 0 1280x1024x24' ctest --preset dev -j4 -->
-gstack's `/verify` runs the build plus the full ctest under Xvfb (declared by the hidden
-`gstack:verify:` comment above). In a headless container set `LIBGL_ALWAYS_SOFTWARE=1`.
+gstack's `/build-check` (formerly `/verify`) runs the build plus the full ctest under Xvfb
+(declared by the hidden `gstack:verify:` comment above, the key it still reads). In a headless
+container set `LIBGL_ALWAYS_SOFTWARE=1`.
 Release builds use the `vcpkg` presets (OCCT 8, Qt 6.8); see `README.md`.
 
 ## Architecture
