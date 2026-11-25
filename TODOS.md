@@ -70,6 +70,20 @@ Shipped as v1.3.0 on 2026-11-23 with markup ([design](docs/designs/markup.md), `
 Moving a note's box, shapes and colors of one's own, and replies or statuses are out of its
 scope; add them here if users ask.
 
+## Crash reporting follow-ups
+
+### Debug info for the Linux and macOS packages
+
+**What:** Publish separate debug info with each release (`objcopy --only-keep-debug` for the AppImage's binary, a dSYM for the macOS app), so their crash reports' module + offset lines resolve to functions and lines.
+
+**Why:** Crash reports shipped without it (docs/designs/crash-reporting.md, decision 5): Windows gets a PDB, Linux and macOS stacks show only exported symbols.
+
+**Context:** The AppImage tooling strips the binary; the build would need `-g` in release and a debug-info artifact in `release.yml`.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** Crash reports coming in from Linux or macOS.
+
 ## Deferred
 
 ### Bundled Mesa `opengl32.dll` for software rendering on Windows
@@ -83,18 +97,6 @@ scope; add them here if users ask.
 **Effort:** M
 **Priority:** P3
 **Depends on:** Bug reports from users who hit it.
-
-### Crash reporting
-
-**What:** Collect crash reports (minidumps or similar) from the shipped app.
-
-**Why:** Field crashes on GPUs and drivers that CI never sees will otherwise go unreported or arrive without a stack.
-
-**Context:** Deferred in M5. The About dialog's copyable system info is the bug-report path for now.
-
-**Effort:** M
-**Priority:** P3
-**Depends on:** v1.0 in users' hands.
 
 ### Flathub package
 

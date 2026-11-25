@@ -136,6 +136,19 @@ try {
   if (Test-Path $zip) { Remove-Item -Force $zip }
   Compress-Archive -Path $stage -DestinationPath $zip -CompressionLevel Optimal
 
+  # --- Debug symbols ------------------------------------------------------------------
+  # The PDB turns a crash report's minidump into a full stack in Visual Studio or WinDbg
+  # (docs/designs/crash-reporting.md). Published beside the packages, never installed.
+  $pdb = Get-ChildItem -Path (Join-Path $BuildDir "src\app") -Filter "StepComplete.pdb" -File -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+  if ($pdb) {
+    $symbols = Join-Path $OutputDir "StepComplete-$version-windows-x64-symbols.zip"
+    if (Test-Path $symbols) { Remove-Item -Force $symbols }
+    Compress-Archive -Path $pdb.FullName -DestinationPath $symbols -CompressionLevel Optimal
+  } else {
+    Write-Warning "StepComplete.pdb not found under $BuildDir\src\app: no symbols zip"
+  }
+
   # --- Installer (Inno Setup) ---------------------------------------------------------
   $iscc = Get-Command ISCC -ErrorAction SilentlyContinue
   $isccPath = if ($iscc) { $iscc.Source } else { "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }

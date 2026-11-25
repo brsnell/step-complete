@@ -60,6 +60,10 @@ add_library(sc_app STATIC
   SectionPanel.cpp
   AboutDialog.h
   AboutDialog.cpp
+  CrashHandler.h
+  CrashHandler.cpp
+  CrashReports.h
+  CrashReports.cpp
 )
 add_library(sc::app ALIAS sc_app)
 

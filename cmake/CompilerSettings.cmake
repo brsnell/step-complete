@@ -6,6 +6,16 @@ function(sc_target_defaults target)
     # OCCT headers trigger these at /W4.
     target_compile_options(${target} PRIVATE /wd4100 /wd4127 /wd4251 /wd4275 /wd4458)
     target_compile_definitions(${target} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _USE_MATH_DEFINES)
+    # Debug information in release builds, for crash reports' minidumps
+    # (docs/designs/crash-reporting.md). /Z7 keeps it in the objects, so parallel compiles share no
+    # PDB; the linker writes <exe>.pdb, published as the release's symbols zip. /OPT:REF and
+    # /OPT:ICF keep the exe as small as without /DEBUG.
+    target_compile_options(${target} PRIVATE $<$<CONFIG:Release>:/Z7>)
+    get_target_property(type ${target} TYPE)
+    if(type STREQUAL "EXECUTABLE")
+      target_link_options(${target} PRIVATE $<$<CONFIG:Release>:/DEBUG> $<$<CONFIG:Release>:/OPT:REF>
+                          $<$<CONFIG:Release>:/OPT:ICF>)
+    endif()
     if(SC_WARNINGS_AS_ERRORS)
       # Deprecations in OCCT/Qt headers stay visible on other compilers but must not block builds.
       target_compile_options(${target} PRIVATE /WX /wd4996)

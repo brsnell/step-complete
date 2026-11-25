@@ -175,7 +175,7 @@ jobs:
 
       - name: Test (core)
         if: ${{ !matrix.skip-tests }}
-        run: ctest --preset vcpkg -LE render
+        run: ctest --preset vcpkg -LE render --output-on-failure
 
       # What OCCT extracts from the NIST PMI models, for docs/pmi-coverage.md.
       - name: PMI coverage report
@@ -207,7 +207,7 @@ jobs:
           SC_RENDER_DUMP_DIR: ${{ github.workspace }}/snapshots
         run: |
           mkdir -p "$SC_RENDER_DUMP_DIR"
-          xvfb-run -a -s "-screen 0 1600x1200x24" ctest --preset vcpkg -L render -E pmi_snapshots
+          xvfb-run -a -s "-screen 0 1600x1200x24" ctest --preset vcpkg -L render -E pmi_snapshots --output-on-failure
 
       # Run separately with full output: it documents what each NIST model shows.
       - name: PMI snapshots (Xvfb + Mesa llvmpipe)

@@ -241,6 +241,9 @@ private:
   void showAllPmi();
 
   void showGraphicsInfo();
+  void openCrashReports(); // Help > Crash Reports
+  // Keeps the crash report's "Activity" line current (docs/designs/crash-reporting.md).
+  void updateCrashActivity();
 
   // --- Export and view preferences ---------------------------------------------
   void exportImage();
@@ -356,6 +359,7 @@ private:
   QPointer<QProgressDialog> _exportProgress;
   QString _pendingFile;
   std::vector<core::NodeId> _transparentParts;
+  QString _crashActivity;
   bool _glReady = false;
   bool _syncingSelection = false;
 };

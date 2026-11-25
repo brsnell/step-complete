@@ -334,7 +334,8 @@ Each milestone ends with something runnable on all three platforms in CI.
 - ⏳ Manual test of the packages on real Windows/macOS machines and GPUs, then tag v1.0.0.
 - ⏸ Deferred: bundled Mesa `opengl32.dll` for software rendering on Windows (OCCT links
   `opengl32` directly, so it needs a delay-loaded OCCT GL toolkit; not testable here),
-  crash reporting, Flathub, a coarse-then-fine first mesh.
+  Flathub, a coarse-then-fine first mesh. Crash reporting was built after v1.3
+  ([design](designs/crash-reporting.md)).
 
 **Total:** about 4–5 months for one experienced developer. M2 and M3 can run in parallel with two
 people.

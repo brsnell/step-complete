@@ -654,6 +654,15 @@ file show "Hidden in file" in Properties; **View > Show All** reveals parts you 
 operating system's per-user cache folder, in a STEP Complete subfolder (for example under
 `~/.cache` on Linux). You can delete it at any time.
 
+**If STEP Complete crashes.** It saves a crash report on your computer before it closes, and the
+next time it starts it shows the report and offers **Report on GitHub...**, which opens a new
+issue with the report filled in for you to read, change and submit. Nothing is sent without you.
+The report says what crashed, where in the program, the versions and graphics driver, and what
+the app was doing; about the open model it gives only its format, size and number of parts, never
+its name or contents. On Windows a minidump (`.dmp`) is saved beside the report: please attach
+it to the issue. **Help > Crash Reports...** opens the folder (the newest 10 reports are kept).
+Start with `--no-crash-handler` to turn this off, for example when running under a debugger.
+
 **Reporting a bug.** Open **Help > About STEP Complete > System info** and click **Copy**, then
 paste the text into a new issue at <https://github.com/brsnell/step-complete/issues> along with
 the steps to reproduce and, if you can share it, the STEP file. **Help > Graphics Information...**
