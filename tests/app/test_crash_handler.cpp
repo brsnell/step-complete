@@ -97,13 +97,8 @@ private Q_SLOTS:
     QTemporaryDir dir;
     QString folder;
     const QString report = crash(QStringLiteral("exception"), &folder, dir);
-#if defined(_WIN32)
-    // MSVC's runtime gives std::terminate no current exception, so only the kind is known.
-    QVERIFY2(report.contains(QStringLiteral("Message: Uncaught C++ exception")), qPrintable(report));
-#else
     QVERIFY2(report.contains(QStringLiteral("Message: Uncaught exception: helper exception")),
              qPrintable(report));
-#endif
     checkCommon(report, folder);
   }
 

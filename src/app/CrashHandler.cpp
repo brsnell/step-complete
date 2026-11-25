@@ -295,7 +295,7 @@ void onTerminate() {
       message += " of an unknown type";
     }
   } else if (s_hasMessage.load()) {
-    std::abort(); // already said (Windows: "Uncaught C++ exception", see onUnhandledException)
+    std::abort(); // keep what onUnhandledException recorded (Windows)
   } else {
     message = "std::terminate called without an exception";
   }
@@ -505,8 +505,8 @@ void writeReport(const char* cause, DWORD code, const void* address, EXCEPTION_P
 LONG WINAPI onUnhandledException(EXCEPTION_POINTERS* pointers) {
   const DWORD code = pointers->ExceptionRecord->ExceptionCode;
   // An uncaught C++ exception: the runtime's own filter calls std::terminate, whose handler
-  // records the exception's text and aborts into onAbort.
-  // MSVC gives std::terminate no current exception there, so say what it was now.
+  // records the exception's text and aborts into onAbort. Should the runtime ever reach
+  // std::terminate without the exception, the report still says what kind it was.
   if (code == 0xE06D7363 && s_previousFilter != nullptr) {
     if (!s_hasMessage.load()) {
       copyText(s_message.data(), MessageSize, "Uncaught C++ exception");
