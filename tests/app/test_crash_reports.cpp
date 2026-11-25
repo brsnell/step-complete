@@ -115,6 +115,24 @@ private Q_SLOTS:
     QVERIFY(cut.endsWith(QStringLiteral("```\n")));
   }
 
+  // Value: protects=the issue link for a report that is one long line (nothing to cut by lines);
+  // fails_when=the cut loop leaves an over-long, invalid or unfenced link once every line is
+  // dropped; why_new=issueLink only cuts many short lines; seam=none; no_claim=that the header
+  // lines survive (the one line is dropped whole).
+  void issueLinkOneLongLine() {
+    QString oneLine;
+    for (int i = 0; i < 4000; ++i) {
+      oneLine += QStringLiteral("a/ ");
+    }
+    const QUrl url = CrashReports::issueUrl(oneLine, false);
+    QVERIFY(url.isValid());
+    QVERIFY2(url.toEncoded().size() <= CrashReports::MaxIssueUrl,
+             qPrintable(QString::number(url.toEncoded().size())));
+    const QString body = QUrlQuery(url).queryItemValue(QStringLiteral("body"), QUrl::FullyDecoded);
+    QVERIFY2(body.contains(QStringLiteral("cut to fit the link")), qPrintable(body));
+    QVERIFY2(body.endsWith(QStringLiteral("```\n")), qPrintable(body));
+  }
+
   void dialog() {
     QTemporaryDir dir;
     const QString path = dir.filePath(QStringLiteral("crash-20261125-100000.txt"));

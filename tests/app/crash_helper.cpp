@@ -1,5 +1,6 @@
 // Crashes on purpose for app.crash_handler (docs/designs/crash-reporting.md):
-//   sc_crash_helper <report folder> <segv|abort|exception|fatal|thread-overflow|thread-exception|two-threads>
+//   sc_crash_helper <report folder>
+//     <segv|abort|exception|fatal|overflow|thread-overflow|thread-exception|thread-segv|two-threads>
 
 #include "app/CrashHandler.h"
 
@@ -11,6 +12,7 @@
 #include <cstring>
 #include <stdexcept>
 #include <thread>
+#include <vector>
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -45,6 +47,27 @@ void onPreparedThread(Work work) {
   thread.join();
 }
 
+// Starts 'count' prepared threads that write through a null pointer together, as close as the
+// scheduler allows. One thread ('thread-segv') gives the reference stack for two ('two-threads'):
+// both run the same code, so a complete report has the same number of frames.
+void faultOnThreads(int count) {
+  std::atomic<int> ready{0};
+  const auto fault = [&ready, count] {
+    sc::app::prepareCrashHandlerThread();
+    ready.fetch_add(1);
+    while (ready.load() < count) {
+    }
+    writeNull();
+  };
+  std::vector<std::thread> threads;
+  for (int i = 0; i < count; ++i) {
+    threads.emplace_back(fault);
+  }
+  for (std::thread& thread : threads) {
+    thread.join();
+  }
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -75,20 +98,12 @@ int main(int argc, char** argv) {
     onPreparedThread([] { recurse(0); });
   } else if (std::strcmp(mode, "thread-exception") == 0) {
     onPreparedThread([] { throw std::runtime_error("worker exception"); });
+  } else if (std::strcmp(mode, "overflow") == 0) {
+    recurse(0);
+  } else if (std::strcmp(mode, "thread-segv") == 0) {
+    faultOnThreads(1);
   } else if (std::strcmp(mode, "two-threads") == 0) {
-    // Both threads fault as close together as the scheduler allows.
-    std::atomic<int> ready{0};
-    const auto crash = [&ready] {
-      sc::app::prepareCrashHandlerThread();
-      ready.fetch_add(1);
-      while (ready.load() < 2) {
-      }
-      writeNull();
-    };
-    std::thread first(crash);
-    std::thread second(crash);
-    first.join();
-    second.join();
+    faultOnThreads(2);
   }
   return 0;
 }

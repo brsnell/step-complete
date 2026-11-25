@@ -102,6 +102,23 @@ private Q_SLOTS:
     checkCommon(report, folder);
   }
 
+  // Value: protects=a report after a stack overflow on the main thread; fails_when=installCrashHandler
+  // stops giving the main thread its alternate signal stack (Windows: its stack guarantee);
+  // why_new=the other overflow test runs on a worker thread; seam=none; no_claim=OCCT's pool threads.
+  void mainStackOverflow() {
+    QTemporaryDir dir;
+    QString folder;
+    const QString report = crash(QStringLiteral("overflow"), &folder, dir);
+#if defined(_WIN32)
+    QVERIFY2(report.contains(QStringLiteral("Cause: stack overflow")), qPrintable(report));
+#else
+    QVERIFY2(report.contains(QStringLiteral("Cause: SIGSEGV")) ||
+                 report.contains(QStringLiteral("Cause: SIGBUS")),
+             qPrintable(report));
+#endif
+    checkCommon(report, folder);
+  }
+
   // A stack overflow on a prepared worker thread: the handler needs stack of its own there.
   void workerStackOverflow() {
     QTemporaryDir dir;
@@ -142,6 +159,21 @@ private Q_SLOTS:
     QVERIFY2(report.contains(QStringLiteral("Cause: SIGSEGV")) ||
                  report.contains(QStringLiteral("Cause: SIGBUS")),
              qPrintable(report));
+    // Value: protects=a complete stack when two threads fault at once; fails_when=the second
+    // thread ends the process while the first is still writing (the stack is cut part-way);
+    // why_new=checkCommon accepts any four lines of stack; seam=none; no_claim=which thread's
+    // stack is reported.
+    // Complete: as many frames as the same code faulting on one thread, and a whole last line.
+    QTemporaryDir referenceDir;
+    QString referenceFolder;
+    const QString reference = crash(QStringLiteral("thread-segv"), &referenceFolder, referenceDir);
+    const auto stackLines = [](const QString& text) {
+      const qsizetype stack = text.indexOf(QStringLiteral("\nStack"));
+      return stack < 0 ? -1 : text.mid(stack).count(QLatin1Char('\n'));
+    };
+    QVERIFY2(stackLines(reference) >= 4, qPrintable(reference));
+    QVERIFY2(report.endsWith(QLatin1Char('\n')), qPrintable(report));
+    QCOMPARE(stackLines(report), stackLines(reference));
 #endif
     checkCommon(report, folder);
   }
