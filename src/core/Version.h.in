@@ -5,5 +5,6 @@ namespace sc::core {
 inline constexpr const char* AppName = "STEP Complete";
 inline constexpr const char* AppVersion = "@PROJECT_VERSION@";
 inline constexpr const char* AppDescription = "@PROJECT_DESCRIPTION@";
+inline constexpr const char* ProjectUrl = "@PROJECT_HOMEPAGE_URL@";
 
 } // namespace sc::core

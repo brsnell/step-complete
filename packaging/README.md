@@ -40,7 +40,10 @@ Output: `StepComplete-<version>-windows-x64-setup.exe` (per-user by default, no 
 shortcut; optional default-handler association; "Open with" entries are always registered
 without replacing existing defaults; the uninstaller removes everything) and
 `StepComplete-<version>-windows-x64-portable.zip`. The Visual C++ runtime DLLs are copied
-app-local (no vc_redist installer needed).
+app-local (no vc_redist installer needed). Release builds also write `StepComplete.pdb`, packed as
+`StepComplete-<version>-windows-x64-symbols.zip`: it is published with each release (never
+installed) so the minidumps of crash reports can be read in Visual Studio or WinDbg
+(docs/designs/crash-reporting.md).
 
 ## macOS (DMG)
 

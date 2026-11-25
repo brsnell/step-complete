@@ -85,6 +85,7 @@ add_executable(sc_app_tests
   app/test_thickness_panel.cpp
   app/test_comparison_panel.cpp
   app/test_markup_panel.cpp
+  app/test_crash_reports.cpp
 )
 target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
 sc_target_defaults(sc_app_tests)
@@ -98,6 +99,19 @@ target_link_libraries(sc_preferences_tests PRIVATE sc::app Qt6::Test)
 sc_target_defaults(sc_preferences_tests)
 add_test(NAME app.preferences COMMAND sc_preferences_tests)
 set_tests_properties(app.preferences PROPERTIES TIMEOUT 120)
+
+# The crash handler, end to end: a helper crashes on purpose and the test reads its report
+# (docs/designs/crash-reporting.md). No display needed.
+add_executable(sc_crash_helper app/crash_helper.cpp)
+target_link_libraries(sc_crash_helper PRIVATE sc::app)
+sc_target_defaults(sc_crash_helper)
+add_executable(sc_crash_tests app/test_crash_handler.cpp)
+target_link_libraries(sc_crash_tests PRIVATE Qt6::Core Qt6::Test)
+target_compile_definitions(sc_crash_tests PRIVATE SC_CRASH_HELPER="$<TARGET_FILE:sc_crash_helper>")
+add_dependencies(sc_crash_tests sc_crash_helper)
+sc_target_defaults(sc_crash_tests)
+add_test(NAME app.crash_handler COMMAND sc_crash_tests)
+set_tests_properties(app.crash_handler PROPERTIES TIMEOUT 300)
 
 # MainWindow wiring (owns a viewport: needs an OpenGL-capable display, e.g. Xvfb + Mesa)
 add_executable(sc_main_window_tests

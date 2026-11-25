@@ -8,6 +8,8 @@
 #include "app/ClashPanel.h"
 #include "app/ComparisonJob.h"
 #include "app/ComparisonPanel.h"
+#include "app/CrashHandler.h"
+#include "app/CrashReports.h"
 #include "app/ExportGeometryDialog.h"
 #include "app/ExportImageDialog.h"
 #include "app/ExportJob.h"
@@ -50,6 +52,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
+#include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -661,6 +664,7 @@ void MainWindow::createActions() {
   // --- Help -----------------------------------------------------------------
   QMenu* helpMenu = menuBar()->addMenu(tr("&Help"));
   helpMenu->addAction(tr("&Graphics Information..."), this, &MainWindow::showGraphicsInfo);
+  helpMenu->addAction(tr("&Crash Reports..."), this, &MainWindow::openCrashReports);
   helpMenu->addSeparator();
   helpMenu->addAction(tr("&About %1").arg(QString::fromUtf8(core::AppName)), this, &MainWindow::showAbout);
   helpMenu->addAction(tr("About &Qt"), qApp, &QApplication::aboutQt);
@@ -1396,7 +1400,46 @@ QString MainWindow::meshNotice() const {
       .arg(format);
 }
 
+void MainWindow::updateCrashActivity() {
+  QStringList activity;
+  const auto add = [&activity](bool on, const char* what) {
+    if (on) {
+      activity.append(QString::fromLatin1(what));
+    }
+  };
+  add(_import != nullptr, "importing");
+  add(_export != nullptr, "exporting geometry");
+  add(_geometryCheckJob != nullptr, "checking geometry");
+  add(_clashJob != nullptr, "checking clashes");
+  add(_thicknessJob != nullptr, "measuring wall thickness");
+  add(_thicknessScene->isShown(), "wall thickness view");
+  add(_comparisonJob != nullptr, "comparing revisions");
+  add(_comparisonScene->isShown(), "comparison view");
+  add(_measureTool->isActive(), "measuring");
+  add(_sectionTool->isActive(), "section view");
+  add(_markupScene->isSketching(), "sketching");
+  add(_markupScene->isPickingNote() || _sectionTool->isPicking(), "picking a face");
+  const QString text = activity.isEmpty() ? QStringLiteral("viewing") : activity.join(QStringLiteral(", "));
+  if (text != _crashActivity) {
+    _crashActivity = text;
+    setCrashContext(CrashContext::Activity, text);
+  }
+}
+
+void MainWindow::openCrashReports() {
+  const CrashReports reports(CrashReports::defaultFolder());
+  if (reports.reports().isEmpty()) {
+    QMessageBox::information(this, tr("Crash Reports"),
+                             tr("There are no crash reports. If %1 ever crashes, a report is saved on this "
+                                "computer and shown the next time it starts.")
+                                 .arg(QString::fromUtf8(core::AppName)));
+    return;
+  }
+  QDesktopServices::openUrl(QUrl::fromLocalFile(reports.folder()));
+}
+
 void MainWindow::updateActions() {
+  updateCrashActivity();
   const bool hasModel = _scene->model() != nullptr;
   const bool hasSelection = hasModel && !selectedNodes().empty();
   _closeAction->setEnabled(hasModel);
@@ -1449,10 +1492,12 @@ void MainWindow::onGlInitialized(bool ok, const QString& message) {
 #ifdef __linux__
     details += tr("\n\nTry starting with --software-gl to use software rendering.");
 #endif
+    setCrashContext(CrashContext::Graphics, QStringLiteral("unavailable: ") + message);
     QMessageBox::critical(this, tr("Graphics Error"), details);
     return;
   }
   _glStatus->setText(message);
+  setCrashContext(CrashContext::Graphics, _viewport->glSummary());
   _glReady = true;
   applyViewPreferences(ViewPreferences::load());
   if (!_pendingFile.isEmpty()) {
@@ -1592,6 +1637,13 @@ void MainWindow::onImportFinished() {
     setWindowTitle(QStringLiteral("%1 — %2").arg(fileName, QString::fromUtf8(core::AppName)));
     addRecentFile(job->path());
     loadModelData(job->path());
+    // What a crash report says about the model: never its name (docs/designs/crash-reporting.md).
+    setCrashContext(CrashContext::Model,
+                    QStringLiteral("%1, %2 MB, %3 part instances, %4 unique parts")
+                        .arg(QString::fromLatin1(core::displayName(index->document()->format())))
+                        .arg(double(QFileInfo(job->path()).size()) / (1024.0 * 1024.0), 0, 'f', 1)
+                        .arg(index->partInstances().size())
+                        .arg(index->uniquePartCount()));
     _viewport->fitAll();
     _viewport->invalidateScene();
 
@@ -1644,6 +1696,7 @@ void MainWindow::closeModel() {
   _transparentParts.clear();
   _unitStatus->clear();
   _modelPath.clear();
+  setCrashContext(CrashContext::Model, QStringLiteral("none"));
   _modelData = QJsonObject();
   _userViews.clear();
   _materials.clear();

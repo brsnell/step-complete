@@ -270,7 +270,8 @@ jobs:
       - name: Check packages
         working-directory: release
         run: |
-          for p in '*-x86_64.AppImage' '*-windows-x64-setup.exe' '*-windows-x64-portable.zip'; do
+          for p in '*-x86_64.AppImage' '*-windows-x64-setup.exe' '*-windows-x64-portable.zip' \
+                   '*-windows-x64-symbols.zip'; do
             compgen -G "$p" > /dev/null || { echo "::error::missing package $p"; exit 1; }
           done
 
@@ -289,5 +290,8 @@ jobs:
           body: |
             Packages for Windows (x64) and Linux (x86_64). macOS packages are not part of this
             release yet; they will follow once they have been tested on a Mac.
+
+            `*-windows-x64-symbols.zip` holds the debug symbols (PDB) for reading Windows crash
+            minidumps; it is not needed to run the app.
           generate_release_notes: true
           fail_on_unmatched_files: true

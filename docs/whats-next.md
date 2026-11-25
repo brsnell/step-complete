@@ -8,6 +8,6 @@ fences off what is deferred; do not keep a second ordered list here that can dri
   (M7) and v1.3.0 (M8, [markup](designs/markup.md)) on 2026-11-23).
 - **Approved designs:** [`docs/designs/`](designs/).
 - **Dated plans:** [`docs/superpowers/plans/`](superpowers/plans/).
-- **Deferred:** the `## Deferred` section of `TODOS.md` (bundled Mesa on Windows, crash
-  reporting, Flathub, coarse-then-fine first mesh, exploded view, measurements that follow
+- **Deferred:** the `## Deferred` section of `TODOS.md` (bundled Mesa on Windows,
+  Flathub, coarse-then-fine first mesh, exploded view, measurements that follow
   section views). Do not start these without moving them out of Deferred first.

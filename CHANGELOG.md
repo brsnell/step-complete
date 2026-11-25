@@ -5,6 +5,15 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+### Added
+- Crash reports: if the app crashes it saves a report on the computer (the cause, the call
+  stack, versions, graphics driver and what it was doing; never file names) and, on Windows, a
+  minidump. The next start shows the report and can open a GitHub issue with it filled in, for
+  the user to review and submit; nothing is sent automatically. Help > Crash Reports opens the
+  folder, and `--no-crash-handler` turns it off.
+- Windows releases publish the debug symbols (`*-windows-x64-symbols.zip`) for reading
+  minidumps.
+
 ## [1.3.0] - 2026-11-23
 
 Windows installer and portable zip, Linux AppImage. The macOS DMGs are still built but held

@@ -1,3 +1,5 @@
+#include "app/CrashHandler.h"
+#include "app/CrashReports.h"
 #include "app/MainWindow.h"
 
 #include "core/Version.h"
@@ -8,6 +10,7 @@
 #include <QFileOpenEvent>
 #include <QIcon>
 #include <QStringList>
+#include <QTimer>
 
 #include <cstdio>
 #include <cstring>
@@ -115,12 +118,31 @@ int main(int argc, char** argv) {
   parser.addVersionOption();
   parser.addOption({QStringLiteral("software-gl"),
                     QStringLiteral("Use software OpenGL rendering (Linux; for old or broken GPU drivers).")});
+  parser.addOption({QStringLiteral("no-crash-handler"),
+                    QStringLiteral("Do not write crash reports (for debuggers and sanitizers).")});
   parser.addPositionalArgument(QStringLiteral("file"), QStringLiteral("STEP file to open."),
                                QStringLiteral("[file]"));
   parser.process(app);
 
+  // Crash reports (docs/designs/crash-reporting.md): written locally, shown on the next start.
+  sc::app::CrashReports crashes(sc::app::CrashReports::defaultFolder());
+  if (!parser.isSet(QStringLiteral("no-crash-handler"))) {
+    sc::app::setCrashEnvironment(sc::app::defaultCrashEnvironment());
+    sc::app::installCrashHandler(crashes.folder());
+  }
+  crashes.prune();
+
   sc::app::MainWindow window;
   window.show();
+  const QStringList newCrashes = crashes.newReports();
+  if (!newCrashes.isEmpty()) {
+    crashes.markSeen(newCrashes.constFirst()); // shown once, even if this start crashes too
+    QTimer::singleShot(0, &window, [&window, newCrashes] {
+      sc::app::CrashReportDialog dialog(newCrashes.constFirst(), static_cast<int>(newCrashes.size()) - 1,
+                                        &window);
+      dialog.exec();
+    });
+  }
   if (!parser.positionalArguments().isEmpty()) {
     window.openFileWhenReady(parser.positionalArguments().constFirst());
   }
