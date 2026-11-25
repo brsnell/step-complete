@@ -51,7 +51,7 @@ recommends.
   function (the six `QThread::create` lambdas in `app/*Job.cpp`):
   - POSIX: allocates and installs that thread's alternate signal stack (freed at thread exit
     through a `thread_local` holder).
-  - Windows: `SetThreadStackGuarantee(64 KB)` so the filter has room after an overflow, and
+  - Windows: `SetThreadStackGuarantee(32 KB)` so the filter has room after an overflow, and
     `std::set_terminate(onTerminate)` because MSVC keeps it per thread.
   - The main thread gets the same in `installCrashHandler`.
 - Limitation to record in the design: OCCT's own pool threads (`OSD_Parallel`, parallel meshing)
