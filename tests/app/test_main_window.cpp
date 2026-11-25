@@ -18,6 +18,7 @@
 #include "app/MeasurementsPanel.h"
 #include "app/ThicknessJob.h"
 #include "app/ThicknessPanel.h"
+#include "render/AisCompat.h"
 #include "render/MarkupScene.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
@@ -50,6 +51,10 @@
 #include <QTreeWidget>
 
 #include <AIS_InteractiveContext.hxx>
+
+#include <algorithm>
+#include <cmath>
+#include <map>
 
 using sc::app::MainWindow;
 using sc::app::MeasurementsPanel;
@@ -455,6 +460,89 @@ private Q_SLOTS:
 
   // Crash reports (docs/designs/crash-reporting.md): the context a report would contain follows
   // the app, including while a background job runs, and never names the file.
+  // View > Exploded View (docs/designs/exploded-view.md): the parts move apart by the panel's
+  // distance, the tools that work on the assembled model put them back, and they put it back.
+  void explodedViewMovesPartsAndYieldsToOtherTools() {
+    QAction* explode = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("E&xploded View"));
+    QAction* section = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("Se&ction View"));
+    QAction* distance = menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Distance"));
+    QVERIFY(explode != nullptr);
+    QVERIFY(section != nullptr);
+    QVERIFY(distance != nullptr);
+    QVERIFY(!explode->isEnabled()); // no model
+    auto* viewport = _window->findChild<sc::render::OcctViewport*>();
+    auto* dock = _window->findChild<QDockWidget*>(QStringLiteral("ExplodeDock"));
+    QVERIFY(dock != nullptr);
+
+    openFixture();
+    QVERIFY(explode->isEnabled());
+    // Where each displayed object is placed (the parts are connected instances).
+    const auto placements = [viewport] {
+      std::map<const AIS_InteractiveObject*, gp_XYZ> result;
+      sc::occ::InteractiveList objects;
+      viewport->context()->DisplayedObjects(objects);
+      for (sc::occ::InteractiveList::Iterator it(objects); it.More(); it.Next()) {
+        result[it.Value().get()] = it.Value()->LocalTransformation().TranslationPart();
+      }
+      return result;
+    };
+    const auto spread = [](const std::map<const AIS_InteractiveObject*, gp_XYZ>& from,
+                           const std::map<const AIS_InteractiveObject*, gp_XYZ>& to) {
+      double most = 0.0;
+      for (const auto& [object, at] : from) {
+        const auto it = to.find(object);
+        if (it != to.end()) {
+          most = std::max(most, (it->second - at).Modulus());
+        }
+      }
+      return most;
+    };
+    const auto assembled = placements();
+    _mass->trigger();
+    QCOMPARE(_tool->witnessCount(), 1);
+
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+    QVERIFY(explode->isChecked());
+    QVERIFY(dock->isVisible());
+    QCOMPARE(_tool->witnessCount(), 0); // drawn on the assembled model: hidden
+    QVERIFY(sc::app::crashContextText().contains(QStringLiteral("exploded view")));
+    const double half = spread(assembled, placements());
+    QVERIFY2(half > 1.0, qPrintable(QString::number(half)));
+    _window->setExplodeDistance(100);
+    const double full = spread(assembled, placements());
+    QVERIFY2(std::abs(full - 2.0 * half) < 1e-6, qPrintable(QStringLiteral("%1 vs %2").arg(full).arg(half)));
+
+    // Measuring collapses it; exploding stops measuring.
+    distance->trigger();
+    QVERIFY(_tool->isActive());
+    QVERIFY(!_window->isExploded());
+    QVERIFY(!explode->isChecked());
+    QCOMPARE(_tool->witnessCount(), 1);
+    QCOMPARE(spread(assembled, placements()), 0.0);
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+    QVERIFY(!_tool->isActive());
+
+    // The section view and the exploded view exclude each other too.
+    section->trigger();
+    QVERIFY(section->isChecked());
+    QVERIFY(!_window->isExploded());
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+    QVERIFY(!section->isChecked());
+
+    // Moving the slider while collapsed explodes; Collapse and closing put the parts back.
+    explode->trigger();
+    QVERIFY(!_window->isExploded());
+    _window->setExplodeDistance(30);
+    QVERIFY(_window->isExploded());
+    QCOMPARE(_window->explodeDistance(), 30);
+    _close->trigger();
+    QVERIFY(!_window->isExploded());
+    QVERIFY(!explode->isEnabled());
+  }
+
   void crashContextFollowsTheApp() {
     _window->openFileWhenReady(_path);
     QVERIFY(_window->findChild<sc::app::ImportJob*>() != nullptr);

@@ -246,6 +246,7 @@ void MarkupScene::setMarkup(const core::Markup& markup) {
 void MarkupScene::clear() {
   _markup.clear();
   _emphasized = 0;
+  _offsets.clear();
   cancelNotePick();
   setSketching(false);
   rebuild();
@@ -253,6 +254,23 @@ void MarkupScene::clear() {
 
 void MarkupScene::refresh() {
   rebuild();
+}
+
+void MarkupScene::setPartOffsets(std::vector<gp_Vec> offsets) {
+  _offsets = std::move(offsets);
+  rebuild();
+}
+
+std::optional<gp_Trsf> MarkupScene::displayedPlacement(const core::AssemblyIndex& index,
+                                                       const std::string& part) const {
+  std::optional<gp_Trsf> placement = core::markupPlacement(index, part);
+  const core::NodeId node = part.empty() ? core::NoNode : index.nodeForPathId(part);
+  if (placement && node != core::NoNode && static_cast<size_t>(node) < _offsets.size()) {
+    gp_Trsf offset;
+    offset.SetTranslation(_offsets[static_cast<size_t>(node)]);
+    placement = offset * *placement;
+  }
+  return placement;
 }
 
 void MarkupScene::rebuild() {
@@ -268,7 +286,7 @@ void MarkupScene::rebuild() {
   }
   const double dpr = devicePixelRatio();
   for (const core::MarkupNote& note : _markup.notes()) {
-    const std::optional<gp_Trsf> placement = core::markupPlacement(*index, note.part);
+    const std::optional<gp_Trsf> placement = displayedPlacement(*index, note.part);
     if (!placement) {
       _missing.push_back(note.id);
       continue;
@@ -279,7 +297,7 @@ void MarkupScene::rebuild() {
     _items.push_back(std::move(item));
   }
   for (const core::MarkupStroke& stroke : _markup.strokes()) {
-    const std::optional<gp_Trsf> placement = core::markupPlacement(*index, stroke.part);
+    const std::optional<gp_Trsf> placement = displayedPlacement(*index, stroke.part);
     if (!placement) {
       _missing.push_back(stroke.id);
       continue;

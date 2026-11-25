@@ -6,6 +6,11 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 ## [Unreleased]
 
 ### Added
+- Exploded view (View > Exploded View, `Shift+E`): parts move apart so the assembly's structure
+  is easy to see. Each part moves away from the center of its assembly and each sub-assembly
+  moves as a unit; the Exploded View panel sets the distance live and collapses it. PMI and
+  markup move with their part. Measuring, the section view, wall thickness, comparison and the
+  check highlights work on the assembled model, so they put the parts back first.
 - Crash reports: if the app crashes it saves a report on the computer (the cause, the call
   stack, versions, graphics driver and what it was doing; never file names) and, on Windows, a
   minidump. The next start shows the report and can open a GitHub issue with it filled in, for

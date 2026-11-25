@@ -7,6 +7,7 @@
 #include <AIS_InteractiveObject.hxx>
 #include <Bnd_Box.hxx>
 #include <gp_Pln.hxx>
+#include <gp_Vec.hxx>
 
 #include <QObject>
 
@@ -48,6 +49,9 @@ public:
   void updateVisibility();
   // Rebuilds the presentations (e.g. the device pixel ratio changed).
   void refresh();
+  // Exploded view (docs/designs/exploded-view.md): a world translation per assembly node id;
+  // an item on a part moves with it, an item in the world stays. Empty puts them back.
+  void setPartOffsets(std::vector<gp_Vec> offsets);
 
   // One item drawn in the emphasis color (0: none).
   void setEmphasized(int id);
@@ -95,6 +99,9 @@ private:
     Bnd_Box box;
   };
   void rebuild();
+  // Where an item's part is shown (its placement and exploded offset), or nullopt for a part
+  // the model does not have.
+  std::optional<gp_Trsf> displayedPlacement(const core::AssemblyIndex& index, const std::string& part) const;
   void display(Item& item);
   bool partShown(const std::string& part) const;
   void endNotePick(const std::optional<core::MarkupNote>& picked);
@@ -107,6 +114,7 @@ private:
   core::Markup _markup;
   std::vector<Item> _items;
   std::vector<int> _missing;
+  std::vector<gp_Vec> _offsets; // exploded view, by NodeId
   bool _shown = true;
   int _emphasized = 0;
 

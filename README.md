@@ -9,11 +9,11 @@ Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/
 
 **Documentation:** [User guide](docs/user-guide.md) · [Packaging](packaging/README.md) · [Performance](docs/performance.md)
 
-> **Status: v1.3 (Windows and Linux packages; macOS packages follow once tested on a Mac).** Opens STEP assemblies (and IGES, STL, OBJ and glTF files) with names, colors
+> **Status: v1.4 (Windows and Linux packages; macOS packages follow once tested on a Mac).** Opens STEP assemblies (and IGES, STL, OBJ and glTF files) with names, colors
 > and structure; assembly tree, properties, hide/isolate/transparency; measurement on the exact
 > geometry (distance, point to point, angle, radius, entity info, mass properties with
 > validation-property check); PMI from AP242 files (dimensions, tolerances, datums, saved views,
-> cross-highlighting); review notes and sketches (markup); section view with capping; image export; view preferences; compressed `.stpz` files and a cache that reopens files near-instantly. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
+> cross-highlighting); review notes and sketches (markup); section view with capping; exploded view; image export; view preferences; compressed `.stpz` files and a cache that reopens files near-instantly. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
 > [docs/pmi-coverage.md](docs/pmi-coverage.md) for what PMI is supported.
 
 ![Measuring a distance](docs/images/m2-distance.png)
@@ -156,6 +156,7 @@ A run that is not for a `v*` tag only uploads the packages. It does not publish 
 | Stop measuring | `Esc` |
 | Remove measurement | `Delete` in the Measurements panel (also `Backspace` on macOS) |
 | Section view | `X` (drag a plane's handle to move it) |
+| Exploded view | `Shift+E` (the Exploded View panel sets the distance) |
 | Export image | `Ctrl+Shift+E` |
 | Saved view (PMI) | double-click it in the PMI panel; View → Show All PMI to reset |
 

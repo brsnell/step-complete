@@ -127,7 +127,45 @@ void SceneManager::clear() {
   _parts.clear();
   _objectToPart.clear();
   _prototypes.clear();
+  _offsets.clear();
   _index.reset();
+}
+
+gp_Trsf SceneManager::displayedPlacement(core::NodeId part) const {
+  gp_Trsf placement;
+  if (_index && part >= 0 && static_cast<size_t>(part) < _index->nodes().size()) {
+    placement = _index->node(part).location.Transformation();
+  }
+  if (part >= 0 && static_cast<size_t>(part) < _offsets.size()) {
+    gp_Trsf offset;
+    offset.SetTranslation(_offsets[static_cast<size_t>(part)]);
+    placement = offset * placement;
+  }
+  return placement;
+}
+
+void SceneManager::place(const OccHandle<AIS_InteractiveObject>& object, const gp_Trsf& placement) {
+  if (_context->IsDisplayed(object)) {
+    _context->SetLocation(object, TopLoc_Location(placement)); // moves its selection too
+  } else {
+    object->SetLocalTransformation(placement);
+  }
+}
+
+void SceneManager::setPartOffsets(std::vector<gp_Vec> offsets) {
+  if (!_index) {
+    return;
+  }
+  _offsets = std::move(offsets);
+  for (const core::NodeId id : _index->partInstances()) {
+    PartEntry* part = entry(id);
+    if (part == nullptr || part->object.IsNull()) {
+      continue;
+    }
+    // An overridden part shows another presentation with its own placement; its own one is
+    // placed for when it comes back.
+    place(part->own.IsNull() ? part->object : part->own, displayedPlacement(id));
+  }
 }
 
 void SceneManager::showIssue(const TopoDS_Shape& worldShape) {
@@ -192,7 +230,7 @@ OccHandle<XCAFPrs_AISObject> SceneManager::prototypeFor(const core::AssemblyNode
 OccHandle<AIS_InteractiveObject> SceneManager::createInstance(const core::AssemblyNode& node) {
   OccHandle<XCAFPrs_AISObject> prototype = prototypeFor(node);
   OccHandle<AIS_ConnectedInteractive> instance = new AIS_ConnectedInteractive();
-  instance->Connect(prototype, node.location.Transformation());
+  instance->Connect(prototype, displayedPlacement(node.id));
   instance->SetDisplayMode(aisMode(_style));
   return instance;
 }
@@ -207,7 +245,7 @@ void SceneManager::detach(core::NodeId id) {
 
   OccHandle<XCAFPrs_AISObject> own =
       new PartPresentation(node.prototypeLabel, node.inheritedColor.value_or(DefaultPartColor));
-  own->SetLocalTransformation(node.location.Transformation());
+  own->SetLocalTransformation(displayedPlacement(id));
   applyStyleTo(own);
   own->SetDisplayMode(aisMode(_style));
 

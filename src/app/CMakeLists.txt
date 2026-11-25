@@ -37,6 +37,8 @@ add_library(sc_app STATIC
   ThicknessJob.cpp
   ThicknessPanel.h
   ThicknessPanel.cpp
+  ExplodePanel.h
+  ExplodePanel.cpp
   GeometryCheckJob.cpp
   GeometryCheckPanel.h
   GeometryCheckPanel.cpp

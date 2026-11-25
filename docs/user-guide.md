@@ -1,6 +1,6 @@
 # STEP Complete user guide
 
-STEP Complete (v1.3) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
+STEP Complete (v1.4) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
 exact measurement, PMI display (GD&T, dimensions, datums, saved views), section views, and image
 and geometry export. This guide describes what the application does; menu names appear as **Menu > Item**.
 
@@ -468,6 +468,27 @@ For each of Plane 1, 2 and 3:
 handle with the left mouse button to move the plane; it highlights on hover. **Reset** turns all
 planes off, and so does unchecking **Section View**.
 
+### Exploded view
+
+**View > Exploded View** (`Shift+E`) moves the parts of an assembly apart and opens the
+**Exploded View** panel. Each part moves away from the center of the assembly it belongs to, and
+each sub-assembly moves as a unit while its own parts spread around it. A part that sits on its
+assembly's center (a shaft in a housing) stays where it is.
+
+- **Distance:** 0 to 100 %. At 100 % every part is twice as far from its assembly's center as in
+  the assembled model. The parts move as you drag; moving the slider also turns the exploded
+  view on.
+- **Collapse** (or unchecking **Exploded View**) puts the parts back.
+
+PMI and markup on a part move with it. Selecting, hiding, isolating, transparency, Fit and image
+export work as usual. The explode is not saved and does not change exported geometry.
+
+Measuring, the section view, wall thickness, comparing revisions, the Geometry Check and Clashes
+highlights, placing a note, sketching and the file's saved views all work on the assembled model:
+starting one of them collapses the exploded view first, and exploding turns them off (the
+Measurements panel keeps its results, which are drawn again on collapse). The menu item is
+disabled when the model has nothing to move apart (a single part or a mesh file).
+
 ## 9. Exporting
 
 ### Images
@@ -613,6 +634,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `Shift+H` | Show all |
 | `T` | Toggle transparency of selection |
 | `X` | Toggle section view |
+| `Shift+E` | Toggle exploded view |
 | `M` | Measure: entity info |
 | `D` | Measure: distance |
 | `Shift+D` | Measure: point to point |

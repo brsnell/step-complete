@@ -161,6 +161,27 @@ private Q_SLOTS:
     QVERIFY(!box.IsOut(gp_Pnt(40, 40, 10)));
   }
 
+  void movesWithItsExplodedPart() {
+    // Exploded view (docs/designs/exploded-view.md): an item on a part takes the part's offset; an
+    // item in the world stays.
+    sc::core::Markup markup = sample();
+    const int world = markup.addNote({0, "In the world", "", gp_Pnt(0, 0, 50)});
+    _markup->setMarkup(markup);
+    const int note = markup.notes().front().id;
+    QVERIFY(!_markup->worldBox(note).IsOut(gp_Pnt(50, 30, 10)));
+
+    std::vector<gp_Vec> offsets(_index->nodes().size(), gp_Vec(0.0, 0.0, 0.0));
+    offsets[static_cast<size_t>(_plate)] = gp_Vec(0.0, 0.0, -100.0);
+    _markup->setPartOffsets(offsets);
+    QVERIFY(_markup->isDisplayed(note));
+    QVERIFY(!_markup->worldBox(note).IsOut(gp_Pnt(50, 30, -90)));
+    QVERIFY(_markup->worldBox(note).IsOut(gp_Pnt(50, 30, 10)));
+    QVERIFY(!_markup->worldBox(world).IsOut(gp_Pnt(0, 0, 50)));
+
+    _markup->setPartOffsets({});
+    QVERIFY(!_markup->worldBox(note).IsOut(gp_Pnt(50, 30, 10)));
+  }
+
   void followsVisibility() {
     const QImage empty = render();
     const int paper0 = countPixels(empty, isNotePaper);

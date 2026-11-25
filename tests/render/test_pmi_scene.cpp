@@ -529,6 +529,43 @@ private Q_SLOTS:
     QVERIFY(before >= 25);
   }
 
+  void pmiMovesWithItsExplodedPart() {
+    // Exploded view (docs/designs/exploded-view.md): each instance's PMI takes its offset.
+    makeTwoInstances();
+    load();
+    const PmiId flat = id(_fixture.flatness);
+    const auto labels = _pmiScene->labelsOf(flat);
+    QCOMPARE(labels.size(), size_t(2));
+    const gp_Pnt first = labels[0]->anchor();
+    const gp_Pnt second = labels[1]->anchor();
+    const sc::core::NodeId moved = _scene->model()->partInstances().at(1);
+
+    std::vector<gp_Vec> offsets(_scene->model()->nodes().size(), gp_Vec(0.0, 0.0, 0.0));
+    offsets[static_cast<size_t>(moved)] = gp_Vec(0.0, 300.0, 0.0);
+    _scene->setPartOffsets(offsets);
+    _pmiScene->setPartOffsets(offsets);
+    QVERIFY(labels[0]->anchor().IsEqual(first, 1e-9));
+    QVERIFY(labels[1]->anchor().IsEqual(second.Translated(gp_Vec(0.0, 300.0, 0.0)), 1e-9));
+
+    // The moved instance's target geometry is highlighted where the part is now.
+    _viewport->fitAll();
+    _pmiScene->highlight({flat});
+    const QImage image = render();
+    const QPoint movedTop = pixelOf(150 + 50, 300 + 30, 20); // the second block's top face
+    QVERIFY(isTargetOrange(image.pixelColor(movedTop)));
+
+    // Picking finds the moved label's PMI next to its new anchor.
+    const QPoint newAnchor = pixelOf(second.X(), second.Y() + 300.0, second.Z());
+    bool foundNew = false;
+    for (int dx = 4; dx < 60 && !foundNew; dx += 4) {
+      foundNew = pmiAt(newAnchor + QPoint(dx, 0)) == flat;
+    }
+    QVERIFY(foundNew);
+
+    _pmiScene->setPartOffsets({});
+    QVERIFY(labels[1]->anchor().IsEqual(second, 1e-9));
+  }
+
   void semanticLabelSwitchHasAnAutomaticDefault() {
     load();
     QVERIFY(_pmiScene->semanticLabelsVisible()); // 1 of 5 items has file graphics

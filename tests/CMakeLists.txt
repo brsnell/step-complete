@@ -34,6 +34,7 @@ add_executable(sc_core_tests
   core/test_mesh_import.cpp
   core/test_comparison.cpp
   core/test_markup.cpp
+  core/test_explode_layout.cpp
 )
 target_link_libraries(sc_core_tests PRIVATE sc::core sc_test_support ZLIB::ZLIB GTest::gtest_main)
 sc_target_defaults(sc_core_tests)
@@ -86,6 +87,7 @@ add_executable(sc_app_tests
   app/test_comparison_panel.cpp
   app/test_markup_panel.cpp
   app/test_crash_reports.cpp
+  app/test_explode_panel.cpp
 )
 target_link_libraries(sc_app_tests PRIVATE sc::app sc_test_support Qt6::Test)
 sc_target_defaults(sc_app_tests)
