@@ -320,7 +320,8 @@ private Q_SLOTS:
     _window->exportGeometryTo(path, sc::core::GeometryExportOptions(), false);
     QVERIFY(_window->findChild<sc::app::ExportJob*>() != nullptr);
     // Value: protects=the crash report's Activity line while an export runs and after;
-    // fails_when=exportGeometryTo stops tracking its job, or the line is not refreshed once the job is gone;
+    // fails_when=updateCrashActivity stops naming this job, or the line is not refreshed when it starts
+    // or once it is gone (the start and finish handlers refresh it through updateActions);
     // why_new=only the import and wall thickness jobs' activity was checked; seam=none; no_claim=a real crash
     // in the job.
     QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("exporting geometry")),
@@ -715,7 +716,8 @@ private Q_SLOTS:
     check->trigger();
     QVERIFY(_window->isCheckingGeometry());
     // Value: protects=the crash report's Activity line while a geometry check runs and after;
-    // fails_when=checkGeometry stops tracking its job, or the line is not refreshed once the job is gone;
+    // fails_when=updateCrashActivity stops naming this job, or the line is not refreshed when it starts
+    // or once it is gone (the start and finish handlers refresh it through updateActions);
     // why_new=only the import and wall thickness jobs' activity was checked; seam=none; no_claim=a real crash
     // in the job.
     QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("checking geometry")),
@@ -758,7 +760,8 @@ private Q_SLOTS:
     _window->checkClashesWith(options);
     QVERIFY(_window->isCheckingClashes());
     // Value: protects=the crash report's Activity line while a clash check runs and after;
-    // fails_when=startClashJob stops tracking its job, or the line is not refreshed once the job is gone;
+    // fails_when=updateCrashActivity stops naming this job, or the line is not refreshed when it starts
+    // or once it is gone (the start and finish handlers refresh it through updateActions);
     // why_new=only the import and wall thickness jobs' activity was checked; seam=none; no_claim=a real crash
     // in the job.
     QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("checking clashes")),
@@ -919,7 +922,8 @@ private Q_SLOTS:
     _window->compareWith(_revisionPath);
     QVERIFY(_window->isComparing());
     // Value: protects=the crash report's Activity line while a comparison runs and after;
-    // fails_when=startComparison stops tracking its job, or the line is not refreshed once the job is gone;
+    // fails_when=updateCrashActivity stops naming this job, or the line is not refreshed when it starts
+    // or once it is gone (the start and finish handlers refresh it through updateActions);
     // why_new=only the import and wall thickness jobs' activity was checked; seam=none; no_claim=a real crash
     // in the job.
     QVERIFY2(sc::app::crashContextText().contains(QStringLiteral("comparing revisions")),
