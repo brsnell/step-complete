@@ -36,7 +36,8 @@ and keeps the tools that measure or compute the assembled geometry out of the ex
    housing). For a flat assembly this is the usual radial explode.
 2. **Distance.** The slider runs from 0 to 100 %: `f = percent / 100`, so at 100 % every part is
    twice as far from its assembly's center as in the assembled model. It starts at 50 %, and
-   keeps the last value while the app runs.
+   keeps the last value while the app runs. 0 % is the assembled model, so it collapses; moving
+   the slider up from there explodes, and exploding from the menu at 0 % starts at 50 %.
 3. **Moving the parts.** Each part instance's presentation (the connected instance, or its
    detached presentation) gets the local transformation `translation(offset) * placement` in
    place of `placement`. Nothing is re-meshed or re-uploaded, so dragging the slider is smooth
@@ -44,7 +45,8 @@ and keeps the tools that measure or compute the assembled geometry out of the ex
 4. **What follows the parts.**
    - **PMI:** every PMI presentation, arrow and label of a part instance gets that instance's
      offset; PMI defined at the top level stays put. The labels' anchors move and the labels
-     are decluttered again. Highlighting a PMI's target geometry draws it where the part is.
+     are decluttered again. Labels and arrowheads are drawn in pixels around a point, so they
+     move by moving that point (a local transformation would move them by pixels). Highlighting a PMI's target geometry draws it where the part is.
    - **Markup:** notes and strokes on a part move with it; items in the world stay put.
 5. **What does not, and is kept out.** These tools measure or compute on the assembled geometry,
    or draw something between two parts; in an exploded view their results would be in the

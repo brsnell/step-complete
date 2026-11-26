@@ -477,7 +477,7 @@ assembly's center (a shaft in a housing) stays where it is.
 
 - **Distance:** 0 to 100 %. At 100 % every part is twice as far from its assembly's center as in
   the assembled model. The parts move as you drag; moving the slider also turns the exploded
-  view on.
+  view on, and back to 0 % puts the parts back.
 - **Collapse** (or unchecking **Exploded View**) puts the parts back.
 
 PMI and markup on a part move with it. Selecting, hiding, isolating, transparency, Fit and image
