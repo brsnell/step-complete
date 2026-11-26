@@ -8,9 +8,12 @@
 #include <AIS_InteractiveContext.hxx>
 #include <AIS_InteractiveObject.hxx>
 #include <Graphic3d_ClipPlane.hxx>
+#include <TopLoc_Location.hxx>
+#include <TopoDS_Shape.hxx>
 #include <V3d_View.hxx>
 #include <gp_Vec.hxx>
 
+#include <map>
 #include <memory>
 #include <unordered_map>
 #include <vector>
@@ -149,8 +152,10 @@ public:
   void clearViewClipping(const OccHandle<V3d_View>& v3dView);
 
   // Exploded view (docs/designs/exploded-view.md): a world translation per assembly node id,
-  // applied to the PMI of each part instance; PMI defined at the top level stays. Empty puts
-  // everything back. Labels move with their part: call declutter() afterwards.
+  // applied to the PMI of each part instance. PMI defined on an assembly (or the top level)
+  // follows the part its geometry is on; PMI whose geometry is on several parts is hidden while
+  // exploded, as it would point at parts that moved apart. Empty puts everything back. Labels
+  // move with their part: call declutter() afterwards.
   void setPartOffsets(std::vector<gp_Vec> offsets);
 
   int presentationCount() const;
@@ -177,18 +182,27 @@ private:
     std::vector<OccHandle<PmiPresentation>> placements;
     std::vector<OccHandle<PmiLabel>> labels; // semantic-only items: one per placement
     std::vector<OccHandle<PmiArrow>> arrows; // semantic-only dimensions: per placement and end
-    // The part instance of each placement, label and arrow (NoNode: the top level).
+    // The node whose exploded offset each placement, label and arrow takes: the part instance it
+    // is on, an assembly, NoNode (the top level) or SpansParts (hidden while exploded).
     std::vector<core::NodeId> placementNodes;
+    std::vector<TopLoc_Location> placementLocations;
     std::vector<core::NodeId> labelNodes;
     std::vector<core::NodeId> arrowNodes;
     bool visible = true;
   };
   struct Placement {
-    core::NodeId node = core::NoNode; // the part instance, NoNode at the top level
+    core::NodeId node = core::NoNode; // the instance the item is defined in, NoNode at the top level
     TopLoc_Location location;
+    core::NodeId follows = core::NoNode; // whose exploded offset it takes (see Entry)
   };
+  static constexpr core::NodeId SpansParts = -2;
   std::vector<Placement> placementsOf(const core::PmiItem& item) const;
+  // The part instance below `owner` (NoNode: anywhere) a target shape lies on, or NoNode.
+  core::NodeId partOfTarget(core::NodeId owner, const TopoDS_Shape& target) const;
+  // The part all of an item's targets lie on, `owner` when none is found, SpansParts for several.
+  core::NodeId followedNode(core::NodeId owner, const core::PmiItem& item) const;
   gp_Vec offsetOf(core::NodeId node) const;
+  bool hiddenWhileExploded(core::NodeId node) const { return node == SpansParts && !_offsets.empty(); }
   void applyOffsets();
   void build(const std::vector<bool>& visibility);
   void removePresentations();
@@ -206,6 +220,9 @@ private:
   double _dpr = 1.0;
   bool _semanticLabels = true;
   std::vector<gp_Vec> _offsets; // exploded view, by NodeId
+  // Per part definition (prototype id): its faces, edges and vertices by TShape, with their
+  // location in the definition. Built when an assembly's PMI is first matched to its parts.
+  mutable std::map<std::string, std::unordered_map<const TopoDS_TShape*, TopLoc_Location>> _subShapes;
 };
 
 } // namespace sc::render

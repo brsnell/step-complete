@@ -6,7 +6,9 @@
 
 #include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
+#include <BRep_Builder.hxx>
 #include <TDataStd_Name.hxx>
+#include <TopoDS_Compound.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include <gp_Pln.hxx>
@@ -151,4 +153,26 @@ TEST(ExplodeLayout, AnUnboundedPartDoesNotThrowTheOthers) {
   EXPECT_NEAR(layout.offset(parts[0], 1.0).X(), -20.0, Tolerance);
   EXPECT_NEAR(layout.offset(parts[1], 1.0).X(), 20.0, Tolerance);
   EXPECT_EQ(layout.offset(parts[2], 1.0).Magnitude(), 0.0);
+}
+
+TEST(ExplodeLayout, APartWithAnUnboundedPieceMovesByItsFinitePieces) {
+  // A solid plus an untrimmed reference plane in one part definition: the part is bounded by the
+  // solid, so it moves apart like any other instead of staying put.
+  Builder builder;
+  TopoDS_Compound mixed;
+  BRep_Builder compound;
+  compound.MakeCompound(mixed);
+  compound.Add(mixed, BRepPrimAPI_MakeBox(10.0, 10.0, 10.0).Shape());
+  compound.Add(mixed, BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1))).Shape());
+  const TDF_Label withPlane = builder.shapes->AddShape(mixed, false);
+  const TDF_Label root = builder.assembly("Root");
+  builder.shapes->AddComponent(root, builder.cube, at(0)); // center 5
+  builder.shapes->AddComponent(root, withPlane, at(40));   // its solid's center 45
+  const core::AssemblyIndex index = builder.index();
+  const core::ExplodeLayout layout(index);
+  ASSERT_TRUE(layout.canExplode());
+  const std::vector<core::NodeId>& parts = index.partInstances();
+  ASSERT_EQ(parts.size(), 2U);
+  EXPECT_NEAR(layout.offset(parts[0], 1.0).X(), -20.0, Tolerance);
+  EXPECT_NEAR(layout.offset(parts[1], 1.0).X(), 20.0, Tolerance);
 }

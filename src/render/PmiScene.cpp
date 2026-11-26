@@ -588,19 +588,97 @@ PmiScene::~PmiScene() {
   clear();
 }
 
+namespace {
+
+bool sameTransformation(const gp_Trsf& a, const gp_Trsf& b) {
+  constexpr double Tolerance = 1e-6;
+  if (a.TranslationPart().IsEqual(b.TranslationPart(), Tolerance) == Standard_False) {
+    return false;
+  }
+  for (int row = 1; row <= 3; ++row) {
+    for (int column = 1; column <= 3; ++column) {
+      if (std::abs(a.Value(row, column) - b.Value(row, column)) > Tolerance) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+} // namespace
+
 std::vector<PmiScene::Placement> PmiScene::placementsOf(const core::PmiItem& item) const {
   std::vector<Placement> placements;
   if (_index && !item.ownerPart.IsNull()) {
     for (const core::AssemblyNode& node : _index->nodes()) {
       if (node.prototypeLabel == item.ownerPart) {
-        placements.push_back({node.id, node.location});
+        const core::NodeId follows =
+            node.kind == core::NodeKind::Part ? node.id : followedNode(node.id, item);
+        placements.push_back({node.id, node.location, follows});
       }
     }
   }
-  if (placements.empty()) {
-    placements.emplace_back(); // defined at the top level (or owner unknown)
+  if (placements.empty()) { // defined at the top level (or owner unknown)
+    placements.push_back(
+        {core::NoNode, TopLoc_Location(), _index ? followedNode(core::NoNode, item) : core::NoNode});
   }
   return placements;
+}
+
+core::NodeId PmiScene::partOfTarget(core::NodeId owner, const TopoDS_Shape& target) const {
+  if (!_index || target.IsNull()) {
+    return core::NoNode;
+  }
+  const std::vector<core::NodeId> candidates =
+      owner == core::NoNode ? _index->partInstances() : _index->partsBelow(owner);
+  const gp_Trsf toOwner =
+      owner == core::NoNode ? gp_Trsf() : _index->node(owner).location.Transformation().Inverted();
+  core::NodeId only = core::NoNode;
+  int containing = 0;
+  for (const core::NodeId part : candidates) {
+    const std::string definition = _index->prototypeId(part);
+    auto shapes = _subShapes.find(definition);
+    if (shapes == _subShapes.end()) {
+      std::unordered_map<const TopoDS_TShape*, TopLoc_Location> found;
+      const TopoDS_Shape prototype = _index->prototypeShape(part);
+      for (const TopAbs_ShapeEnum kind : {TopAbs_FACE, TopAbs_EDGE, TopAbs_VERTEX}) {
+        for (TopExp_Explorer it(prototype, kind); it.More(); it.Next()) {
+          found.emplace(it.Current().TShape().get(), it.Current().Location());
+        }
+      }
+      shapes = _subShapes.emplace(definition, std::move(found)).first;
+    }
+    const auto sub = shapes->second.find(target.TShape().get());
+    if (sub == shapes->second.end()) {
+      continue;
+    }
+    // The instance whose placement (relative to the owner) puts this face where the target is.
+    const gp_Trsf expected =
+        toOwner * _index->node(part).location.Transformation() * sub->second.Transformation();
+    if (sameTransformation(expected, target.Location().Transformation())) {
+      return part;
+    }
+    only = part;
+    ++containing;
+  }
+  return containing == 1 ? only : core::NoNode; // one definition holds it: its only instance here
+}
+
+core::NodeId PmiScene::followedNode(core::NodeId owner, const core::PmiItem& item) const {
+  core::NodeId found = core::NoNode;
+  for (const auto* shapes : {&item.targets, &item.secondTargets}) {
+    for (const TopoDS_Shape& shape : *shapes) {
+      const core::NodeId part = partOfTarget(owner, shape);
+      if (part == core::NoNode) {
+        continue;
+      }
+      if (found != core::NoNode && found != part) {
+        return SpansParts;
+      }
+      found = part;
+    }
+  }
+  return found != core::NoNode ? found : owner;
 }
 
 void PmiScene::setModel(std::shared_ptr<const core::PmiModel> pmi,
@@ -655,11 +733,12 @@ void PmiScene::build(const std::vector<bool>& visibility) {
   std::vector<std::pair<gp_Pnt, int>> anchors;
   for (const core::PmiItem& item : _pmi->items()) {
     Entry& entry = _entries[static_cast<size_t>(item.id)];
-    for (const auto& [node, placement] : placementsOf(item)) {
+    for (const auto& [owner, placement, node] : placementsOf(item)) {
       OccHandle<PmiPresentation> prs = new PmiPresentation(item, placement, _dpr);
       _objectToPmi[prs.get()] = item.id;
       entry.placements.push_back(prs);
       entry.placementNodes.push_back(node);
+      entry.placementLocations.push_back(placement);
       for (const PmiPresentation::ArrowSpec& spec : prs->arrows()) {
         const gp_Trsf trsf = placement.Transformation();
         OccHandle<PmiArrow> arrow = new PmiArrow(spec.tip.Transformed(trsf), spec.dir.Transformed(trsf),
@@ -699,6 +778,9 @@ gp_Vec PmiScene::offsetOf(core::NodeId node) const {
 void PmiScene::setPartOffsets(std::vector<gp_Vec> offsets) {
   _offsets = std::move(offsets);
   applyOffsets();
+  for (Entry& entry : _entries) {
+    updateDisplay(entry); // PMI across several parts hides while exploded
+  }
   if (!_highlighted.empty()) {
     highlight(std::vector<core::PmiId>(_highlighted)); // the target geometry moved too
   }
@@ -714,12 +796,9 @@ void PmiScene::applyOffsets() {
   };
   for (Entry& entry : _entries) {
     for (size_t i = 0; i < entry.placements.size(); ++i) {
-      const core::NodeId node = entry.placementNodes[i];
       gp_Trsf offset;
-      offset.SetTranslation(offsetOf(node));
-      const gp_Trsf location =
-          node == core::NoNode ? gp_Trsf() : _index->node(node).location.Transformation();
-      place(entry.placements[i], offset * location);
+      offset.SetTranslation(offsetOf(entry.placementNodes[i]));
+      place(entry.placements[i], offset * entry.placementLocations[i].Transformation());
     }
     for (size_t i = 0; i < entry.arrows.size(); ++i) {
       const OccHandle<PmiArrow>& arrow = entry.arrows[i]; // drawn around its tip, like a label
@@ -848,6 +927,7 @@ void PmiScene::clear() {
   _pmi.reset();
   _index.reset();
   _offsets.clear();
+  _subShapes.clear();
 }
 
 void PmiScene::removePresentations() {
@@ -893,14 +973,18 @@ void PmiScene::updateDisplay(Entry& entry) {
       _context->Erase(object, false);
     }
   };
-  for (const auto& prs : entry.placements) {
-    apply(prs, entry.visible && (_semanticLabels || !prs->hasLabel()), 0);
+  for (size_t i = 0; i < entry.placements.size(); ++i) {
+    const auto& prs = entry.placements[i];
+    apply(prs,
+          entry.visible && (_semanticLabels || !prs->hasLabel()) &&
+              !hiddenWhileExploded(entry.placementNodes[i]),
+          0);
   }
-  for (const auto& label : entry.labels) {
-    apply(label, entry.visible && _semanticLabels, 0);
+  for (size_t i = 0; i < entry.labels.size(); ++i) {
+    apply(entry.labels[i], entry.visible && _semanticLabels && !hiddenWhileExploded(entry.labelNodes[i]), 0);
   }
-  for (const auto& arrow : entry.arrows) {
-    apply(arrow, entry.visible && _semanticLabels, -1);
+  for (size_t i = 0; i < entry.arrows.size(); ++i) {
+    apply(entry.arrows[i], entry.visible && _semanticLabels && !hiddenWhileExploded(entry.arrowNodes[i]), -1);
   }
 }
 
@@ -983,8 +1067,14 @@ void PmiScene::highlight(const std::vector<core::PmiId>& ids) {
     const std::vector<Placement> placements = placementsOf(item);
     for (const auto* shapes : {&item.targets, &item.secondTargets}) {
       for (const TopoDS_Shape& shape : *shapes) {
-        for (const auto& [node, placement] : placements) {
+        for (const auto& [owner, placement, follows] : placements) {
           if (!shape.IsNull()) {
+            // Each target moves with the part it is on (an assembly's PMI may span several).
+            core::NodeId node = follows;
+            if (node == SpansParts || (owner != core::NoNode && node == owner)) {
+              const core::NodeId part = partOfTarget(owner, shape);
+              node = part != core::NoNode ? part : owner;
+            }
             gp_Trsf offset;
             offset.SetTranslation(offsetOf(node));
             builder.Add(targets, shape.Moved(TopLoc_Location(offset) * placement));
