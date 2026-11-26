@@ -53,6 +53,7 @@
 #include <QActionGroup>
 #include <QApplication>
 #include <QClipboard>
+#include <QColorDialog>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
@@ -633,6 +634,12 @@ void MainWindow::createActions() {
   _showAllAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_H));
   _transparentAction = viewMenu->addAction(tr("&Transparent"), this, &MainWindow::toggleTransparencySelected);
   _transparentAction->setShortcut(Qt::Key_T);
+  _partColorAction = viewMenu->addAction(tr("Part &Color..."), this, &MainWindow::choosePartColor);
+  _partColorAction->setShortcut(Qt::Key_C);
+  _partColorAction->setStatusTip(tr("Give the selected parts a color of your own (kept with this model)"));
+  _resetPartColorAction = viewMenu->addAction(tr("Reset Part C&olor"), this,
+                                              [this] { setPartColor(selectedNodes(), std::nullopt); });
+  _resetPartColorAction->setStatusTip(tr("Give the selected parts the file's colors back"));
 
   _sectionAction = viewMenu->addAction(tr("Se&ction View"));
   _sectionAction->setCheckable(true);
@@ -1489,6 +1496,8 @@ void MainWindow::updateActions() {
   _hideAction->setEnabled(hasSelection);
   _isolateAction->setEnabled(hasSelection);
   _transparentAction->setEnabled(hasSelection);
+  _partColorAction->setEnabled(hasSelection);
+  _resetPartColorAction->setEnabled(hasSelection);
   _fitSelectionAction->setEnabled(hasSelection);
   if (_setMaterialAction != nullptr) {
     _setMaterialAction->setEnabled(hasSelection);
@@ -1743,6 +1752,7 @@ void MainWindow::closeModel() {
   _modelData = QJsonObject();
   _userViews.clear();
   _materials.clear();
+  _partColors.clear();
   rebuildSavedViewsMenu();
   _emptyHint->show();
   setWindowTitle(QString::fromUtf8(core::AppName));
@@ -1997,6 +2007,8 @@ void MainWindow::showContextMenu(QWidget* source, const QPoint& pos) {
   menu.addAction(_showAllAction);
   menu.addSeparator();
   menu.addAction(_transparentAction);
+  menu.addAction(_partColorAction);
+  menu.addAction(_resetPartColorAction);
   menu.addAction(_fitSelectionAction);
   menu.exec(source->mapToGlobal(pos));
 }
@@ -2559,6 +2571,15 @@ void MainWindow::loadModelData(const QString& modelPath) {
   }
   _markup = markupFromJson(_modelData.value(QStringLiteral("markup")).toObject());
   refreshMarkup();
+  _partColors.clear();
+  const QJsonObject colors = _modelData.value(QStringLiteral("partColors")).toObject();
+  for (auto it = colors.begin(); it != colors.end(); ++it) {
+    const QColor color(it.value().toString());
+    if (color.isValid()) {
+      _partColors[it.key().toStdString()] = color;
+    }
+  }
+  applyPartColors();
   if (!loaded.ok) {
     statusBar()->showMessage(tr("The saved views of this model could not be read (%1).").arg(loaded.error),
                              8000);
@@ -2581,6 +2602,95 @@ void MainWindow::writeUserViews() {
   _modelData.insert(QStringLiteral("views"), toJson(_userViews));
   saveModelData();
   rebuildSavedViewsMenu();
+}
+
+// ---------------------------------------------------------------------------------
+// Part colors (docs/designs/part-color-overrides.md)
+// ---------------------------------------------------------------------------------
+
+namespace {
+
+Quantity_Color quantityColor(const QColor& color) {
+  return Quantity_Color(color.redF(), color.greenF(), color.blueF(), Quantity_TOC_sRGB);
+}
+
+} // namespace
+
+void MainWindow::choosePartColor() {
+  const std::vector<core::NodeId> nodes = selectedNodes();
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (nodes.empty() || !index) {
+    return;
+  }
+  // Start from the first selected part's own color, if it has one.
+  QColor initial(Qt::white);
+  const std::vector<core::NodeId> parts = index->partsBelow(nodes.front());
+  if (!parts.empty()) {
+    initial = partColorOf(parts.front()).value_or(initial);
+  }
+  const QColor color = QColorDialog::getColor(initial, this, tr("Part Color"));
+  if (color.isValid()) {
+    setPartColor(nodes, color);
+  }
+}
+
+void MainWindow::setPartColor(const std::vector<core::NodeId>& nodes, const std::optional<QColor>& color) {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!index) {
+    return;
+  }
+  std::vector<core::NodeId> parts;
+  for (const core::NodeId node : nodes) {
+    for (const core::NodeId part : index->partsBelow(node)) {
+      parts.push_back(part);
+      if (color) {
+        _partColors[index->pathId(part)] = *color;
+      } else {
+        _partColors.erase(index->pathId(part));
+      }
+    }
+  }
+  if (parts.empty()) {
+    return;
+  }
+  _scene->setPartColor(parts, color ? std::optional<Quantity_Color>(quantityColor(*color)) : std::nullopt);
+  writePartColors();
+  _viewport->invalidateScene();
+  const int count = static_cast<int>(parts.size());
+  statusBar()->showMessage(color ? tr("Color %1 set on %n part(s).", nullptr, count).arg(color->name())
+                                 : tr("File colors back on %n part(s).", nullptr, count),
+                           5000);
+}
+
+std::optional<QColor> MainWindow::partColorOf(core::NodeId part) const {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!index) {
+    return std::nullopt;
+  }
+  const auto it = _partColors.find(index->pathId(part));
+  return it != _partColors.end() ? std::optional<QColor>(it->second) : std::nullopt;
+}
+
+void MainWindow::writePartColors() {
+  QJsonObject colors;
+  for (const auto& [path, color] : _partColors) {
+    colors.insert(QString::fromStdString(path), color.name());
+  }
+  _modelData.insert(QStringLiteral("partColors"), colors);
+  saveModelData();
+}
+
+void MainWindow::applyPartColors() {
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!index) {
+    return;
+  }
+  for (const auto& [path, color] : _partColors) {
+    const core::NodeId node = index->nodeForPathId(path); // gone from a changed file: kept, unused
+    if (node != core::NoNode) {
+      _scene->setPartColor({node}, quantityColor(color));
+    }
+  }
 }
 
 void MainWindow::writeMaterials() {

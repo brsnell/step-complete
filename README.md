@@ -13,7 +13,7 @@ Built with C++17, [Open CASCADE Technology](https://github.com/Open-Cascade-SAS/
 > and structure; assembly tree, properties, hide/isolate/transparency; measurement on the exact
 > geometry (distance, point to point, angle, radius, entity info, mass properties with
 > validation-property check); PMI from AP242 files (dimensions, tolerances, datums, saved views,
-> cross-highlighting); review notes and sketches (markup); section view with capping; exploded view; image export; view preferences; compressed `.stpz` files and a cache that reopens files near-instantly. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
+> cross-highlighting); review notes and sketches (markup); section view with capping; exploded view; part colors of your own; image export; view preferences; compressed `.stpz` files and a cache that reopens files near-instantly. See [docs/PLAN.md](docs/PLAN.md) for the roadmap and
 > [docs/pmi-coverage.md](docs/pmi-coverage.md) for what PMI is supported.
 
 ![Measuring a distance](docs/images/m2-distance.png)
@@ -146,6 +146,7 @@ A run that is not for a `v*` tag only uploads the packages. It does not publish 
 | Open file | `Ctrl+O`, drag and drop, or `StepComplete file.step` |
 | Hide / isolate / show all | `H` / `I` / `Shift+H` (also right-click menu) |
 | Toggle transparency | `T` |
+| Part color of selection | `C` (View > Reset Part Color to undo) |
 | Fit selection | `Shift+F` |
 | Fit all | `F` |
 | Standard views | `1`–`6`, isometric `0` |

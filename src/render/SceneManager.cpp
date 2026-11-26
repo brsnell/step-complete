@@ -17,6 +17,7 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <optional>
 #include <type_traits>
 
 namespace sc::render {
@@ -34,8 +35,23 @@ public:
       : XCAFPrs_AISObject(label), _fallback(fallback) {}
 
   void DefaultStyle(XCAFPrs_Style& style) const override {
-    style.SetColorSurf(_fallback);
-    style.SetColorCurv(_fallback.GetRGB());
+    const Quantity_ColorRGBA color = _override ? Quantity_ColorRGBA(*_override, 1.0f) : _fallback;
+    style.SetColorSurf(color);
+    style.SetColorCurv(color.GetRGB());
+  }
+
+  // The user's color for the whole part (docs/designs/part-color-overrides.md), or nullopt for
+  // the file's colors. The caller redisplays.
+  void setOverride(const std::optional<Quantity_Color>& color) {
+    const double transparency = Transparency();
+    if (_override && !color) {
+      UnsetColor(); // the file's styles only fill what has no color of its own
+    }
+    _override = color;
+    DispatchStyles(true);
+    if (transparency > 0.0) {
+      SetTransparency(transparency);
+    }
   }
 
   // Rebuilding the per-face styles from the document resets their colors, so the
@@ -44,6 +60,14 @@ public:
   void DispatchStyles(const bool toSyncStyles) override {
     const double transparency = Transparency();
     XCAFPrs_AISObject::DispatchStyles(toSyncStyles);
+    if (_override) {
+      myShapeColors.Clear(); // the file's per-face colors give way to the part's one color
+      SetColor(*_override);
+      // SetColor colors the edges too: they keep their dark outline, as on every other part.
+      if (myDrawer->FaceBoundaryDraw()) {
+        myDrawer->SetFaceBoundaryAspect(new Prs3d_LineAspect(EdgeColor, Aspect_TOL_SOLID, 1.0));
+      }
+    }
     if (_hiddenLine) {
       forEachDrawer([](const OccHandle<Prs3d_Drawer>& drawer) { configureHiddenLineFaces(drawer, true); });
     }
@@ -75,6 +99,7 @@ private:
   }
 
   Quantity_ColorRGBA _fallback;
+  std::optional<Quantity_Color> _override;
   bool _hiddenLine = false;
 };
 
@@ -237,10 +262,21 @@ OccHandle<AIS_InteractiveObject> SceneManager::createInstance(const core::Assemb
 
 void SceneManager::detach(core::NodeId id) {
   PartEntry* part = entry(id);
-  if (part == nullptr || part->detached || part->object.IsNull() || !part->own.IsNull()) {
-    return; // an overridden part keeps its own presentation as it is until restored
+  if (part == nullptr || part->detached || part->object.IsNull()) {
+    return;
   }
   const core::AssemblyNode& node = _index->node(id);
+  if (!part->own.IsNull()) {
+    // Overridden (another presentation is shown): detach the own one it comes back to.
+    OccHandle<XCAFPrs_AISObject> own =
+        new PartPresentation(node.prototypeLabel, node.inheritedColor.value_or(DefaultPartColor));
+    own->SetLocalTransformation(displayedPlacement(id));
+    applyStyleTo(own);
+    own->SetDisplayMode(aisMode(_style));
+    part->own = own;
+    part->detached = true;
+    return;
+  }
   const bool wasSelected = _context->IsSelected(part->object);
 
   OccHandle<XCAFPrs_AISObject> own =
@@ -306,6 +342,33 @@ void SceneManager::clearPartOverrides() {
       setPartOverride(static_cast<core::NodeId>(i), nullptr);
     }
   }
+}
+
+void SceneManager::setPartColor(const std::vector<core::NodeId>& nodes,
+                                const std::optional<Quantity_Color>& color) {
+  for (const core::NodeId id : expandToParts(nodes)) {
+    PartEntry* part = entry(id);
+    if (part == nullptr || part->object.IsNull() || (!color && !part->color)) {
+      continue;
+    }
+    part->color = color;
+    if (color) {
+      detach(id); // connected instances share their prototype's aspects
+    }
+    const OccHandle<AIS_InteractiveObject>& presentation = part->own.IsNull() ? part->object : part->own;
+    if (auto* own = dynamic_cast<PartPresentation*>(presentation.get())) {
+      own->setOverride(color);
+      applyStyleTo(presentation); // edges and hidden line, which a color change resets
+      if (_context->IsDisplayed(presentation)) {
+        _context->Redisplay(presentation, false);
+      }
+    }
+  }
+}
+
+std::optional<Quantity_Color> SceneManager::partColor(core::NodeId id) const {
+  const PartEntry* part = entry(id);
+  return part != nullptr ? part->color : std::nullopt;
 }
 
 bool SceneManager::hasOverride(core::NodeId id) const {

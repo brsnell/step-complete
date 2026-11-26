@@ -8,6 +8,7 @@
 #include <AIS_InteractiveObject.hxx>
 #include <Bnd_Box.hxx>
 #include <Graphic3d_SequenceOfHClipPlane.hxx>
+#include <Quantity_Color.hxx>
 #include <SelectMgr_EntityOwner.hxx>
 #include <TopoDS_Shape.hxx>
 #include <gp_Trsf.hxx>
@@ -102,6 +103,12 @@ public:
   void clearIssue();
   bool hasIssue() const { return !_issue.IsNull(); }
 
+  // --- Part colors (docs/designs/part-color-overrides.md) -------------------------------
+  // The user's color for whole part instances (assemblies: every part below), replacing the
+  // file's colors; nullopt gives the file's colors back. Kept while overridden and restored.
+  void setPartColor(const std::vector<core::NodeId>& nodes, const std::optional<Quantity_Color>& color);
+  std::optional<Quantity_Color> partColor(core::NodeId part) const;
+
   // --- Part overrides ----------------------------------------------------------------
   // Shows another presentation in place of a part's own (e.g. the wall thickness colors) while
   // keeping its visibility, selection and clip planes; selecting it selects the part. Null
@@ -132,6 +139,7 @@ private:
     OccHandle<AIS_InteractiveObject> own;    // while overridden: the part's own presentation
     bool visible = false;
     bool detached = false;
+    std::optional<Quantity_Color> color; // the user's part color
   };
 
   OccHandle<XCAFPrs_AISObject> prototypeFor(const core::AssemblyNode& node);

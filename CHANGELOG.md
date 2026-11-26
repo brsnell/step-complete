@@ -5,6 +5,12 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+### Added
+- Part colors (View > Part Color, `C`): give the selected parts a color of your own, for the
+  whole part over the file's colors; View > Reset Part Color gives them the file's colors back.
+  The colors are kept with the model (never in the file), come back when it is opened again and
+  appear in image export.
+
 ### Fixed
 - Exploded view: PMI defined on an assembly now moves with the part it applies to (it stayed
   where the assembled part was), and PMI relating two parts is hidden while they are apart. A
