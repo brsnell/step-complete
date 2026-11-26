@@ -44,6 +44,7 @@
 #include <QLineEdit>
 #include <QMenu>
 #include <QMenuBar>
+#include <QSlider>
 #include <QSortFilterProxyModel>
 #include <QStandardPaths>
 #include <QStatusBar>
@@ -108,6 +109,18 @@ private Q_SLOTS:
     shapes->UpdateAssemblies();
     _revisionPath = QString::fromStdString(sc::test::tempPath("main_window_revision.step"));
     QVERIFY(sc::test::writeStep(revision, _revisionPath.toStdString()));
+    // Two parts in the same place: an assembly whose parts cannot move apart.
+    auto samePlace = std::make_shared<sc::core::Document>();
+    const auto sameShapes = XCAFDoc_DocumentTool::ShapeTool(samePlace->ocaf()->Main());
+    const TDF_Label sameRoot = sameShapes->NewShape();
+    TDataStd_Name::Set(sameRoot, "Stack");
+    const TDF_Label cube = sameShapes->AddShape(BRepPrimAPI_MakeBox(10.0, 10.0, 10.0).Shape(), false);
+    TDataStd_Name::Set(cube, "Cube");
+    sameShapes->AddComponent(sameRoot, cube, TopLoc_Location());
+    sameShapes->AddComponent(sameRoot, cube, TopLoc_Location());
+    sameShapes->UpdateAssemblies();
+    _samePlacePath = QString::fromStdString(sc::test::tempPath("main_window_same_place.step"));
+    QVERIFY(sc::test::writeStep(samePlace, _samePlacePath.toStdString()));
   }
 
   void init() {
@@ -523,6 +536,8 @@ private Q_SLOTS:
     explode->trigger();
     QVERIFY(_window->isExploded());
     QVERIFY(!_tool->isActive());
+    QVERIFY2(_window->statusBar()->currentMessage().contains(QStringLiteral("turned off measuring")),
+             qPrintable(_window->statusBar()->currentMessage())); // says what it stopped
 
     // The section view and the exploded view exclude each other too.
     section->trigger();
@@ -749,6 +764,34 @@ private Q_SLOTS:
     _window->setExploded(true);
     QVERIFY(_window->isExploded());
     QCOMPARE(displayed(), plain);
+  }
+
+  // An assembly whose parts all share their assembly's center has nothing to move apart: the first
+  // try says so once, then the menu item and the slider are off (no message on every slider step).
+  void explodingAModelThatCannotSaysSoOnce() {
+    QAction* explode = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("E&xploded View"));
+    auto* slider = _window->findChild<QSlider*>(QStringLiteral("explodeDistance"));
+    QVERIFY(explode != nullptr);
+    QVERIFY(slider != nullptr);
+    _window->openFileWhenReady(_samePlacePath);
+    QTRY_VERIFY_WITH_TIMEOUT(_window->findChild<sc::app::ImportJob*>() == nullptr, 60000);
+    QVERIFY(explode->isEnabled()); // two parts: worth a try
+    QVERIFY(slider->isEnabled());
+
+    explode->trigger();
+    QVERIFY(!_window->isExploded());
+    QVERIFY(_window->statusBar()->currentMessage().contains(QStringLiteral("no parts to move apart")));
+    QVERIFY(!explode->isEnabled());
+    QVERIFY(!slider->isEnabled());
+    _window->statusBar()->clearMessage();
+    _window->setExplodeDistance(80);
+    QVERIFY(!_window->isExploded());
+    QVERIFY(_window->statusBar()->currentMessage().isEmpty());
+
+    // Another model starts afresh.
+    openFixture();
+    QVERIFY(explode->isEnabled());
+    QVERIFY(slider->isEnabled());
   }
 
   // Crash reports (docs/designs/crash-reporting.md): the context a report would contain follows
@@ -1278,6 +1321,7 @@ private:
   QString _igesPath;
   QString _stlPath;
   QString _revisionPath;
+  QString _samePlacePath;
   MainWindow* _window = nullptr;
   MeasurementsPanel* _panel = nullptr;
   MeasureTool* _tool = nullptr;

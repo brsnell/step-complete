@@ -1499,7 +1499,7 @@ void MainWindow::updateActions() {
   _semanticLabelsAction->setEnabled(_pmi && !_pmi->isEmpty());
   _sectionAction->setEnabled(hasModel);
   // A cheap test here; whether the parts can move apart is computed when the user explodes.
-  _explodeAction->setEnabled(hasModel && _scene->model()->partInstances().size() >= 2);
+  _explodeAction->setEnabled(hasModel && _scene->model()->partInstances().size() >= 2 && !cannotExplode());
   if (_cancelPickAction != nullptr) {
     _cancelPickAction->setEnabled(_sectionTool->isPicking() || _markupScene->isPickingNote() ||
                                   _markupScene->isSketching());
@@ -2044,15 +2044,36 @@ const core::ExplodeLayout& MainWindow::explodeLayout() {
   return *_explodeLayout;
 }
 
+bool MainWindow::cannotExplode() const {
+  // Known once the layout was computed for the shown model: no part moves.
+  return _explodeLayout && _scene->model() && _explodeLayoutModel.lock() == _scene->model() &&
+         !_explodeLayout->canExplode();
+}
+
 void MainWindow::setExploded(bool on) {
   if (on && (!_scene->model() || !explodeLayout().canExplode())) {
     statusBar()->showMessage(_scene->model() ? tr("This model has no parts to move apart.")
                                              : tr("Open an assembly to explode it."),
                              4000);
     on = false;
+    _explodePanel->setAvailable(!cannotExplode()); // the slider would only repeat this
+    updateActions();
   }
+  QStringList stopped;
   if (on && !_exploded) {
-    // One mode at a time: these work on, or draw on, the assembled model.
+    // One mode at a time: these work on, or draw on, the assembled model. Say which were on.
+    const auto note = [&stopped](bool wasOn, const QString& what) {
+      if (wasOn) {
+        stopped.append(what);
+      }
+    };
+    note(_measureTool->isActive(), tr("measuring"));
+    note(_sectionTool->isPicking() || _markupScene->isPickingNote(), tr("the face pick"));
+    note(_markupScene->isSketching(), tr("sketching"));
+    note(_sectionTool->isActive(), tr("the section view"));
+    note(_thicknessScene->isShown() || _thicknessJob, tr("wall thickness"));
+    note(_comparisonScene->isShown() || _comparisonJob, tr("the comparison"));
+    note(_highlight != Highlight::None, tr("the check highlight"));
     setMeasureMode(-1);
     _sectionTool->cancelPick();
     _markupScene->cancelNotePick();
@@ -2086,11 +2107,17 @@ void MainWindow::setExploded(bool on) {
     syncMeasurementWitnesses();
     updateActions();
   }
+  if (!stopped.isEmpty()) {
+    statusBar()->showMessage(tr("Exploded view: turned off %1.").arg(stopped.join(tr(", "))), 6000);
+  }
 }
 
 void MainWindow::setExplodeDistance(int percent) {
   _explodePanel->setDistance(std::clamp(percent, 0, 100));
   const bool apart = _explodePanel->distance() > 0;
+  if (!_exploded && cannotExplode()) {
+    return; // said once when it was refused
+  }
   if (_exploded && apart) {
     applyExplode();
   } else if (apart != _exploded) {
@@ -2125,6 +2152,7 @@ void MainWindow::resetExplode() {
   setExploded(false);
   _explodeLayout.reset();
   _explodeLayoutModel.reset();
+  _explodePanel->setAvailable(true);
 }
 
 // ---------------------------------------------------------------------------------

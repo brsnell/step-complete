@@ -343,7 +343,8 @@ private:
   void applyExplode();
   // Puts the parts back before a tool that works on the assembled model starts.
   void collapseExplode();
-  void resetExplode(); // a new model or none: collapsed, layout dropped
+  void resetExplode();        // a new model or none: collapsed, layout dropped
+  bool cannotExplode() const; // the shown model's layout is known and moves no part
   QAction* _thicknessAction = nullptr;
   ThicknessPanel* _thicknessPanel = nullptr;
   QDockWidget* _thicknessDock = nullptr;

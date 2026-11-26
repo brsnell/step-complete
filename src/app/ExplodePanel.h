@@ -24,6 +24,8 @@ public:
   void setDistance(int percent);
   // Whether the model is exploded now: Collapse is only enabled then.
   void setExploded(bool exploded);
+  // Whether the model can explode at all: the slider is disabled when it cannot.
+  void setAvailable(bool available);
 
 Q_SIGNALS:
   // The user moved the slider.
