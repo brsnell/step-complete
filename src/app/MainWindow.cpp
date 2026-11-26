@@ -300,6 +300,7 @@ void MainWindow::createDocks() {
   // Plane on a picked face (docs/designs/angled-section-planes.md). One tool owns clicks at a
   // time: a pick stops measuring, and starting a measurement cancels a pick (setMeasureMode).
   connect(_sectionTool, &render::SectionTool::pickStarted, this, [this](int index) {
+    collapseExplode(); // the face is picked on the assembled model
     if (_measureTool->isActive()) {
       setMeasureMode(-1); // before the tool makes faces pickable
     }

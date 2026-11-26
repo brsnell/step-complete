@@ -54,12 +54,15 @@ and keeps the tools that measure or compute the assembled geometry out of the ex
      section view, the wall thickness view, the comparison view and the geometry check or
      clash highlight, and hides the measurement witnesses (the Measurements panel keeps them,
      and they come back on collapse).
-   - Starting any of those while exploded, or applying a saved view from the file (its camera
-     and clipping were made for the assembled model), collapses first.
+   - Starting any of those while exploded (a section plane's face pick included), or applying a
+     saved view from the file (its camera and clipping were made for the assembled model),
+     collapses first.
    - Restoring one of the user's own saved views works exploded, unless it turns on a section
      plane (then it collapses, as the section view does).
 6. **When it is available.** With a model that has at least two parts whose offsets are not all
-   zero. A mesh file or a single part has nothing to explode: the action is disabled.
+   zero; otherwise the action is disabled. A single part (an STL file, which is one part) has
+   nothing to explode. A mesh file with several parts (OBJ, glTF) explodes like any assembly:
+   moving parts needs no exact geometry.
 7. **Code layout.**
    - `core/ExplodeLayout.{h,cpp}` (OCCT only): the per-node directions at `f = 1`, and
      `offset(node, f)`.

@@ -487,7 +487,7 @@ Measuring, the section view, wall thickness, comparing revisions, the Geometry C
 highlights, placing a note, sketching and the file's saved views all work on the assembled model:
 starting one of them collapses the exploded view first, and exploding turns them off (the
 Measurements panel keeps its results, which are drawn again on collapse). The menu item is
-disabled when the model has nothing to move apart (a single part or a mesh file).
+disabled when the model has nothing to move apart (a single part, such as an STL file).
 
 ## 9. Exporting
 
