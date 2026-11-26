@@ -49,6 +49,8 @@ add_library(sc_core STATIC
   GeometryCheck.cpp
   Markup.h
   Markup.cpp
+  ExplodeLayout.h
+  ExplodeLayout.cpp
 )
 add_library(sc::core ALIAS sc_core)
 

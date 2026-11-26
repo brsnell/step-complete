@@ -10,6 +10,8 @@
 #include <Graphic3d_SequenceOfHClipPlane.hxx>
 #include <SelectMgr_EntityOwner.hxx>
 #include <TopoDS_Shape.hxx>
+#include <gp_Trsf.hxx>
+#include <gp_Vec.hxx>
 
 #include <map>
 #include <memory>
@@ -79,7 +81,9 @@ public:
 
   struct PickedEntity {
     core::NodeId part = core::NoNode;
-    TopoDS_Shape worldShape; // picked vertex/edge/face, placed in world coordinates
+    // The picked vertex/edge/face in world coordinates of the assembled model (an exploded
+    // part's offset is not in it: the tools that pick do not run exploded).
+    TopoDS_Shape worldShape;
   };
   // The B-rep entity behind a sub-shape selection owner, or nullopt (whole
   // objects, the view cube, measurement witnesses).
@@ -106,7 +110,16 @@ public:
   void clearPartOverrides();
   bool hasOverride(core::NodeId part) const;
 
-  // World bounding box of the visible parts below the nodes (void if none).
+  // --- Exploded view ---------------------------------------------------------------
+  // A world translation per node id (docs/designs/exploded-view.md), applied to each part on top
+  // of its placement; empty (or a shorter vector) puts the parts back. Overrides keep their own
+  // placement.
+  void setPartOffsets(std::vector<gp_Vec> offsets);
+  bool isExploded() const { return !_offsets.empty(); }
+  // The part's placement as displayed: its offset, then its location in the assembly.
+  gp_Trsf displayedPlacement(core::NodeId part) const;
+
+  // World bounding box of the visible parts below the nodes (void if none), as displayed.
   Bnd_Box boundingBox(const std::vector<core::NodeId>& nodes) const;
 
   // Diagnostics: number of shared prototypes and of instances using them.
@@ -126,6 +139,7 @@ private:
   void detach(core::NodeId part);
   void replaceObject(core::NodeId id, PartEntry& part, const OccHandle<AIS_InteractiveObject>& object);
   void displayPart(const OccHandle<AIS_InteractiveObject>& object);
+  void place(const OccHandle<AIS_InteractiveObject>& object, const gp_Trsf& placement);
   std::vector<int> activeSelectionModes() const;
   void applyStyleTo(const OccHandle<AIS_InteractiveObject>& object);
   void applyHighlightMode();
@@ -142,6 +156,7 @@ private:
   std::vector<int> _selectionModes;
   OccHandle<Graphic3d_SequenceOfHClipPlane> _clipPlanes;
   OccHandle<AIS_InteractiveObject> _issue; // the geometry check's red highlight
+  std::vector<gp_Vec> _offsets;            // exploded view, by NodeId
 };
 
 } // namespace sc::render

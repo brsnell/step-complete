@@ -51,8 +51,18 @@ double PmiLabel::stackPitch(double dpr) {
   return rowHeight(dpr) + std::round(RowGap * dpr);
 }
 
+void PmiLabel::setAnchorOffset(const gp_Vec& offset) {
+  const gp_Pnt anchor = _baseAnchor.Translated(offset);
+  if (anchor.IsEqual(_anchor, 0.0)) {
+    return;
+  }
+  _anchor = anchor;
+  SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomRotatePers, _anchor));
+}
+
 PmiLabel::PmiLabel(const core::PmiItem& item, const gp_Pnt& worldAnchor, int stackIndex, double dpr)
-    : _id(item.id), _anchor(worldAnchor), _stackIndex(std::max(0, stackIndex)), _dpr(dpr > 0.0 ? dpr : 1.0) {
+    : _id(item.id), _baseAnchor(worldAnchor), _anchor(worldAnchor), _stackIndex(std::max(0, stackIndex)),
+      _dpr(dpr > 0.0 ? dpr : 1.0) {
   layout(item);
   SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomRotatePers, worldAnchor));
   // Over the model, never cut by the surface the anchor lies on.

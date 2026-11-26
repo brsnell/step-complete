@@ -35,13 +35,14 @@ Three layers, each a library under `src/`, plus the app's `main.cpp`:
 
 - **`src/core`** (`sc::core`): OCCT only, no Qt. STEP import (`StepImporter`, `Document`,
   `CompressedStep`), the assembly index, units, the open-file cache (`DocumentCache`),
-  measurement (`Measure`, `Measurement`) and the PMI model (`PmiModel`, `PmiText`).
+  measurement (`Measure`, `Measurement`), the PMI model (`PmiModel`, `PmiText`) and the exploded
+  view's part offsets (`ExplodeLayout`).
 - **`src/render`** (`sc::render`): the Qt ↔ OCCT bridge. `OcctViewport` (a `QOpenGLWidget`
-  hosting a `V3d_View`), `SceneManager` (parts and selection), `MeasureTool` and its
-  `WitnessPresentation`s, `PmiScene`, `SectionTool`.
+  hosting a `V3d_View`), `SceneManager` (parts, selection and exploded offsets), `MeasureTool`
+  and its `WitnessPresentation`s, `PmiScene`, `SectionTool`.
 - **`src/app`** (`sc::app`): Qt Widgets. `MainWindow`, the docks (assembly tree, properties,
-  Measurements, PMI, Section, import messages), dialogs, and `ImportJob` (import off the GUI
-  thread).
+  Measurements, PMI, Section, Exploded View (`ExplodePanel`), import messages), dialogs, and
+  `ImportJob` (import off the GUI thread).
 
 `core` never includes Qt; `render` never includes `app`.
 
@@ -91,8 +92,8 @@ All tests live under `tests/`, run by ctest (`tests/CMakeLists.txt`):
   `DocumentCache` model tests skip unless `SC_TEST_DATA_DIR` points at `tests/data/fetch.sh`'s
   downloads.
 - `app.pmi_panel`, `app.preferences`: Qt Test on the `offscreen` platform (no display):
-  `sc_app_tests` runs the PMI panel, Section panel, About dialog and Measurements panel
-  classes (shared `main` in `tests/app/app_test_main.cpp`).
+  `sc_app_tests` runs the PMI panel, Section panel, Exploded View panel, About dialog and
+  Measurements panel classes (shared `main` in `tests/app/app_test_main.cpp`).
 - Label `render` (need an OpenGL display, e.g. `xvfb-run` with Mesa): `render.viewport_smoke`
   (viewport, scene, measure tool, PMI scene, section tool), `render.pmi_snapshots` (NIST PMI
   images) and `app.main_window` (`MainWindow` wiring).

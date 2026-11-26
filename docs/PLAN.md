@@ -309,8 +309,7 @@ Each milestone ends with something runnable on all three platforms in CI.
 - ✅ Image export (File > Export Image…, Ctrl+Shift+E): view size or custom up to 8192 px,
   as shown / white / transparent background.
 - ✅ Preferences: background (gradient, solid, white), lighting presets, anti-aliasing.
-- ⏸ Exploded view (optional): deferred. Displacing parts would detach their PMI and break
-  measurement picks unless every subsystem learned about the offsets; not worth the weight now.
+- ✅ Exploded view: deferred here, built in v1.4 (M9) with the PMI and markup following the parts.
 
 ### M5: Ship v1.0 (≈2–3 weeks): 🚧 in progress
 - ✅ Performance pass against §6 targets ([performance.md](performance.md)): parallel meshing
@@ -413,9 +412,17 @@ Feedback from users can reorder what is left.
   that saved views use (never in the STEP file; a `.scmarkup` export shares them) and appear in
   image export ([design](designs/markup.md)).
 
+### M9: v1.4: 🚧 in progress
+- ✅ **Exploded view** (View > Exploded View, `Shift+E`): parts move apart by assembly level,
+  with a distance slider in the Exploded View panel. PMI and markup move with their part; the
+  tools that measure or draw on the assembled model (measuring, section view, wall thickness,
+  comparison, the check highlights) collapse it first ([design](designs/exploded-view.md)).
+- ✅ **Crash reports** (from v1.3's follow-up): a local report on a crash, shown at the next start,
+  with a GitHub issue link the user fills in ([design](designs/crash-reporting.md)).
+
 ### Candidates, not scheduled
 Seen in other viewers. Waiting on user demand: 3D mouse (3Dconnexion) support and part color
-overrides. The deferred items in `TODOS.md` (exploded view and others) are unchanged.
+overrides. The other deferred items in `TODOS.md` are unchanged.
 
 ---
 

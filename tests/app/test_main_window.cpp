@@ -16,8 +16,10 @@
 #include "app/MainWindow.h"
 #include "app/MarkupPanel.h"
 #include "app/MeasurementsPanel.h"
+#include "app/SectionPanel.h"
 #include "app/ThicknessJob.h"
 #include "app/ThicknessPanel.h"
+#include "render/AisCompat.h"
 #include "render/MarkupScene.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
@@ -33,6 +35,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDir>
 #include <QDockWidget>
 #include <QFile>
@@ -50,6 +53,10 @@
 #include <QTreeWidget>
 
 #include <AIS_InteractiveContext.hxx>
+
+#include <algorithm>
+#include <cmath>
+#include <map>
 
 using sc::app::MainWindow;
 using sc::app::MeasurementsPanel;
@@ -451,6 +458,297 @@ private Q_SLOTS:
     QVERIFY(plateShown());
     _window->restoreUserView(0);
     QVERIFY(!plateShown());
+  }
+
+  // View > Exploded View (docs/designs/exploded-view.md): the parts move apart by the panel's
+  // distance, the tools that work on the assembled model put them back, and they put it back.
+  void explodedViewMovesPartsAndYieldsToOtherTools() {
+    QAction* explode = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("E&xploded View"));
+    QAction* section = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("Se&ction View"));
+    QAction* distance = menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("&Distance"));
+    QVERIFY(explode != nullptr);
+    QVERIFY(section != nullptr);
+    QVERIFY(distance != nullptr);
+    QVERIFY(!explode->isEnabled()); // no model
+    auto* viewport = _window->findChild<sc::render::OcctViewport*>();
+    auto* dock = _window->findChild<QDockWidget*>(QStringLiteral("ExplodeDock"));
+    QVERIFY(dock != nullptr);
+
+    openFixture();
+    QVERIFY(explode->isEnabled());
+    // Where each displayed object is placed (the parts are connected instances).
+    const auto placements = [viewport] {
+      std::map<const AIS_InteractiveObject*, gp_XYZ> result;
+      sc::occ::InteractiveList objects;
+      viewport->context()->DisplayedObjects(objects);
+      for (sc::occ::InteractiveList::Iterator it(objects); it.More(); it.Next()) {
+        result[it.Value().get()] = it.Value()->LocalTransformation().TranslationPart();
+      }
+      return result;
+    };
+    const auto spread = [](const std::map<const AIS_InteractiveObject*, gp_XYZ>& from,
+                           const std::map<const AIS_InteractiveObject*, gp_XYZ>& to) {
+      double most = 0.0;
+      for (const auto& [object, at] : from) {
+        const auto it = to.find(object);
+        if (it != to.end()) {
+          most = std::max(most, (it->second - at).Modulus());
+        }
+      }
+      return most;
+    };
+    const auto assembled = placements();
+    _mass->trigger();
+    QCOMPARE(_tool->witnessCount(), 1);
+
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+    QVERIFY(explode->isChecked());
+    QVERIFY(dock->isVisible());
+    QCOMPARE(_tool->witnessCount(), 0); // drawn on the assembled model: hidden
+    QVERIFY(sc::app::crashContextText().contains(QStringLiteral("exploded view")));
+    const double half = spread(assembled, placements());
+    QVERIFY2(half > 1.0, qPrintable(QString::number(half)));
+    _window->setExplodeDistance(100);
+    const double full = spread(assembled, placements());
+    QVERIFY2(std::abs(full - 2.0 * half) < 1e-6, qPrintable(QStringLiteral("%1 vs %2").arg(full).arg(half)));
+
+    // Measuring collapses it; exploding stops measuring.
+    distance->trigger();
+    QVERIFY(_tool->isActive());
+    QVERIFY(!_window->isExploded());
+    QVERIFY(!explode->isChecked());
+    QCOMPARE(_tool->witnessCount(), 1);
+    QCOMPARE(spread(assembled, placements()), 0.0);
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+    QVERIFY(!_tool->isActive());
+
+    // The section view and the exploded view exclude each other too.
+    section->trigger();
+    QVERIFY(section->isChecked());
+    QVERIFY(!_window->isExploded());
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+    QVERIFY(!section->isChecked());
+
+    // Picking a face for a section plane collapses it too.
+    auto* sectionTool = _window->findChild<sc::render::SectionTool*>();
+    QVERIFY(sectionTool != nullptr);
+    sectionTool->pickFace(0);
+    QVERIFY(sectionTool->isPicking());
+    QVERIFY(!_window->isExploded());
+    sectionTool->cancelPick();
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+
+    // Moving the slider while collapsed explodes; Collapse and closing put the parts back.
+    explode->trigger();
+    QVERIFY(!_window->isExploded());
+    _window->setExplodeDistance(30);
+    QVERIFY(_window->isExploded());
+    QCOMPARE(_window->explodeDistance(), 30);
+
+    // 0 % is the assembled model: it collapses (the witnesses come back), and exploding again from
+    // the menu starts at the default distance rather than at 0 %.
+    _window->setExplodeDistance(0);
+    QVERIFY(!_window->isExploded());
+    QVERIFY(!explode->isChecked());
+    QCOMPARE(_tool->witnessCount(), 1);
+    QCOMPARE(spread(assembled, placements()), 0.0);
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+    QCOMPARE(_window->explodeDistance(), 50);
+    QVERIFY(spread(assembled, placements()) > 1.0);
+    _close->trigger();
+    QVERIFY(!_window->isExploded());
+    QVERIFY(!explode->isEnabled());
+  }
+
+  // Generated by /ship test coverage audit.
+  // Value: protects=a new model opens assembled and a single-part mesh cannot be exploded (menu, slider);
+  // fails_when=onImportFinished stops calling resetExplode, keeps the old model's layout, or setExploded
+  // skips its canExplode check; why_new=only Close was checked, and only on an explodable model; seam=none;
+  // no_claim=other mesh formats or a multi-body STL
+  void explodeResetsForANewModelAndIsOffForASinglePart() {
+    QAction* explode = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("E&xploded View"));
+    QVERIFY(explode != nullptr);
+    openFixture();
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+
+    // Another file, without closing first: it opens assembled, with a layout of its own.
+    _window->openFileWhenReady(_stlPath);
+    QTRY_VERIFY_WITH_TIMEOUT(_window->findChild<sc::app::ImportJob*>() == nullptr, 60000);
+    QVERIFY(!_window->isExploded());
+    QVERIFY(!explode->isChecked());
+    QVERIFY(!explode->isEnabled()); // one part: nothing to move apart
+
+    _window->setExploded(true);
+    QVERIFY(!_window->isExploded());
+    QVERIFY(!explode->isChecked());
+    QVERIFY2(_window->statusBar()->currentMessage().contains(QStringLiteral("no parts to move apart")),
+             qPrintable(_window->statusBar()->currentMessage()));
+    _window->setExplodeDistance(80); // the slider does not explode it either
+    QVERIFY(!_window->isExploded());
+
+    // Regression (pre-landing review): a section face pick still waiting when another file loads
+    // ends while the previous model is shown; the layout must not be computed for that model and
+    // kept for the new one, which would let a single part "explode" with the old model's offsets.
+    openFixture();
+    auto* sectionTool = _window->findChild<sc::render::SectionTool*>();
+    QVERIFY(sectionTool != nullptr);
+    sectionTool->pickFace(0);
+    QVERIFY(sectionTool->isPicking());
+    _window->openFileWhenReady(_stlPath);
+    QTRY_VERIFY_WITH_TIMEOUT(_window->findChild<sc::app::ImportJob*>() == nullptr, 60000);
+    QVERIFY(!sectionTool->isPicking());
+    QVERIFY(!explode->isEnabled());
+    _window->setExploded(true);
+    QVERIFY(!_window->isExploded());
+  }
+
+  // Generated by /ship test coverage audit.
+  // Value: protects=a saved view with a section plane collapses the exploded view, one without keeps it, and
+  // so does a plane switched on in the Section panel; fails_when=restoreUserView or the sectionChanged hook
+  // stop collapsing, or collapse unconditionally; why_new=only View > Section View was checked; seam=none;
+  // no_claim=camera or hidden parts while exploded
+  void sectionPlanesFromSavedViewsAndThePanelCollapseTheExplodedView() {
+    openFixture();
+    auto* section = _window->findChild<sc::render::SectionTool*>();
+    auto* sectionPanel = _window->findChild<sc::app::SectionPanel*>();
+    QVERIFY(section != nullptr && sectionPanel != nullptr);
+    QVERIFY(_window->saveCurrentViewAs(QStringLiteral("Explode audit plain")));
+    sc::render::SectionPlane cut = section->plane(0);
+    cut.enabled = true;
+    section->setPlane(0, cut);
+    QVERIFY(_window->saveCurrentViewAs(QStringLiteral("Explode audit cut")));
+    section->reset();
+    QVERIFY(!section->isActive());
+    const auto viewIndex = [this](const QString& name) {
+      for (size_t i = 0; i < _window->userViews().size(); ++i) {
+        if (_window->userViews()[i].name == name) {
+          return static_cast<int>(i);
+        }
+      }
+      return -1;
+    };
+    const int plain = viewIndex(QStringLiteral("Explode audit plain"));
+    const int withCut = viewIndex(QStringLiteral("Explode audit cut"));
+    QVERIFY(plain >= 0 && withCut >= 0);
+
+    _window->setExploded(true);
+    _window->restoreUserView(plain); // no plane: stays exploded
+    QVERIFY(_window->isExploded());
+    QVERIFY(!section->isActive());
+    _window->restoreUserView(withCut);
+    QVERIFY(section->isActive());
+    QVERIFY(!_window->isExploded());
+
+    // A plane switched on in the Section panel.
+    section->reset();
+    _window->setExploded(true);
+    QVERIFY(_window->isExploded());
+    QCheckBox* plane1 = nullptr;
+    for (QCheckBox* box : sectionPanel->findChildren<QCheckBox*>()) {
+      if (box->text() == QStringLiteral("Plane 1")) {
+        plane1 = box;
+      }
+    }
+    QVERIFY(plane1 != nullptr);
+    plane1->click();
+    QVERIFY(section->isActive());
+    QVERIFY(!_window->isExploded());
+  }
+
+  // Generated by /ship test coverage audit.
+  // Value: protects=Add Note and Sketch collapse the exploded view, and exploding ends a note pick and
+  // sketching; fails_when=startAddNote or setSketching stop collapsing, or setExploded stops cancelling them;
+  // why_new=only measuring and the section view were checked against exploding; seam=none; no_claim=placing a
+  // note by clicking
+  void markupToolsAndTheExplodedViewExcludeEachOther() {
+    QAction* addNote = menuAction(*_window, QStringLiteral("Mar&kup"), QStringLiteral("Add &Note"));
+    QAction* sketch = menuAction(*_window, QStringLiteral("Mar&kup"), QStringLiteral("&Sketch"));
+    auto* markup = _window->findChild<sc::render::MarkupScene*>();
+    QVERIFY(addNote != nullptr && sketch != nullptr && markup != nullptr);
+    openFixture();
+
+    _window->setExploded(true);
+    addNote->trigger();
+    QVERIFY(markup->isPickingNote());
+    QVERIFY(!_window->isExploded());
+    _window->setExploded(true);
+    QVERIFY(_window->isExploded());
+    QVERIFY(!markup->isPickingNote());
+
+    sketch->trigger();
+    QVERIFY(markup->isSketching());
+    QVERIFY(!_window->isExploded());
+    _window->setExploded(true);
+    QVERIFY(_window->isExploded());
+    QVERIFY(!markup->isSketching());
+    QVERIFY(!sketch->isChecked());
+  }
+
+  // Generated by /ship test coverage audit.
+  // Value: protects=wall thickness and Compare With collapse the exploded view, and exploding stops them;
+  // fails_when=showWallThickness or startComparison stop collapsing, or setExploded stops ending a running
+  // job; why_new=the coloring views were only checked against measuring; seam=none; no_claim=a finished
+  // thickness or comparison view
+  void coloringViewsAndTheExplodedViewExcludeEachOther() {
+    QAction* thickness = menuAction(*_window, QStringLiteral("&Measure"), QStringLiteral("Wall &Thickness"));
+    QVERIFY(thickness != nullptr);
+    openFixture();
+
+    _window->setExploded(true);
+    thickness->trigger();
+    QVERIFY(_window->isMeasuringThickness());
+    QVERIFY(!_window->isExploded());
+    _window->setExploded(true);
+    QVERIFY(_window->isExploded());
+    QVERIFY(!_window->isMeasuringThickness());
+    QVERIFY(!thickness->isChecked());
+    QTRY_VERIFY(_window->findChild<sc::app::ThicknessJob*>() == nullptr);
+
+    _window->compareWith(_revisionPath);
+    QVERIFY(_window->isComparing());
+    QVERIFY(!_window->isExploded());
+    _window->setExploded(true);
+    QVERIFY(_window->isExploded());
+    QVERIFY(!_window->isComparing());
+    QVERIFY(!_window->isComparisonShown());
+    QTRY_VERIFY(_window->findChild<sc::app::ComparisonJob*>() == nullptr);
+  }
+
+  // Generated by /ship test coverage audit.
+  // Value: protects=showing a clash collapses the exploded view (its witness is where the assembled parts
+  // are) and exploding removes the clash highlight; fails_when=showHighlight stops collapsing, or setExploded
+  // stops clearing the clash highlight; why_new=no test combined clashes with exploding; seam=none;
+  // no_claim=geometry check issues (same showHighlight path, not run here)
+  void showingAClashCollapsesTheExplodedView() {
+    openFixture();
+    auto* panel = _window->findChild<sc::app::ClashPanel*>();
+    auto* viewport = _window->findChild<sc::render::OcctViewport*>();
+    QVERIFY(panel != nullptr && viewport != nullptr);
+    sc::core::ClashOptions options;
+    options.touching = true;
+    _window->checkClashesWith(options);
+    QTRY_VERIFY_WITH_TIMEOUT(!_window->isCheckingClashes(), 60000);
+    QCOMPARE(panel->rowCount(), 4);
+    const auto displayed = [viewport] {
+      sc::occ::InteractiveList objects;
+      viewport->context()->DisplayedObjects(objects);
+      return static_cast<int>(objects.Size());
+    };
+    const int plain = displayed();
+
+    _window->setExploded(true);
+    panel->setCurrentIndex(0);
+    QVERIFY(!_window->isExploded());
+    QCOMPARE(displayed(), plain + 1); // the red witness
+    _window->setExploded(true);
+    QVERIFY(_window->isExploded());
+    QCOMPARE(displayed(), plain);
   }
 
   // Crash reports (docs/designs/crash-reporting.md): the context a report would contain follows

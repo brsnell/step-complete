@@ -4,6 +4,7 @@
 #include "app/UserViews.h"
 #include "core/AssemblyIndex.h"
 #include "core/Clash.h"
+#include "core/ExplodeLayout.h"
 #include "core/GeometryExport.h"
 #include "core/Markup.h"
 #include "core/Measurement.h"
@@ -16,6 +17,7 @@
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <vector>
 
 class QAction;
@@ -57,6 +59,7 @@ class GeometryCheckJob;
 class GeometryCheckPanel;
 class ThicknessJob;
 class ThicknessPanel;
+class ExplodePanel;
 class PmiPanel;
 class SectionPanel;
 struct ViewPreferences;
@@ -123,6 +126,16 @@ public:
   void compareWith(const QString& path);
   bool isComparing() const;       // the comparison job runs
   bool isComparisonShown() const; // the comparison view is on
+
+  // --- Exploded view (docs/designs/exploded-view.md) ------------------------------------
+  // What View > Exploded View does: on, move the parts apart by the panel's distance (ends the
+  // tools that work on the assembled model); off, put them back. Does nothing without a model
+  // that can explode.
+  void setExploded(bool on);
+  bool isExploded() const { return _exploded; }
+  // 0 to 100 %, as the panel's slider; moves the parts at once when exploded.
+  void setExplodeDistance(int percent);
+  int explodeDistance() const;
 
   // --- Markup (docs/designs/markup.md) -------------------------------------------------
   // The open model's notes and strokes, kept in the per-model store. Each change is written at
@@ -320,6 +333,17 @@ private:
   core::ClashOptions _clashOptions;
   Highlight _highlight = Highlight::None;
   std::unique_ptr<render::ThicknessScene> _thicknessScene;
+  QAction* _explodeAction = nullptr;
+  ExplodePanel* _explodePanel = nullptr;
+  QDockWidget* _explodeDock = nullptr;
+  std::optional<core::ExplodeLayout> _explodeLayout;            // computed when first exploded
+  std::weak_ptr<const core::AssemblyIndex> _explodeLayoutModel; // the model it was computed for
+  bool _exploded = false;
+  const core::ExplodeLayout& explodeLayout();
+  void applyExplode();
+  // Puts the parts back before a tool that works on the assembled model starts.
+  void collapseExplode();
+  void resetExplode(); // a new model or none: collapsed, layout dropped
   QAction* _thicknessAction = nullptr;
   ThicknessPanel* _thicknessPanel = nullptr;
   QDockWidget* _thicknessDock = nullptr;

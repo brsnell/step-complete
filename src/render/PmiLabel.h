@@ -5,6 +5,7 @@
 
 #include <AIS_InteractiveObject.hxx>
 #include <gp_Pnt.hxx>
+#include <gp_Vec.hxx>
 
 #include <string>
 #include <utility>
@@ -31,7 +32,10 @@ public:
   PmiLabel(const core::PmiItem& item, const gp_Pnt& worldAnchor, int stackIndex, double devicePixelRatio);
 
   core::PmiId pmiId() const { return _id; }
-  const gp_Pnt& anchor() const { return _anchor; }
+  const gp_Pnt& anchor() const { return _anchor; } // where it is drawn, with its offset
+  // Moves the anchor by a world translation from where it was built (the exploded view moves
+  // the label with its part). The caller redisplays.
+  void setAnchorOffset(const gp_Vec& offset);
   int stackIndex() const { return _stackIndex; }
 
   // The box in device pixels relative to the anchor (x right, y up): the first cell
@@ -70,6 +74,7 @@ private:
   void layout(const core::PmiItem& item);
 
   core::PmiId _id;
+  gp_Pnt _baseAnchor;
   gp_Pnt _anchor;
   int _stackIndex;
   double _dpr;

@@ -10,6 +10,7 @@
 #include "app/ComparisonPanel.h"
 #include "app/CrashHandler.h"
 #include "app/CrashReports.h"
+#include "app/ExplodePanel.h"
 #include "app/ExportGeometryDialog.h"
 #include "app/ExportImageDialog.h"
 #include "app/ExportJob.h"
@@ -286,6 +287,9 @@ void MainWindow::createDocks() {
   addDockWidget(Qt::RightDockWidgetArea, _sectionDock);
   _sectionDock->hide();
   connect(_sectionPanel, &SectionPanel::sectionChanged, this, [this] {
+    if (_sectionTool->isActive()) {
+      collapseExplode(); // a plane cuts the assembled model
+    }
     if (_sectionAction != nullptr) {
       const QSignalBlocker blocker(_sectionAction);
       _sectionAction->setChecked(_sectionTool->isActive());
@@ -296,6 +300,7 @@ void MainWindow::createDocks() {
   // Plane on a picked face (docs/designs/angled-section-planes.md). One tool owns clicks at a
   // time: a pick stops measuring, and starting a measurement cancels a pick (setMeasureMode).
   connect(_sectionTool, &render::SectionTool::pickStarted, this, [this](int index) {
+    collapseExplode(); // the face is picked on the assembled model
     if (_measureTool->isActive()) {
       setMeasureMode(-1); // before the tool makes faces pickable
     }
@@ -433,6 +438,16 @@ void MainWindow::createDocks() {
   connect(_comparisonPanel, &ComparisonPanel::changeActivated, this,
           [this](int index) { showChange(index, true); });
 
+  _explodePanel = new ExplodePanel(this);
+  _explodeDock = new QDockWidget(tr("Exploded View"), this);
+  _explodeDock->setObjectName(QStringLiteral("ExplodeDock"));
+  _explodeDock->setWidget(_explodePanel);
+  addDockWidget(Qt::RightDockWidgetArea, _explodeDock);
+  tabifyDockWidget(_sectionDock, _explodeDock);
+  _explodeDock->hide();
+  connect(_explodePanel, &ExplodePanel::distanceChanged, this, &MainWindow::setExplodeDistance);
+  connect(_explodePanel, &ExplodePanel::collapseRequested, this, [this] { setExploded(false); });
+
   _markupPanel = new MarkupPanel(this);
   _markupDock = new QDockWidget(tr("Markup"), this);
   _markupDock->setObjectName(QStringLiteral("MarkupDock"));
@@ -505,7 +520,8 @@ void MainWindow::syncMeasurementWitnesses() {
   const int current = _measurements->currentIndex();
   const bool panelOpen = _measurementsDock->toggleViewAction()->isChecked(); // open, even if tabbed behind
   std::vector<render::MeasureTool::ShownWitness> shown;
-  for (int i = 0; i < static_cast<int>(results.size()) && panelOpen; ++i) {
+  // Witnesses are drawn on the assembled model: hidden while exploded, back on collapse.
+  for (int i = 0; i < static_cast<int>(results.size()) && panelOpen && !_exploded; ++i) {
     if (_measurements->isShown(i)) {
       shown.push_back({_measurements->idAt(i), results[static_cast<size_t>(i)].witness, i == current});
     }
@@ -624,6 +640,11 @@ void MainWindow::createActions() {
   _sectionAction->setStatusTip(
       tr("Cut the model with up to three planes (drag a plane's handle to move it)"));
   connect(_sectionAction, &QAction::toggled, this, &MainWindow::setSectionView);
+  _explodeAction = viewMenu->addAction(tr("E&xploded View"));
+  _explodeAction->setCheckable(true);
+  _explodeAction->setShortcut(QKeySequence(Qt::SHIFT | Qt::Key_E));
+  _explodeAction->setStatusTip(tr("Move the parts apart to see how the assembly goes together"));
+  connect(_explodeAction, &QAction::toggled, this, &MainWindow::setExploded);
   _showAllPmiAction = viewMenu->addAction(tr("Show All &PMI"), this, &MainWindow::showAllPmi);
   _showAllPmiAction->setStatusTip(tr("Show every annotation and remove saved-view clipping"));
   _semanticLabelsAction = viewMenu->addAction(tr("PMI &Labels from Semantics"));
@@ -845,6 +866,7 @@ void MainWindow::setMeasureMode(int mode) {
     action->setChecked(newMode && action->data().toInt() == mode);
   }
   if (newMode) {
+    collapseExplode();          // measuring works on the assembled model
     _sectionTool->cancelPick(); // one tool owns clicks at a time
     _markupScene->cancelNotePick();
     setSketching(false);
@@ -1109,6 +1131,9 @@ void MainWindow::showClash(int index, bool zoom) {
 }
 
 void MainWindow::showHighlight(Highlight owner, const TopoDS_Shape& worldShape) {
+  if (!worldShape.IsNull()) {
+    collapseExplode(); // the shape is where the assembled part is
+  }
   _scene->showIssue(worldShape);
   _highlight = worldShape.IsNull() ? Highlight::None : owner;
 }
@@ -1161,6 +1186,7 @@ void MainWindow::showWallThickness(bool on) {
   }
   setMeasureMode(-1); // the colored parts cannot be picked for measuring
   stopComparison();   // both views color the parts
+  collapseExplode();  // the colors take the assembled placement
   _thicknessDock->show();
   _thicknessDock->raise();
   _thicknessPanel->setRunning(0, QString());
@@ -1269,6 +1295,7 @@ void MainWindow::startComparison(const QString& path, std::shared_ptr<const core
   }
   setMeasureMode(-1); // the colored parts cannot be picked for measuring
   stopThickness();    // both views color the parts
+  collapseExplode();  // changes are compared and drawn on the assembled model
   _comparisonScene->clear();
   _comparisonPath = path;
   _comparisonDock->show();
@@ -1421,6 +1448,7 @@ void MainWindow::updateCrashActivity() {
   add(_comparisonScene->isShown(), "comparison view");
   add(_measureTool->isActive(), "measuring");
   add(_sectionTool->isActive(), "section view");
+  add(_exploded, "exploded view");
   add(_markupScene->isSketching(), "sketching");
   add(_markupScene->isPickingNote() || _sectionTool->isPicking(), "picking a face");
   const QString text = activity.isEmpty() ? QStringLiteral("viewing") : activity.join(QStringLiteral(", "));
@@ -1470,6 +1498,8 @@ void MainWindow::updateActions() {
   _showAllPmiAction->setEnabled(_pmi && !_pmi->isEmpty());
   _semanticLabelsAction->setEnabled(_pmi && !_pmi->isEmpty());
   _sectionAction->setEnabled(hasModel);
+  // A cheap test here; whether the parts can move apart is computed when the user explodes.
+  _explodeAction->setEnabled(hasModel && _scene->model()->partInstances().size() >= 2);
   if (_cancelPickAction != nullptr) {
     _cancelPickAction->setEnabled(_sectionTool->isPicking() || _markupScene->isPickingNote() ||
                                   _markupScene->isSketching());
@@ -1596,6 +1626,7 @@ void MainWindow::onImportFinished() {
     // Replace the previous model only once the new one loaded successfully.
     std::shared_ptr<const core::AssemblyIndex> index = job->index();
     _transparentParts.clear();
+    resetExplode();      // the new model starts assembled
     stopGeometryCheck(); // problems belong to the previous model
     stopClashCheck();
     stopThickness();
@@ -1683,6 +1714,7 @@ void MainWindow::onImportFinished() {
 }
 
 void MainWindow::closeModel() {
+  resetExplode();
   stopGeometryCheck();
   stopClashCheck();
   stopThickness();
@@ -1979,6 +2011,7 @@ void MainWindow::setSectionView(bool on) {
     on = false;
   }
   if (on) {
+    collapseExplode(); // a plane cuts the assembled model
     if (!_sectionTool->isActive()) {
       render::SectionPlane first = _sectionTool->plane(0);
       first.enabled = true;
@@ -1995,6 +2028,103 @@ void MainWindow::setSectionView(bool on) {
   }
   _sectionPanel->refresh();
   _viewport->invalidateScene();
+}
+
+// ---------------------------------------------------------------------------------
+// Exploded view (docs/designs/exploded-view.md)
+// ---------------------------------------------------------------------------------
+
+const core::ExplodeLayout& MainWindow::explodeLayout() {
+  // Always the shown model's: a layout computed for another model (or none) is computed again.
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!_explodeLayout || _explodeLayoutModel.lock() != index) {
+    _explodeLayout = index ? core::ExplodeLayout(*index) : core::ExplodeLayout();
+    _explodeLayoutModel = index;
+  }
+  return *_explodeLayout;
+}
+
+void MainWindow::setExploded(bool on) {
+  if (on && (!_scene->model() || !explodeLayout().canExplode())) {
+    statusBar()->showMessage(_scene->model() ? tr("This model has no parts to move apart.")
+                                             : tr("Open an assembly to explode it."),
+                             4000);
+    on = false;
+  }
+  if (on && !_exploded) {
+    // One mode at a time: these work on, or draw on, the assembled model.
+    setMeasureMode(-1);
+    _sectionTool->cancelPick();
+    _markupScene->cancelNotePick();
+    setSketching(false);
+    if (_sectionTool->isActive()) {
+      setSectionView(false);
+    }
+    if (_thicknessScene->isShown() || _thicknessJob) {
+      stopThickness();
+    }
+    if (_comparisonScene->isShown() || _comparisonJob) {
+      stopComparison();
+    }
+    clearHighlight(Highlight::GeometryIssue);
+    clearHighlight(Highlight::Clash);
+    if (_explodePanel->distance() == 0) {
+      _explodePanel->setDistance(ExplodePanel::DefaultDistance); // 0 % would look assembled
+    }
+    _explodeDock->show();
+    _explodeDock->raise();
+  }
+  const bool changed = on != _exploded;
+  _exploded = on;
+  {
+    const QSignalBlocker blocker(_explodeAction);
+    _explodeAction->setChecked(on);
+  }
+  _explodePanel->setExploded(on);
+  if (changed) {
+    applyExplode();
+    syncMeasurementWitnesses();
+    updateActions();
+  }
+}
+
+void MainWindow::setExplodeDistance(int percent) {
+  _explodePanel->setDistance(std::clamp(percent, 0, 100));
+  const bool apart = _explodePanel->distance() > 0;
+  if (_exploded && apart) {
+    applyExplode();
+  } else if (apart != _exploded) {
+    setExploded(apart); // moving the slider explodes; at 0 % the parts are back, so it collapses
+  }
+}
+
+int MainWindow::explodeDistance() const {
+  return _explodePanel->distance();
+}
+
+void MainWindow::applyExplode() {
+  std::vector<gp_Vec> offsets;
+  if (_exploded) {
+    offsets = explodeLayout().offsets(_explodePanel->distance() / 100.0);
+  }
+  _scene->setPartOffsets(offsets);
+  _pmiScene->setPartOffsets(offsets);
+  _markupScene->setPartOffsets(std::move(offsets));
+  _declutterTimer->start(); // the labels moved
+  _viewport->invalidateScene();
+}
+
+void MainWindow::collapseExplode() {
+  if (_exploded) {
+    setExploded(false);
+    statusBar()->showMessage(tr("Exploded view collapsed."), 4000);
+  }
+}
+
+void MainWindow::resetExplode() {
+  setExploded(false);
+  _explodeLayout.reset();
+  _explodeLayoutModel.reset();
 }
 
 // ---------------------------------------------------------------------------------
@@ -2023,6 +2153,7 @@ void MainWindow::activateSavedView(int viewId) {
     return;
   }
   const core::PmiSavedView& view = _pmi->views()[static_cast<size_t>(viewId)];
+  collapseExplode(); // its camera and clipping were made for the assembled model
   _pmiScene->applyView(view, _viewport->view());
   _declutterTimer->start();
   _pmiPanel->setVisible(_pmiPanel->visibleIds(), false);
@@ -2602,7 +2733,13 @@ void MainWindow::restoreUserView(int index) {
   _scene->setVisible(hidden, false);
   afterVisibilityChange();
 
-  // Section planes, and the section view on or off to match.
+  // Section planes, and the section view on or off to match. A view with a plane collapses the
+  // exploded view, as turning on the section view does; one without keeps it.
+  const bool cuts = std::any_of(view.sections.begin(), view.sections.end(),
+                                [](const render::SectionPlane& plane) { return plane.enabled; });
+  if (cuts) {
+    collapseExplode();
+  }
   for (int i = 0; i < render::SectionTool::MaxPlanes; ++i) {
     _sectionTool->setPlane(i, view.sections[static_cast<size_t>(i)]);
   }
@@ -2735,6 +2872,7 @@ void MainWindow::refreshMarkup() {
 
 void MainWindow::startAddNote() {
   if (_scene->model()) {
+    collapseExplode(); // a note is placed on the assembled part
     _markupScene->startNotePick();
   }
 }
@@ -2833,6 +2971,7 @@ void MainWindow::setSketching(bool on) {
   on = on && _scene->model() != nullptr;
   const bool was = _markupScene->isSketching();
   if (on && !was) {
+    collapseExplode(); // strokes are drawn on the assembled model
     if (_measureTool->isActive()) {
       setMeasureMode(-1); // both want the left button
     }

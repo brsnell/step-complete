@@ -5,6 +5,7 @@
 #include "TestModels.h"
 
 #include "core/AssemblyIndex.h"
+#include "core/ExplodeLayout.h"
 #include "render/AisCompat.h"
 #include "render/OcctViewport.h"
 #include "render/SceneManager.h"
@@ -131,6 +132,53 @@ private Q_SLOTS:
     box.Get(xmin, ymin, zmin, xmax, ymax, zmax);
     QVERIFY2(qAbs((xmin + xmax) / 2 - 30.0) < 0.5, qPrintable(QString::number((xmin + xmax) / 2)));
     QVERIFY(qAbs(zmin - 10.0) < 0.5);
+  }
+
+  void offsetsMoveThePartsAndPutThemBack() {
+    // Exploded view (docs/designs/exploded-view.md): a translation per node on top of the placement.
+    const NodeId pin = findNode(*_index, Pin, 1);
+    const auto centerX = [this](NodeId node) {
+      double xmin, ymin, zmin, xmax, ymax, zmax;
+      _scene->boundingBox({node}).Get(xmin, ymin, zmin, xmax, ymax, zmax);
+      return (xmin + xmax) / 2;
+    };
+    QVERIFY(qAbs(centerX(pin) - 30.0) < 0.5);
+    QVERIFY(!_scene->isExploded());
+
+    std::vector<gp_Vec> offsets(_index->nodes().size(), gp_Vec(0.0, 0.0, 0.0));
+    offsets[static_cast<size_t>(pin)] = gp_Vec(100.0, 0.0, 0.0);
+    _scene->setPartOffsets(offsets);
+    QVERIFY(_scene->isExploded());
+    QVERIFY2(qAbs(centerX(pin) - 130.0) < 0.5, qPrintable(QString::number(centerX(pin))));
+    QVERIFY(qAbs(_scene->displayedPlacement(pin).TranslationPart().X() - 130.0) < 1e-9);
+    const NodeId plate = findNode(*_index, "Base plate");
+    QVERIFY(qAbs(centerX(plate) - 50.0) < 0.5); // no offset of its own
+
+    // A part detached while exploded (transparency) keeps its offset.
+    _scene->setTransparency({pin}, 0.5);
+    QCOMPARE(_scene->detachedCount(), 1);
+    QVERIFY(qAbs(centerX(pin) - 130.0) < 0.5);
+
+    // Picking finds the part where it is drawn.
+    _viewport->fitAll();
+    render();
+    int px = 0;
+    int py = 0;
+    _viewport->view()->Convert(130.0, 10.0, 30.0, px, py); // the pin's top, moved
+    _viewport->context()->MoveTo(px, py, _viewport->view(), false);
+    QVERIFY(_viewport->context()->HasDetected());
+    QCOMPARE(_scene->partOf(_viewport->context()->DetectedInteractive()), pin);
+
+    // The whole fixture by its layout, for a look (SC_RENDER_DUMP_DIR).
+    _scene->setTransparency({pin}, 0.0);
+    _scene->setPartOffsets(sc::core::ExplodeLayout(*_index).offsets(0.6));
+    _viewport->setStandardView(V3d_XposYnegZpos);
+    _viewport->fitAll();
+    sc::test::dumpImage(render(), "exploded_fixture");
+
+    _scene->setPartOffsets({});
+    QVERIFY(!_scene->isExploded());
+    QVERIFY(qAbs(centerX(pin) - 30.0) < 0.5);
   }
 
   void detachesInstancesForTransparency() {

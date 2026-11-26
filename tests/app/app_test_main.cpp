@@ -20,6 +20,7 @@ int runThicknessPanelTests(int argc, char** argv);
 int runComparisonPanelTests(int argc, char** argv);
 int runMarkupPanelTests(int argc, char** argv);
 int runCrashReportsTests(int argc, char** argv);
+int runExplodePanelTests(int argc, char** argv);
 
 int main(int argc, char** argv) {
   // Keep a failure readable in CI logs. Unbuffered output survives a crash or abort (on Windows a
@@ -47,5 +48,6 @@ int main(int argc, char** argv) {
   failures += runComparisonPanelTests(argc, argv);
   failures += runMarkupPanelTests(argc, argv);
   failures += runCrashReportsTests(argc, argv);
+  failures += runExplodePanelTests(argc, argv);
   return failures == 0 ? 0 : 1;
 }

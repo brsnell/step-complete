@@ -543,8 +543,17 @@ double PmiArrow::halfWidth(double dpr) {
   return std::round(ArrowHalfWidth * dpr);
 }
 
+void PmiArrow::setTipOffset(const gp_Vec& offset) {
+  const gp_Pnt tip = _baseTip.Translated(offset);
+  if (tip.IsEqual(_tip, 0.0)) {
+    return;
+  }
+  _tip = tip;
+  SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomPers, _tip));
+}
+
 PmiArrow::PmiArrow(const gp_Pnt& tip, const gp_Dir& dir, const gp_Dir& side, double dpr)
-    : _dir(dir), _side(side), _dpr(dpr > 0.0 ? dpr : 1.0) {
+    : _baseTip(tip), _tip(tip), _dir(dir), _side(side), _dpr(dpr > 0.0 ? dpr : 1.0) {
   // Local coordinates are device pixels around the tip; orientation stays that of the model.
   SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomPers, tip));
   SetZLayer(Graphic3d_ZLayerId_Topmost);
@@ -579,12 +588,12 @@ PmiScene::~PmiScene() {
   clear();
 }
 
-std::vector<TopLoc_Location> PmiScene::placementsOf(const core::PmiItem& item) const {
-  std::vector<TopLoc_Location> placements;
+std::vector<PmiScene::Placement> PmiScene::placementsOf(const core::PmiItem& item) const {
+  std::vector<Placement> placements;
   if (_index && !item.ownerPart.IsNull()) {
     for (const core::AssemblyNode& node : _index->nodes()) {
       if (node.prototypeLabel == item.ownerPart) {
-        placements.push_back(node.location);
+        placements.push_back({node.id, node.location});
       }
     }
   }
@@ -646,15 +655,17 @@ void PmiScene::build(const std::vector<bool>& visibility) {
   std::vector<std::pair<gp_Pnt, int>> anchors;
   for (const core::PmiItem& item : _pmi->items()) {
     Entry& entry = _entries[static_cast<size_t>(item.id)];
-    for (const TopLoc_Location& placement : placementsOf(item)) {
+    for (const auto& [node, placement] : placementsOf(item)) {
       OccHandle<PmiPresentation> prs = new PmiPresentation(item, placement, _dpr);
       _objectToPmi[prs.get()] = item.id;
       entry.placements.push_back(prs);
+      entry.placementNodes.push_back(node);
       for (const PmiPresentation::ArrowSpec& spec : prs->arrows()) {
         const gp_Trsf trsf = placement.Transformation();
         OccHandle<PmiArrow> arrow = new PmiArrow(spec.tip.Transformed(trsf), spec.dir.Transformed(trsf),
                                                  spec.side.Transformed(trsf), _dpr);
         entry.arrows.push_back(arrow);
+        entry.arrowNodes.push_back(node);
       }
       if (prs->hasLabel()) {
         const gp_Pnt anchor = prs->labelAnchor().Transformed(placement.Transformation());
@@ -668,11 +679,64 @@ void PmiScene::build(const std::vector<bool>& visibility) {
         OccHandle<PmiLabel> label = new PmiLabel(item, anchor, same->second++, _dpr);
         _objectToPmi[label.get()] = item.id;
         entry.labels.push_back(label);
+        entry.labelNodes.push_back(node);
       }
     }
   }
+  applyOffsets();
   for (Entry& entry : _entries) {
     updateDisplay(entry);
+  }
+}
+
+gp_Vec PmiScene::offsetOf(core::NodeId node) const {
+  if (node < 0 || static_cast<size_t>(node) >= _offsets.size()) {
+    return gp_Vec(0.0, 0.0, 0.0);
+  }
+  return _offsets[static_cast<size_t>(node)];
+}
+
+void PmiScene::setPartOffsets(std::vector<gp_Vec> offsets) {
+  _offsets = std::move(offsets);
+  applyOffsets();
+  if (!_highlighted.empty()) {
+    highlight(std::vector<core::PmiId>(_highlighted)); // the target geometry moved too
+  }
+}
+
+void PmiScene::applyOffsets() {
+  const auto place = [this](const OccHandle<AIS_InteractiveObject>& object, const gp_Trsf& placement) {
+    if (_context->IsDisplayed(object)) {
+      _context->SetLocation(object, TopLoc_Location(placement)); // moves its selection too
+    } else {
+      object->SetLocalTransformation(placement);
+    }
+  };
+  for (Entry& entry : _entries) {
+    for (size_t i = 0; i < entry.placements.size(); ++i) {
+      const core::NodeId node = entry.placementNodes[i];
+      gp_Trsf offset;
+      offset.SetTranslation(offsetOf(node));
+      const gp_Trsf location =
+          node == core::NoNode ? gp_Trsf() : _index->node(node).location.Transformation();
+      place(entry.placements[i], offset * location);
+    }
+    for (size_t i = 0; i < entry.arrows.size(); ++i) {
+      const OccHandle<PmiArrow>& arrow = entry.arrows[i]; // drawn around its tip, like a label
+      const gp_Pnt before = arrow->tip();
+      arrow->setTipOffset(offsetOf(entry.arrowNodes[i]));
+      if (!arrow->tip().IsEqual(before, 0.0) && _context->IsDisplayed(arrow)) {
+        _context->Redisplay(arrow, false);
+      }
+    }
+    for (size_t i = 0; i < entry.labels.size(); ++i) {
+      const OccHandle<PmiLabel>& label = entry.labels[i];
+      const gp_Pnt before = label->anchor();
+      label->setAnchorOffset(offsetOf(entry.labelNodes[i]));
+      if (!label->anchor().IsEqual(before, 0.0) && _context->IsDisplayed(label)) {
+        _context->Redisplay(label, false);
+      }
+    }
   }
 }
 
@@ -783,6 +847,7 @@ void PmiScene::clear() {
   removePresentations();
   _pmi.reset();
   _index.reset();
+  _offsets.clear();
 }
 
 void PmiScene::removePresentations() {
@@ -915,12 +980,14 @@ void PmiScene::highlight(const std::vector<core::PmiId>& ids) {
       continue;
     }
     const core::PmiItem& item = _pmi->item(id);
-    const std::vector<TopLoc_Location> placements = placementsOf(item);
+    const std::vector<Placement> placements = placementsOf(item);
     for (const auto* shapes : {&item.targets, &item.secondTargets}) {
       for (const TopoDS_Shape& shape : *shapes) {
-        for (const TopLoc_Location& placement : placements) {
+        for (const auto& [node, placement] : placements) {
           if (!shape.IsNull()) {
-            builder.Add(targets, shape.Moved(placement));
+            gp_Trsf offset;
+            offset.SetTranslation(offsetOf(node));
+            builder.Add(targets, shape.Moved(TopLoc_Location(offset) * placement));
             any = true;
           }
         }

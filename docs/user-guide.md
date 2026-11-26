@@ -1,14 +1,14 @@
 # STEP Complete user guide
 
-STEP Complete (v1.3) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
+STEP Complete (v1.4) is a fast, lightweight viewer for STEP CAD files (AP203, AP214, AP242) with
 exact measurement, PMI display (GD&T, dimensions, datums, saved views), section views, and image
 and geometry export. This guide describes what the application does; menu names appear as **Menu > Item**.
 
 Contents: [Installing](#1-installing) | [Requirements](#2-system-requirements) |
 [Opening files](#3-opening-files) | [Navigating](#4-navigating-the-3d-view) |
 [Assembly and properties](#5-assembly-tree-and-properties) | [Measuring](#6-measuring) |
-[PMI](#7-pmi) | [Sections](#8-section-views) | [Export](#9-exporting) | [Markup](#10-markup) |
-[Preferences](#11-preferences) | [Shortcuts](#12-keyboard-shortcut-reference) |
+[PMI](#7-pmi) | [Sections](#8-section-views) | [Exploded view](#exploded-view) |
+[Export](#9-exporting) | [Markup](#10-markup) | [Preferences](#11-preferences) | [Shortcuts](#12-keyboard-shortcut-reference) |
 [Troubleshooting](#13-troubleshooting)
 
 ![STEP Complete showing an assembly](images/m1-as1.png)
@@ -170,11 +170,12 @@ the model.
   and section caps are white (hatched if Hatch is on).
 - **Hide** (`H`), **Isolate** (`I`), **Show All** (`Shift+H`), **Transparent** (`T`), applying to
   the selected parts or assemblies. Transparent toggles 60 percent transparency on or off.
+- **Section View** (`X`) and **Exploded View** (`Shift+E`): see section 8.
 - **Antialiasing (4x MSAA)** and **Show Frame Rate** (a frames-per-second overlay).
 - **Panels:** show or hide any dock panel.
 
-Panels can be dragged, tabbed or floated. The PMI, Measurements and Section panels share a tabbed
-dock on the right.
+Panels can be dragged, tabbed or floated. The PMI, Measurements, Section and Exploded View panels
+share a tabbed dock on the right.
 
 ## 5. Assembly tree and properties
 
@@ -379,7 +380,8 @@ and largest deviation; **Show unchanged** lists the rest too. Choosing a row sel
 (a selected colored part shows its bounding box); double-clicking zooms to it, or to a removed
 part's ghost. The **Tolerance** (0.01 mm by default) decides what counts as equal: change it and
 click **Compare Again**. **End Comparison** brings back the normal display; opening another file,
-closing the model, starting a measurement or turning on Wall Thickness ends it too.
+closing the model, starting a measurement, turning on Wall Thickness or exploding the view ends
+it too.
 
 Parts pair by their place in the assembly tree; parts that were renamed pair by their shape, then
 by name ("nut_2" and "NUT"). Unchanged, moved or changed is decided on the exact geometry (volume,
@@ -468,6 +470,28 @@ For each of Plane 1, 2 and 3:
 handle with the left mouse button to move the plane; it highlights on hover. **Reset** turns all
 planes off, and so does unchecking **Section View**.
 
+### Exploded view
+
+**View > Exploded View** (`Shift+E`) moves the parts of an assembly apart and opens the
+**Exploded View** panel. Each part moves away from the center of the assembly it belongs to, and
+each sub-assembly moves as a unit while its own parts spread around it. A part that sits on its
+assembly's center (a shaft in a housing) stays where it is.
+
+- **Distance:** 0 to 100 %. At 100 % every part is twice as far from its assembly's center as in
+  the assembled model. The parts move as you drag; moving the slider also turns the exploded
+  view on, and back to 0 % puts the parts back.
+- **Collapse** (or unchecking **Exploded View**) puts the parts back.
+
+PMI and markup on a part move with it. Selecting, hiding, isolating, transparency, Fit and image
+export work as usual. The explode is not saved and does not change exported geometry.
+
+Measuring, the section view, wall thickness, comparing revisions, the Geometry Check and Clashes
+highlights, placing a note, sketching and the file's saved views all work on the assembled model:
+starting one of them collapses the exploded view first, and exploding turns them off (the
+Measurements panel keeps its results, which are drawn again on collapse). The menu item is
+disabled when the model has a single part (such as an STL file); if no part can move apart (they
+all share their assembly's center), the status bar says so and the model stays assembled.
+
 ## 9. Exporting
 
 ### Images
@@ -549,7 +573,7 @@ place.
 - **Markup > Add Note** (`Ctrl+Shift+N`): click a face, then type the note (several lines are
   fine). The text appears in a yellow box next to the point, joined to it by a leader. `Esc`
   cancels the click. Adding a note stops measuring and turns off the wall thickness and
-  comparison views, whose colored parts have no faces to click.
+  comparison views, whose colored parts have no faces to click, and collapses the exploded view.
 - **Markup > Sketch** (`Ctrl+Shift+K`): while it is on, dragging with the left mouse button
   draws a magenta line over the model. The stroke lies on a plane facing you through the point
   where the drag started (seen from another side it is a flat line in space) and moves with that
@@ -613,6 +637,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `Shift+H` | Show all |
 | `T` | Toggle transparency of selection |
 | `X` | Toggle section view |
+| `Shift+E` | Toggle exploded view |
 | `M` | Measure: entity info |
 | `D` | Measure: distance |
 | `Shift+D` | Measure: point to point |

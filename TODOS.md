@@ -122,18 +122,6 @@ scope; add them here if users ask.
 **Priority:** P4
 **Depends on:** Reference-machine numbers showing first-open time misses the §6 target.
 
-### Exploded view
-
-**What:** Move assembly parts apart along computed directions.
-
-**Why:** A common viewer feature for understanding assemblies.
-
-**Context:** Deferred in M4. Moving parts would detach their PMI and break measurement picks unless every subsystem learned about the offsets, so it isn't worth the extra weight now.
-
-**Effort:** L
-**Priority:** P4
-**Depends on:** User demand.
-
 ### Measurements that follow section views
 
 **What:** Make measurement results and picks respect the active section planes (no picks on the clipped-away side, results that make sense against the capped faces).
