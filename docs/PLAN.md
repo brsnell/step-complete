@@ -420,9 +420,13 @@ Feedback from users can reorder what is left.
 - ✅ **Crash reports** (from v1.3's follow-up): a local report on a crash, shown at the next start,
   with a GitHub issue link the user fills in ([design](designs/crash-reporting.md)).
 
+### M10: v1.5: 🚧 in progress
+- ✅ **Part color overrides** (View > Part Color, `C`): a color of the user's on part instances,
+  kept with the model's data ([design](designs/part-color-overrides.md)).
+
 ### Candidates, not scheduled
-Seen in other viewers. Waiting on user demand: 3D mouse (3Dconnexion) support and part color
-overrides. The other deferred items in `TODOS.md` are unchanged.
+Seen in other viewers. Waiting on user demand: 3D mouse (3Dconnexion) support. The other deferred
+items in `TODOS.md` are unchanged.
 
 ---
 

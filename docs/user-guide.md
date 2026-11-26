@@ -170,6 +170,13 @@ the model.
   and section caps are white (hatched if Hatch is on).
 - **Hide** (`H`), **Isolate** (`I`), **Show All** (`Shift+H`), **Transparent** (`T`), applying to
   the selected parts or assemblies. Transparent toggles 60 percent transparency on or off.
+- **Part Color...** (`C`) gives the selected parts a color of your choosing (an assembly colors
+  every part below it); the whole part takes it, over the file's colors, and its edges stay
+  dark. **Reset Part Color** gives them the file's colors back. Both are on the right-click menu
+  too. The colors are kept with the model (like saved views and materials, never in the file)
+  and come back when you open it again; image export shows them, geometry export writes the
+  file's colors. Hidden Line keeps its white faces, and Wall Thickness and comparing revisions
+  draw their own colors while they are on.
 - **Section View** (`X`) and **Exploded View** (`Shift+E`): see section 8.
 - **Antialiasing (4x MSAA)** and **Show Frame Rate** (a frames-per-second overlay).
 - **Panels:** show or hide any dock panel.
@@ -639,6 +646,7 @@ On macOS the `Ctrl` of the standard file shortcuts is the Command key.
 | `I` | Isolate selection |
 | `Shift+H` | Show all |
 | `T` | Toggle transparency of selection |
+| `C` | Part color of selection |
 | `X` | Toggle section view |
 | `Shift+E` | Toggle exploded view |
 | `M` | Measure: entity info |
