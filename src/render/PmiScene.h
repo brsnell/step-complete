@@ -30,6 +30,12 @@ public:
   static double length(double devicePixelRatio);
   static double halfWidth(double devicePixelRatio);
 
+  // Where the tip is drawn, and moving it by a world translation from where it was built (the
+  // exploded view). The arrow is drawn in device pixels around its tip (zoom persistent), so a
+  // local transformation would move it by pixels, not millimetres. The caller redisplays.
+  const gp_Pnt& tip() const { return _tip; }
+  void setTipOffset(const gp_Vec& offset);
+
   bool AcceptDisplayMode(const int mode) const override { return mode == 0; }
 
 protected:
@@ -38,6 +44,8 @@ protected:
   void ComputeSelection(const OccHandle<SelectMgr_Selection>&, const int) override {}
 
 private:
+  gp_Pnt _baseTip;
+  gp_Pnt _tip;
   gp_Dir _dir;
   gp_Dir _side;
   double _dpr;

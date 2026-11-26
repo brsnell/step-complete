@@ -548,6 +548,18 @@ private Q_SLOTS:
     _window->setExplodeDistance(30);
     QVERIFY(_window->isExploded());
     QCOMPARE(_window->explodeDistance(), 30);
+
+    // 0 % is the assembled model: it collapses (the witnesses come back), and exploding again from
+    // the menu starts at the default distance rather than at 0 %.
+    _window->setExplodeDistance(0);
+    QVERIFY(!_window->isExploded());
+    QVERIFY(!explode->isChecked());
+    QCOMPARE(_tool->witnessCount(), 1);
+    QCOMPARE(spread(assembled, placements()), 0.0);
+    explode->trigger();
+    QVERIFY(_window->isExploded());
+    QCOMPARE(_window->explodeDistance(), 50);
+    QVERIFY(spread(assembled, placements()) > 1.0);
     _close->trigger();
     QVERIFY(!_window->isExploded());
     QVERIFY(!explode->isEnabled());

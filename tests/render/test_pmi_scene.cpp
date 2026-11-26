@@ -550,16 +550,20 @@ private Q_SLOTS:
     _viewport->fitAll();
     _pmiScene->highlight({flat}); // shown before the explode: it must follow
 
-    // Where every displayed PMI object is placed.
+    // Where every displayed PMI presentation is placed and every arrow's tip is.
     const auto placements = [this] {
       std::map<const AIS_InteractiveObject*, gp_XYZ> result;
       sc::occ::InteractiveList objects;
       _viewport->context()->DisplayedObjects(objects);
       for (sc::occ::InteractiveList::Iterator it(objects); it.More(); it.Next()) {
         const AIS_InteractiveObject* object = it.Value().get();
-        if (dynamic_cast<const sc::render::PmiPresentation*>(object) != nullptr ||
-            dynamic_cast<const sc::render::PmiArrow*>(object) != nullptr) {
+        if (dynamic_cast<const sc::render::PmiPresentation*>(object) != nullptr) {
           result[object] = it.Value()->LocalTransformation().TranslationPart();
+        } else if (const auto* arrow = dynamic_cast<const sc::render::PmiArrow*>(object)) {
+          // Drawn in pixels around its tip: a local transformation would move it by pixels, so
+          // one there reads as a far-off position and fails the checks below.
+          result[object] =
+              arrow->LocalTransformation().Form() == gp_Identity ? arrow->tip().XYZ() : gp_XYZ(1e9, 1e9, 1e9);
         }
       }
       return result;
@@ -595,10 +599,14 @@ private Q_SLOTS:
     QVERIFY(labels[0]->anchor().IsEqual(first, 1e-9));
     QVERIFY(labels[1]->anchor().IsEqual(second.Translated(gp_Vec(0.0, 300.0, 0.0)), 1e-9));
 
-    // The highlight shown before moved with the part.
+    // The highlight shown before moved with the part, and the moved arrowhead is drawn at its tip
+    // (the dimension's left end, x = 0 on the part: a filled triangle pointing to -X).
     _viewport->fitAll();
     const QImage image = render();
     QVERIFY(isTargetOrange(image.pixelColor(pixelOf(150 + 50, 300 + 30, 20)))); // the moved block's top
+    const QPoint movedTip = pixelOf(150, -20 + 300, 20);
+    const int head = blueIn(image, QRect(movedTip.x(), movedTip.y() - 4, 11, 9));
+    QVERIFY2(head >= 15, qPrintable(QString("moved arrowhead has %1 pixels").arg(head)));
 
     // Picking finds the moved label's PMI next to its new anchor.
     const QPoint newAnchor = pixelOf(second.X(), second.Y() + 300.0, second.Z());
@@ -609,11 +617,11 @@ private Q_SLOTS:
     QVERIFY(foundNew);
 
     // Rebuilt while exploded (another screen's pixel ratio): the new presentations keep the offsets.
-    // (The fixture's instances sit at y = 0, so a y of 300 is the offset.)
+    // (The fixture's instances and arrow tips sit at y <= 0, so a y past 100 is the offset.)
     const auto movedCount = [&placements] {
       int count = 0;
       for (const auto& [object, at] : placements()) {
-        count += std::abs(at.Y() - 300.0) < 1e-9 ? 1 : 0;
+        count += at.Y() > 100.0 ? 1 : 0;
       }
       return count;
     };

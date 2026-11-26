@@ -12,8 +12,14 @@ namespace sc::core {
 
 namespace {
 
+// A box with a finite extent: not empty, and not open or whole (unbounded geometry, such as an
+// untrimmed plane, would put the center near infinity and throw the parts that far).
+bool isFinite(const Bnd_Box& box) {
+  return !box.IsVoid() && !box.IsOpen() && !box.IsWhole();
+}
+
 std::optional<gp_Pnt> centerOf(const Bnd_Box& box) {
-  if (box.IsVoid()) {
+  if (!isFinite(box)) {
     return std::nullopt;
   }
   const gp_Pnt low = box.CornerMin();
@@ -43,7 +49,7 @@ ExplodeLayout::ExplodeLayout(const AssemblyIndex& index) {
       }
       it = definitionBoxes.emplace(definition, box).first;
     }
-    if (!it->second.IsVoid()) {
+    if (isFinite(it->second)) {
       boxes[static_cast<size_t>(part)] = it->second.Transformed(index.node(part).location.Transformation());
     }
   }

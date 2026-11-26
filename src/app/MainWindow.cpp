@@ -2068,6 +2068,9 @@ void MainWindow::setExploded(bool on) {
     }
     clearHighlight(Highlight::GeometryIssue);
     clearHighlight(Highlight::Clash);
+    if (_explodePanel->distance() == 0) {
+      _explodePanel->setDistance(ExplodePanel::DefaultDistance); // 0 % would look assembled
+    }
     _explodeDock->show();
     _explodeDock->raise();
   }
@@ -2087,10 +2090,11 @@ void MainWindow::setExploded(bool on) {
 
 void MainWindow::setExplodeDistance(int percent) {
   _explodePanel->setDistance(std::clamp(percent, 0, 100));
-  if (_exploded) {
+  const bool apart = _explodePanel->distance() > 0;
+  if (_exploded && apart) {
     applyExplode();
-  } else if (_explodePanel->distance() > 0) {
-    setExploded(true); // moving the slider explodes
+  } else if (apart != _exploded) {
+    setExploded(apart); // moving the slider explodes; at 0 % the parts are back, so it collapses
   }
 }
 

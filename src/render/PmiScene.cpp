@@ -543,8 +543,17 @@ double PmiArrow::halfWidth(double dpr) {
   return std::round(ArrowHalfWidth * dpr);
 }
 
+void PmiArrow::setTipOffset(const gp_Vec& offset) {
+  const gp_Pnt tip = _baseTip.Translated(offset);
+  if (tip.IsEqual(_tip, 0.0)) {
+    return;
+  }
+  _tip = tip;
+  SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomPers, _tip));
+}
+
 PmiArrow::PmiArrow(const gp_Pnt& tip, const gp_Dir& dir, const gp_Dir& side, double dpr)
-    : _dir(dir), _side(side), _dpr(dpr > 0.0 ? dpr : 1.0) {
+    : _baseTip(tip), _tip(tip), _dir(dir), _side(side), _dpr(dpr > 0.0 ? dpr : 1.0) {
   // Local coordinates are device pixels around the tip; orientation stays that of the model.
   SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomPers, tip));
   SetZLayer(Graphic3d_ZLayerId_Topmost);
@@ -713,9 +722,12 @@ void PmiScene::applyOffsets() {
       place(entry.placements[i], offset * location);
     }
     for (size_t i = 0; i < entry.arrows.size(); ++i) {
-      gp_Trsf offset; // arrows are built in world coordinates
-      offset.SetTranslation(offsetOf(entry.arrowNodes[i]));
-      place(entry.arrows[i], offset);
+      const OccHandle<PmiArrow>& arrow = entry.arrows[i]; // drawn around its tip, like a label
+      const gp_Pnt before = arrow->tip();
+      arrow->setTipOffset(offsetOf(entry.arrowNodes[i]));
+      if (!arrow->tip().IsEqual(before, 0.0) && _context->IsDisplayed(arrow)) {
+        _context->Redisplay(arrow, false);
+      }
     }
     for (size_t i = 0; i < entry.labels.size(); ++i) {
       const OccHandle<PmiLabel>& label = entry.labels[i];

@@ -4,10 +4,12 @@
 #include "core/AssemblyIndex.h"
 #include "core/ExplodeLayout.h"
 
+#include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <TDataStd_Name.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
+#include <gp_Pln.hxx>
 #include <gp_Trsf.hxx>
 
 #include <gtest/gtest.h>
@@ -129,4 +131,24 @@ TEST(ExplodeLayout, NothingToExplode) {
   sameSpot.shapes->AddComponent(other, sameSpot.cube, at(0));
   sameSpot.shapes->AddComponent(other, sameSpot.cube, at(0));
   EXPECT_FALSE(core::ExplodeLayout(sameSpot.index()).canExplode());
+}
+
+TEST(ExplodeLayout, AnUnboundedPartDoesNotThrowTheOthers) {
+  // An untrimmed plane has an open bounding box (infinite extent): it must neither move nor move
+  // the others, which keep the layout of the bounded parts.
+  Builder builder;
+  const TDF_Label plane = builder.shapes->AddShape(
+      BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(0, 0, 1))).Shape(), false);
+  const TDF_Label root = builder.assembly("Root");
+  builder.shapes->AddComponent(root, builder.cube, at(0));  // center 5
+  builder.shapes->AddComponent(root, builder.cube, at(40)); // center 45
+  builder.shapes->AddComponent(root, plane, at(0));
+  const core::AssemblyIndex index = builder.index();
+  const core::ExplodeLayout layout(index);
+  ASSERT_TRUE(layout.canExplode());
+  const std::vector<core::NodeId>& parts = index.partInstances();
+  ASSERT_EQ(parts.size(), 3U);
+  EXPECT_NEAR(layout.offset(parts[0], 1.0).X(), -20.0, Tolerance);
+  EXPECT_NEAR(layout.offset(parts[1], 1.0).X(), 20.0, Tolerance);
+  EXPECT_EQ(layout.offset(parts[2], 1.0).Magnitude(), 0.0);
 }
