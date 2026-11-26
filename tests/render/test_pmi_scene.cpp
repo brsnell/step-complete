@@ -7,6 +7,7 @@
 #include "core/AssemblyIndex.h"
 #include "core/PmiModel.h"
 #include "core/StepImporter.h"
+#include "render/AisCompat.h"
 #include "render/OcctViewport.h"
 #include "render/PmiFont.h"
 #include "render/PmiLabel.h"
@@ -40,6 +41,8 @@
 #include <TopoDS_Shape.hxx>
 #include <algorithm>
 #include <climits>
+#include <cmath>
+#include <map>
 #include <memory>
 
 using sc::core::PmiId;
@@ -530,29 +533,72 @@ private Q_SLOTS:
   }
 
   void pmiMovesWithItsExplodedPart() {
-    // Exploded view (docs/designs/exploded-view.md): each instance's PMI takes its offset.
+    // Exploded view (docs/designs/exploded-view.md): each instance's PMI takes its offset: the
+    // presentations (file graphics included), the arrows of semantic dimensions, the labels and a
+    // target highlight already shown.
+    addSemanticDimension(XCAFDimTolObjects_DimensionType_Location_LinearDistance, gp_Pnt(50, -20, 20),
+                         std::make_pair(gp_Pnt(0, 0, 20), gp_Pnt(100, 0, 20)), 100.0);
     makeTwoInstances();
     load();
+    QCOMPARE(_pmiScene->arrowCount(), 4); // two per instance
     const PmiId flat = id(_fixture.flatness);
     const auto labels = _pmiScene->labelsOf(flat);
     QCOMPARE(labels.size(), size_t(2));
     const gp_Pnt first = labels[0]->anchor();
     const gp_Pnt second = labels[1]->anchor();
     const sc::core::NodeId moved = _scene->model()->partInstances().at(1);
+    _viewport->fitAll();
+    _pmiScene->highlight({flat}); // shown before the explode: it must follow
+
+    // Where every displayed PMI object is placed.
+    const auto placements = [this] {
+      std::map<const AIS_InteractiveObject*, gp_XYZ> result;
+      sc::occ::InteractiveList objects;
+      _viewport->context()->DisplayedObjects(objects);
+      for (sc::occ::InteractiveList::Iterator it(objects); it.More(); it.Next()) {
+        const AIS_InteractiveObject* object = it.Value().get();
+        if (dynamic_cast<const sc::render::PmiPresentation*>(object) != nullptr ||
+            dynamic_cast<const sc::render::PmiArrow*>(object) != nullptr) {
+          result[object] = it.Value()->LocalTransformation().TranslationPart();
+        }
+      }
+      return result;
+    };
+    const auto before = placements();
 
     std::vector<gp_Vec> offsets(_scene->model()->nodes().size(), gp_Vec(0.0, 0.0, 0.0));
     offsets[static_cast<size_t>(moved)] = gp_Vec(0.0, 300.0, 0.0);
     _scene->setPartOffsets(offsets);
     _pmiScene->setPartOffsets(offsets);
+
+    // Half the presentations and arrows (the second instance's) moved by exactly the offset.
+    int movedPresentations = 0;
+    int movedArrows = 0;
+    bool graphicsMoved = false;
+    for (const auto& [object, at] : placements()) {
+      const gp_XYZ shift = at - before.at(object);
+      if (shift.Modulus() < 1e-9) {
+        continue;
+      }
+      QVERIFY(shift.IsEqual(gp_XYZ(0.0, 300.0, 0.0), 1e-9));
+      if (const auto* presentation = dynamic_cast<const sc::render::PmiPresentation*>(object)) {
+        ++movedPresentations;
+        graphicsMoved = graphicsMoved || presentation->isGraphical();
+      } else {
+        ++movedArrows;
+      }
+    }
+    QCOMPARE(movedArrows, 2);
+    QVERIFY(movedPresentations > 0);
+    QCOMPARE(2 * movedPresentations, _pmiScene->presentationCount());
+    QVERIFY(graphicsMoved); // the height dimension's graphics from the file
     QVERIFY(labels[0]->anchor().IsEqual(first, 1e-9));
     QVERIFY(labels[1]->anchor().IsEqual(second.Translated(gp_Vec(0.0, 300.0, 0.0)), 1e-9));
 
-    // The moved instance's target geometry is highlighted where the part is now.
+    // The highlight shown before moved with the part.
     _viewport->fitAll();
-    _pmiScene->highlight({flat});
     const QImage image = render();
-    const QPoint movedTop = pixelOf(150 + 50, 300 + 30, 20); // the second block's top face
-    QVERIFY(isTargetOrange(image.pixelColor(movedTop)));
+    QVERIFY(isTargetOrange(image.pixelColor(pixelOf(150 + 50, 300 + 30, 20)))); // the moved block's top
 
     // Picking finds the moved label's PMI next to its new anchor.
     const QPoint newAnchor = pixelOf(second.X(), second.Y() + 300.0, second.Z());
@@ -562,8 +608,22 @@ private Q_SLOTS:
     }
     QVERIFY(foundNew);
 
+    // Rebuilt while exploded (another screen's pixel ratio): the new presentations keep the offsets.
+    // (The fixture's instances sit at y = 0, so a y of 300 is the offset.)
+    const auto movedCount = [&placements] {
+      int count = 0;
+      for (const auto& [object, at] : placements()) {
+        count += std::abs(at.Y() - 300.0) < 1e-9 ? 1 : 0;
+      }
+      return count;
+    };
+    _pmiScene->setDevicePixelRatio(2.0);
+    QCOMPARE(movedCount(), movedPresentations + movedArrows);
+    QVERIFY(_pmiScene->labelsOf(flat)[1]->anchor().IsEqual(second.Translated(gp_Vec(0.0, 300.0, 0.0)), 1e-9));
+
     _pmiScene->setPartOffsets({});
-    QVERIFY(labels[1]->anchor().IsEqual(second, 1e-9));
+    QCOMPARE(movedCount(), 0);
+    QVERIFY(_pmiScene->labelsOf(flat)[1]->anchor().IsEqual(second, 1e-9));
   }
 
   void semanticLabelSwitchHasAnAutomaticDefault() {
