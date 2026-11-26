@@ -738,7 +738,7 @@ private Q_SLOTS:
     const auto displayed = [viewport] {
       sc::occ::InteractiveList objects;
       viewport->context()->DisplayedObjects(objects);
-      return objects.Size();
+      return static_cast<int>(objects.Size());
     };
     const int plain = displayed();
 
