@@ -73,9 +73,8 @@ scope; add them here if users ask.
 ## v1.4 (M9)
 
 Shipped as v1.4.0 on 2026-11-26 with the exploded view ([design](docs/designs/exploded-view.md))
-and crash reports ([design](docs/designs/crash-reporting.md)), see `CHANGELOG.md`. The exploded
-view's review notes (PMI owned by the top level stays put, a part with one unbounded sub-shape
-does not move apart) are in PR #37; add them here if users hit them.
+and crash reports ([design](docs/designs/crash-reporting.md)), see `CHANGELOG.md`. Its review
+notes on assembly-level PMI and unbounded geometry were fixed after the release (Unreleased).
 
 ## Crash reporting follow-ups
 

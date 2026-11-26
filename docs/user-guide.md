@@ -482,15 +482,18 @@ assembly's center (a shaft in a housing) stays where it is.
   view on, and back to 0 % puts the parts back.
 - **Collapse** (or unchecking **Exploded View**) puts the parts back.
 
-PMI and markup on a part move with it. Selecting, hiding, isolating, transparency, Fit and image
+PMI and markup on a part move with it. PMI defined on an assembly follows the part it applies to;
+PMI that relates faces of two parts (a distance between them, say) is hidden while exploded. Selecting, hiding, isolating, transparency, Fit and image
 export work as usual. The explode is not saved and does not change exported geometry.
 
 Measuring, the section view, wall thickness, comparing revisions, the Geometry Check and Clashes
 highlights, placing a note, sketching and the file's saved views all work on the assembled model:
-starting one of them collapses the exploded view first, and exploding turns them off (the
-Measurements panel keeps its results, which are drawn again on collapse). The menu item is
+starting one of them collapses the exploded view first, and exploding turns them off and says
+which in the status bar (the Measurements panel keeps its results, which are drawn again on
+collapse). The menu item is
 disabled when the model has a single part (such as an STL file); if no part can move apart (they
-all share their assembly's center), the status bar says so and the model stays assembled.
+all share their assembly's center), the status bar says so once and the menu item and the
+Distance slider turn off for that model.
 
 ## 9. Exporting
 
