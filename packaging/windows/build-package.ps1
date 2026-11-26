@@ -139,15 +139,19 @@ try {
   # --- Debug symbols ------------------------------------------------------------------
   # The PDB turns a crash report's minidump into a full stack in Visual Studio or WinDbg
   # (docs/designs/crash-reporting.md). Published beside the packages, never installed.
-  $pdb = Get-ChildItem -Path (Join-Path $BuildDir "src\app") -Filter "StepComplete.pdb" -File -ErrorAction SilentlyContinue |
+  # The linker writes it beside the exe: in the build directory's root, where
+  # qt_standard_project_setup() puts executables on Windows, else next to the target in src\app.
+  $pdb = @($BuildDir, (Join-Path $BuildDir "src\app")) |
+    ForEach-Object { Join-Path $_ "StepComplete.pdb" } |
+    Where-Object { Test-Path $_ -PathType Leaf } |
     Select-Object -First 1
-  if ($pdb) {
-    $symbols = Join-Path $OutputDir "StepComplete-$version-windows-x64-symbols.zip"
-    if (Test-Path $symbols) { Remove-Item -Force $symbols }
-    Compress-Archive -Path $pdb.FullName -DestinationPath $symbols -CompressionLevel Optimal
-  } else {
-    Write-Warning "StepComplete.pdb not found under $BuildDir\src\app: no symbols zip"
+  if (-not $pdb) {
+    # The release publishes the symbols zip; a package without it is not a release package.
+    throw "StepComplete.pdb not found in $BuildDir or $BuildDir\src\app (is it a Release build linked with /DEBUG?)"
   }
+  $symbols = Join-Path $OutputDir "StepComplete-$version-windows-x64-symbols.zip"
+  if (Test-Path $symbols) { Remove-Item -Force $symbols }
+  Compress-Archive -Path $pdb -DestinationPath $symbols -CompressionLevel Optimal
 
   # --- Installer (Inno Setup) ---------------------------------------------------------
   $iscc = Get-Command ISCC -ErrorAction SilentlyContinue
