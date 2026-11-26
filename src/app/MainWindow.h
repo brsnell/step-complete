@@ -11,6 +11,7 @@
 #include "core/PartsList.h"
 #include "core/PmiModel.h"
 
+#include <QColor>
 #include <QMainWindow>
 #include <QPointer>
 #include <QString>
@@ -126,6 +127,12 @@ public:
   void compareWith(const QString& path);
   bool isComparing() const;       // the comparison job runs
   bool isComparisonShown() const; // the comparison view is on
+
+  // --- Part colors (docs/designs/part-color-overrides.md) -------------------------------
+  // What View > Part Color does once a color is chosen (nullopt: Reset Part Color): give the part
+  // instances below 'nodes' that color, or the file's colors back. Stored per model file.
+  void setPartColor(const std::vector<core::NodeId>& nodes, const std::optional<QColor>& color);
+  std::optional<QColor> partColorOf(core::NodeId part) const;
 
   // --- Exploded view (docs/designs/exploded-view.md) ------------------------------------
   // What View > Exploded View does: on, move the parts apart by the panel's distance (ends the
@@ -379,6 +386,12 @@ private:
   QAction* _isolateAction = nullptr;
   QAction* _showAllAction = nullptr;
   QAction* _transparentAction = nullptr;
+  QAction* _partColorAction = nullptr;
+  QAction* _resetPartColorAction = nullptr;
+  std::map<std::string, QColor> _partColors; // by AssemblyIndex::pathId of part instances
+  void choosePartColor();                    // View > Part Color: the dialog, then setPartColor
+  void writePartColors();
+  void applyPartColors(); // the stored colors onto the model just loaded
   QAction* _fitSelectionAction = nullptr;
 
   QPointer<ImportJob> _import;

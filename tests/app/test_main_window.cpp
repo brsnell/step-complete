@@ -992,6 +992,96 @@ private Q_SLOTS:
     QCOMPARE(detail(measurePlate(), "Mass"), std::string("no material set (Measure > Set Material)"));
   }
 
+  // View > Part Color (docs/designs/part-color-overrides.md): a color on the selected parts (an
+  // assembly's parts too), drawn, kept with the model and back after reopening; Reset clears it.
+  void partColorsAreDrawnAndPersist() {
+    QDir(sc::app::ModelDataStore::defaultDirectory()).removeRecursively();
+    QAction* partColor = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("Part &Color..."));
+    QAction* reset = menuAction(*_window, QStringLiteral("&View"), QStringLiteral("Reset Part C&olor"));
+    QVERIFY(partColor != nullptr);
+    QVERIFY(reset != nullptr);
+    openFixture();
+    auto* tree = _window->findChild<QTreeView*>(QStringLiteral("assemblyTreeView"));
+    auto* treeModel = _window->findChild<sc::app::AssemblyTreeModel*>();
+    auto* proxy = qobject_cast<QSortFilterProxyModel*>(tree->model());
+    auto* viewport = _window->findChild<sc::render::OcctViewport*>();
+    QVERIFY(tree && treeModel && proxy && viewport);
+    const auto node = [&](const QString& name) {
+      QAbstractItemModel* model = tree->model();
+      const QModelIndex fixture = model->index(0, 0);
+      for (int row = 0; row < model->rowCount(fixture); ++row) {
+        const QModelIndex child = model->index(row, 0, fixture);
+        if (child.data().toString() == name) {
+          return std::make_pair(treeModel->nodeId(proxy->mapToSource(child)), child);
+        }
+      }
+      return std::make_pair(sc::core::NoNode, QModelIndex());
+    };
+    const auto magentaPixels = [viewport] {
+      viewport->invalidateScene();
+      const QImage image = viewport->grabFramebuffer();
+      int count = 0;
+      for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+          const QColor color = image.pixelColor(x, y);
+          count += color.red() > 140 && color.blue() > 140 &&
+                   color.green() + 80 < std::min(color.red(), color.blue());
+        }
+      }
+      return count;
+    };
+    QVERIFY(!partColor->isEnabled()); // nothing selected
+    tree->selectionModel()->select(node(QStringLiteral("Base plate")).second,
+                                   QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
+    QVERIFY(partColor->isEnabled());
+    QVERIFY(reset->isEnabled());
+    tree->clearSelection(); // a selected part is drawn in the highlight color
+    QCOMPARE(magentaPixels(), 0);
+
+    const QColor magenta(220, 30, 210); // nothing in the fixture or the background is magenta
+    const sc::core::NodeId plate = node(QStringLiteral("Base plate")).first;
+    const sc::core::NodeId pair = node(QStringLiteral("Pin pair")).first;
+    QVERIFY(plate != sc::core::NoNode && pair != sc::core::NoNode);
+    _window->setPartColor({plate}, magenta);
+    QCOMPARE(_window->partColorOf(plate), std::optional<QColor>(magenta));
+    const int plateMagenta = magentaPixels();
+    QVERIFY2(plateMagenta > 500, qPrintable(QString::number(plateMagenta)));
+
+    // An assembly: every part below it.
+    _window->setPartColor({pair}, magenta);
+    const QModelIndex pairRow = node(QStringLiteral("Pin pair")).second;
+    QCOMPARE(tree->model()->rowCount(pairRow), 2);
+    for (int row = 0; row < 2; ++row) {
+      const sc::core::NodeId pin =
+          treeModel->nodeId(proxy->mapToSource(tree->model()->index(row, 0, pairRow)));
+      QCOMPARE(_window->partColorOf(pin), std::optional<QColor>(magenta));
+    }
+    QVERIFY(magentaPixels() > plateMagenta);
+
+    // Kept with the model: back after closing and opening the file again.
+    _close->trigger();
+    openFixture();
+    const sc::core::NodeId reopened = node(QStringLiteral("Base plate")).first;
+    QCOMPARE(_window->partColorOf(reopened), std::optional<QColor>(magenta));
+    QVERIFY(magentaPixels() > plateMagenta);
+
+    // Wall thickness draws its own colors; the part's color is back when it ends.
+    _window->showWallThickness(true);
+    QTRY_VERIFY_WITH_TIMEOUT(_window->isThicknessShown(), 120000);
+    QVERIFY(magentaPixels() < plateMagenta / 10);
+    _window->showWallThickness(false);
+    _window->findChild<QDockWidget*>(QStringLiteral("ThicknessDock"))->hide(); // the view's full size again
+    QTRY_VERIFY(magentaPixels() > plateMagenta);
+
+    // Reset: the file's colors, and so it stays after reopening.
+    _window->setPartColor({reopened, node(QStringLiteral("Pin pair")).first}, std::nullopt);
+    QVERIFY(!_window->partColorOf(reopened).has_value());
+    QCOMPARE(magentaPixels(), 0);
+    _close->trigger();
+    openFixture();
+    QVERIFY(!_window->partColorOf(node(QStringLiteral("Base plate")).first).has_value());
+  }
+
   // File > Export Parts List (docs/designs/parts-list-export.md): the fixture's bill of materials,
   // and only the visible parts when asked.
   void exportPartsListWritesOneRowPerPart() {
