@@ -9,7 +9,7 @@ with serious measurement and PMI (Product Manufacturing Information) support.
 
 **Status:** M0–M4 are done; M5 (ship v1.0) is in progress, and v1.0.0 shipped for Windows and
 Linux on 2026-11-15. v1.1.0 (M6) shipped on 2026-11-22, v1.2.0 (M7) and v1.3.0 (M8,
-markup) on 2026-11-23, see §7a. Open work is in
+markup) on 2026-11-23, and v1.4.0 (M9, exploded view and crash reports) on 2026-11-26, see §7a. Open work is in
 [TODOS.md](../TODOS.md).
 
 ---
@@ -412,7 +412,7 @@ Feedback from users can reorder what is left.
   that saved views use (never in the STEP file; a `.scmarkup` export shares them) and appear in
   image export ([design](designs/markup.md)).
 
-### M9: v1.4: 🚧 in progress
+### M9: v1.4: ✅ shipped as v1.4.0 (2026-11-26)
 - ✅ **Exploded view** (View > Exploded View, `Shift+E`): parts move apart by assembly level,
   with a distance slider in the Exploded View panel. PMI and markup move with their part; the
   tools that measure or draw on the assembled model (measuring, section view, wall thickness,
@@ -465,5 +465,5 @@ overrides. The other deferred items in `TODOS.md` are unchanged.
 2. ✅ M0–M4; M5 mostly done (see §7).
 3. The remaining work (release checks, signing, reference-machine performance, deferred items) is
    tracked in [TODOS.md](../TODOS.md).
-4. M6 (v1.1), M7 (v1.2) and M8 (v1.3) shipped (§7a). Each next feature gets a design before it
+4. M6 (v1.1), M7 (v1.2), M8 (v1.3) and M9 (v1.4) shipped (§7a). Each next feature gets a design before it
    is built.

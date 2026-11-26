@@ -5,6 +5,11 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-26
+
+Windows installer and portable zip, Linux AppImage, and the Windows debug symbols. The macOS DMGs
+are still built but held back until they pass a hands-on test on a real Mac (see `TODOS.md`).
+
 ### Added
 - Exploded view (View > Exploded View, `Shift+E`): parts move apart so the assembly's structure
   is easy to see. Each part moves away from the center of its assembly and each sub-assembly

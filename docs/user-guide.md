@@ -15,7 +15,7 @@ Contents: [Installing](#1-installing) | [Requirements](#2-system-requirements) |
 
 ## 1. Installing
 
-This section matches the v1.3 packages. Download the file for your platform from the project's
+This section matches the v1.4 packages. Download the file for your platform from the project's
 GitHub releases page. `<version>` is the release number.
 
 | Platform | File |
