@@ -3,6 +3,7 @@
 #include <BRepBndLib.hxx>
 #include <Bnd_Box.hxx>
 #include <Precision.hxx>
+#include <TopExp_Explorer.hxx>
 
 #include <map>
 #include <optional>
@@ -16,6 +17,31 @@ namespace {
 // untrimmed plane, would put the center near infinity and throw the parts that far).
 bool isFinite(const Bnd_Box& box) {
   return !box.IsVoid() && !box.IsOpen() && !box.IsWhole();
+}
+
+// The box of a part definition. A definition can mix a solid with unbounded geometry (an
+// untrimmed reference plane or line some exporters add): then the box of its finite faces, edges
+// and vertices, so the part still has a center. Void when nothing in it is finite.
+Bnd_Box finiteBox(const TopoDS_Shape& shape) {
+  Bnd_Box whole;
+  if (shape.IsNull()) {
+    return whole;
+  }
+  BRepBndLib::Add(shape, whole, true);
+  if (isFinite(whole)) {
+    return whole;
+  }
+  Bnd_Box finite;
+  for (const TopAbs_ShapeEnum kind : {TopAbs_FACE, TopAbs_EDGE, TopAbs_VERTEX}) {
+    for (TopExp_Explorer it(shape, kind); it.More(); it.Next()) {
+      Bnd_Box piece;
+      BRepBndLib::Add(it.Current(), piece, true);
+      if (isFinite(piece)) {
+        finite.Add(piece);
+      }
+    }
+  }
+  return finite;
 }
 
 std::optional<gp_Pnt> centerOf(const Bnd_Box& box) {
@@ -42,12 +68,7 @@ ExplodeLayout::ExplodeLayout(const AssemblyIndex& index) {
     const std::string definition = index.prototypeId(part);
     auto it = definitionBoxes.find(definition);
     if (it == definitionBoxes.end()) {
-      Bnd_Box box;
-      const TopoDS_Shape shape = index.prototypeShape(part);
-      if (!shape.IsNull()) {
-        BRepBndLib::Add(shape, box, true);
-      }
-      it = definitionBoxes.emplace(definition, box).first;
+      it = definitionBoxes.emplace(definition, finiteBox(index.prototypeShape(part))).first;
     }
     if (isFinite(it->second)) {
       boxes[static_cast<size_t>(part)] = it->second.Transformed(index.node(part).location.Transformation());

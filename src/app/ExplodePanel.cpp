@@ -68,6 +68,10 @@ void ExplodePanel::setExploded(bool exploded) {
   _collapse->setEnabled(exploded);
 }
 
+void ExplodePanel::setAvailable(bool available) {
+  _slider->setEnabled(available);
+}
+
 void ExplodePanel::showDistance() {
   _value->setText(tr("%1 %").arg(_slider->value()));
 }

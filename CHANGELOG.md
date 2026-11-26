@@ -5,6 +5,13 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+### Fixed
+- Exploded view: PMI defined on an assembly now moves with the part it applies to (it stayed
+  where the assembled part was), and PMI relating two parts is hidden while they are apart. A
+  part that also holds an untrimmed reference plane now moves apart like any other. Exploding
+  says which tools it turned off, and a model whose parts cannot move apart says so once
+  instead of on every move of the slider.
+
 ## [1.4.0] - 2026-11-26
 
 Windows installer and portable zip, Linux AppImage, and the Windows debug symbols. The macOS DMGs

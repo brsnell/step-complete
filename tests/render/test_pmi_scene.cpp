@@ -5,6 +5,7 @@
 #include "RenderTestUtils.h"
 
 #include "core/AssemblyIndex.h"
+#include "core/OccCompat.h"
 #include "core/PmiModel.h"
 #include "core/StepImporter.h"
 #include "render/AisCompat.h"
@@ -15,19 +16,25 @@
 #include "render/SceneManager.h"
 
 #include <BRepBuilderAPI_MakeEdge.hxx>
+#include <BRepGProp.hxx>
 #include <BRep_Builder.hxx>
 #include <Font_FTFont.hxx>
 #include <Font_FontAspect.hxx>
 #include <Font_FontMgr.hxx>
 #include <Font_SystemFont.hxx>
+#include <GProp_GProps.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <TCollection_HAsciiString.hxx>
+#include <TDF_TagSource.hxx>
 #include <TDataStd_Name.hxx>
+#include <TNaming_Builder.hxx>
 #include <TopoDS_Compound.hxx>
 #include <XCAFDimTolObjects_DimensionObject.hxx>
+#include <XCAFDimTolObjects_GeomToleranceObject.hxx>
 #include <XCAFDoc_DimTolTool.hxx>
 #include <XCAFDoc_Dimension.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_GeomTolerance.hxx>
 #include <XCAFDoc_ShapeTool.hxx>
 #include <gp_Trsf.hxx>
 
@@ -92,7 +99,7 @@ private:
   }
 
   // Puts the PMI part into an assembly twice: at the origin and 150 mm along X.
-  void makeTwoInstances() {
+  TDF_Label makeTwoInstances() {
     const TDF_Label main = _fixture.document->ocaf()->Main();
     auto shapes = XCAFDoc_DocumentTool::ShapeTool(main);
     const TDF_Label assembly = shapes->NewShape();
@@ -102,6 +109,38 @@ private:
     shift.SetTranslation(gp_Vec(150, 0, 0));
     shapes->AddComponent(assembly, _fixture.part, TopLoc_Location(shift));
     shapes->UpdateAssemblies();
+    return assembly;
+  }
+
+  // A face of the assembly's own shape (its parts placed), found by its center, stored as a
+  // sub-shape label of the assembly: the label PMI defined on an assembly refers to. OCCT's
+  // AddSubShape refuses assemblies, so the child label is made as XCAF stores sub-shapes.
+  TDF_Label assemblyFace(const TDF_Label& assembly, const gp_Pnt& center) {
+    for (TopExp_Explorer it(XCAFDoc_ShapeTool::GetShape(assembly), TopAbs_FACE); it.More(); it.Next()) {
+      GProp_GProps props;
+      BRepGProp::SurfaceProperties(it.Current(), props);
+      if (props.CentreOfMass().Distance(center) < 1e-6) {
+        const TDF_Label label = TDF_TagSource::NewChild(assembly);
+        TNaming_Builder(label).Generated(it.Current());
+        return XCAFDoc_ShapeTool::IsSubShape(label) ? label : TDF_Label();
+      }
+    }
+    return {};
+  }
+
+  TDF_Label addFlatness(const std::vector<TDF_Label>& faces) {
+    auto gdt = XCAFDoc_DocumentTool::DimTolTool(_fixture.document->ocaf()->Main());
+    const TDF_Label tolerance = gdt->AddGeomTolerance();
+    sc::OccHandle<XCAFDimTolObjects_GeomToleranceObject> object = new XCAFDimTolObjects_GeomToleranceObject();
+    object->SetType(XCAFDimTolObjects_GeomToleranceType_Flatness);
+    object->SetValue(0.02);
+    XCAFDoc_GeomTolerance::Set(tolerance)->SetObject(object);
+    sc::occ::LabelSequence targets;
+    for (const TDF_Label& face : faces) {
+      targets.Append(face);
+    }
+    gdt->SetGeomTolerance(targets, tolerance);
+    return tolerance;
   }
 
   void load() {
@@ -632,6 +671,80 @@ private Q_SLOTS:
     _pmiScene->setPartOffsets({});
     QCOMPARE(movedCount(), 0);
     QVERIFY(_pmiScene->labelsOf(flat)[1]->anchor().IsEqual(second, 1e-9));
+  }
+
+  void pmiHiddenWhileMovedShowsWhereItsPartIs() {
+    // A label hidden while the explode moves its part comes back at the part's new place.
+    makeTwoInstances();
+    load();
+    const PmiId flat = id(_fixture.flatness);
+    const auto labels = _pmiScene->labelsOf(flat);
+    QCOMPARE(labels.size(), size_t(2));
+    const gp_Pnt second = labels[1]->anchor();
+    _pmiScene->setVisible({flat}, false);
+    QVERIFY(!_viewport->context()->IsDisplayed(labels[1]));
+
+    const sc::core::NodeId moved = _scene->model()->partInstances().at(1);
+    std::vector<gp_Vec> offsets(_scene->model()->nodes().size(), gp_Vec(0.0, 0.0, 0.0));
+    offsets[static_cast<size_t>(moved)] = gp_Vec(0.0, 300.0, 0.0);
+    _scene->setPartOffsets(offsets);
+    _pmiScene->setPartOffsets(offsets);
+    _pmiScene->setVisible({flat}, true);
+    _viewport->fitAll();
+    render();
+    const QPoint newAnchor = pixelOf(second.X(), second.Y() + 300.0, second.Z());
+    bool found = false;
+    for (int dx = 4; dx < 60 && !found; dx += 4) {
+      found = pmiAt(newAnchor + QPoint(dx, 0)) == flat;
+    }
+    QVERIFY(found);
+  }
+
+  void assemblyPmiFollowsThePartItIsOn() {
+    // PMI defined on an assembly (docs/designs/exploded-view.md): it follows the part its face is
+    // on; PMI on faces of two parts is hidden while exploded, and its highlight shows each face
+    // where its part went.
+    const TDF_Label assembly = makeTwoInstances();
+    const TDF_Label firstTop = assemblyFace(assembly, gp_Pnt(50, 30, 20));
+    const TDF_Label secondTop = assemblyFace(assembly, gp_Pnt(150 + 50, 30, 20));
+    QVERIFY(!firstTop.IsNull());
+    QVERIFY(!secondTop.IsNull());
+    const TDF_Label onePart = addFlatness({secondTop});
+    const TDF_Label bothParts = addFlatness({firstTop, secondTop});
+    load();
+    const PmiId one = id(onePart);
+    const PmiId both = id(bothParts);
+    QVERIFY(one != sc::core::NoPmi);
+    QVERIFY(both != sc::core::NoPmi);
+    QCOMPARE(_pmi->item(one).ownerPart, assembly); // defined on the assembly, not the part
+    const auto oneLabels = _pmiScene->labelsOf(one);
+    const auto bothLabels = _pmiScene->labelsOf(both);
+    QCOMPARE(oneLabels.size(), size_t(1));
+    QCOMPARE(bothLabels.size(), size_t(1));
+    const gp_Pnt anchor = oneLabels[0]->anchor();
+    QVERIFY(_viewport->context()->IsDisplayed(bothLabels[0]));
+
+    const sc::core::NodeId moved = _scene->model()->partInstances().at(1);
+    std::vector<gp_Vec> offsets(_scene->model()->nodes().size(), gp_Vec(0.0, 0.0, 0.0));
+    offsets[static_cast<size_t>(moved)] = gp_Vec(0.0, 300.0, 0.0);
+    _scene->setPartOffsets(offsets);
+    _pmiScene->setPartOffsets(offsets);
+    QVERIFY(oneLabels[0]->anchor().IsEqual(anchor.Translated(gp_Vec(0.0, 300.0, 0.0)), 1e-9));
+    QVERIFY(_viewport->context()->IsDisplayed(oneLabels[0]));
+    QVERIFY(!_viewport->context()->IsDisplayed(bothLabels[0])); // it would point at parts apart
+
+    // The highlight of the item on both parts marks each face where its part is now.
+    _viewport->fitAll();
+    _pmiScene->highlight({both});
+    const QImage image = render();
+    // (Corners of each top face: its center carries the fixture's own labels.)
+    QVERIFY(isTargetOrange(image.pixelColor(pixelOf(15, 15, 20))));
+    QVERIFY(isTargetOrange(image.pixelColor(pixelOf(150 + 85, 300 + 45, 20))));
+    QVERIFY(!isTargetOrange(image.pixelColor(pixelOf(150 + 85, 45, 20))));
+
+    _pmiScene->setPartOffsets({});
+    QVERIFY(oneLabels[0]->anchor().IsEqual(anchor, 1e-9));
+    QVERIFY(_viewport->context()->IsDisplayed(bothLabels[0]));
   }
 
   void semanticLabelSwitchHasAnAutomaticDefault() {

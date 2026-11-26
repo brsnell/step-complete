@@ -1,6 +1,6 @@
 # Exploded view
 
-Status: APPROVED (2026-11-25)
+Status: APPROVED (2026-11-25; follow-ups for assembly PMI, unbounded geometry and messages approved 2026-11-26)
 
 ## What
 
@@ -44,15 +44,20 @@ and keeps the tools that measure or compute the assembled geometry out of the ex
    on large assemblies. The bounding box (Fit, Fit Selection) follows from the presentations.
 4. **What follows the parts.**
    - **PMI:** every PMI presentation, arrow and label of a part instance gets that instance's
-     offset; PMI defined at the top level stays put. The labels' anchors move and the labels
-     are decluttered again. Labels and arrowheads are drawn in pixels around a point, so they
-     move by moving that point (a local transformation would move them by pixels). Highlighting a PMI's target geometry draws it where the part is.
+     offset. PMI defined on an assembly (or the top level) follows the part instance its target
+     faces, edges or vertices are on, found by matching them to the parts below (shape and
+     placement); PMI with targets on several parts is hidden while exploded, as it would point
+     at parts that moved apart, and PMI with no target found stays with its assembly. The
+     labels' anchors move and the labels are decluttered again. Labels and arrowheads are drawn
+     in pixels around a point, so they move by moving that point (a local transformation would
+     move them by pixels). Highlighting a PMI's target geometry draws each target where its part
+     is.
    - **Markup:** notes and strokes on a part move with it; items in the world stay put.
 5. **What does not, and is kept out.** These tools measure or compute on the assembled geometry,
    or draw something between two parts; in an exploded view their results would be in the
    wrong place or mean something else. One mode at a time, as with section picks and
    measurements already:
-   - Exploding turns off the measure mode, a section plane or note pick, sketching, the
+   - Exploding turns off (and names in the status bar) the measure mode, a section plane or note pick, sketching, the
      section view, the wall thickness view, the comparison view and the geometry check or
      clash highlight, and hides the measurement witnesses (the Measurements panel keeps them,
      and they come back on collapse).
@@ -63,8 +68,11 @@ and keeps the tools that measure or compute the assembled geometry out of the ex
      plane (then it collapses, as the section view does).
 6. **When it is available.** With a model that has at least two part instances; otherwise the
    action is disabled. Whether they move apart (offsets not all zero) is known once the layout
-   is computed, when the user first explodes; if none moves, it says so and stays assembled. The
-   layout is kept for the model it was computed for and computed again for another one. A single part (an STL file, which is one part) has
+   is computed, when the user first explodes; if none moves, it says so once, stays assembled
+   and disables the menu item and the slider for that model. The layout is kept for the model it
+   was computed for and computed again for another one. A part is bounded by its finite faces,
+   edges and vertices when it also holds unbounded geometry (an untrimmed reference plane), so
+   such a part still moves apart. A single part (an STL file, which is one part) has
    nothing to explode. A mesh file with several parts (OBJ, glTF) explodes like any assembly:
    moving parts needs no exact geometry.
 7. **Code layout.**

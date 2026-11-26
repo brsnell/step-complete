@@ -44,6 +44,13 @@ private Q_SLOTS:
     QCOMPARE(collapsed.count(), 1);
     panel.setExploded(false);
     QVERIFY(!collapse->isEnabled());
+
+    // A model that cannot explode: the slider is off until another model comes.
+    QVERIFY(slider->isEnabled());
+    panel.setAvailable(false);
+    QVERIFY(!slider->isEnabled());
+    panel.setAvailable(true);
+    QVERIFY(slider->isEnabled());
   }
 };
 
