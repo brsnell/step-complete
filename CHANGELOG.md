@@ -5,6 +5,11 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-26
+
+Windows installer and portable zip, Linux AppImage, and the Windows debug symbols. The macOS DMGs
+are still built but held back until they pass a hands-on test on a real Mac (see `TODOS.md`).
+
 ### Added
 - Part colors (View > Part Color, `C`): give the selected parts a color of your own, for the
   whole part over the file's colors; View > Reset Part Color gives them the file's colors back.

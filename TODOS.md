@@ -2,7 +2,7 @@
 
 State as of 2026-11-16. M0–M4 are done and M5 (ship v1.0) is mostly done; see [docs/PLAN.md](docs/PLAN.md) §7. Packaging, the release workflow, file associations, the open-file cache and the user guide are on `main`. The Windows packages passed a hands-on test on real hardware (2026-11-16). v1.0.0 ships for Windows and Linux only; the release workflow builds the macOS DMGs but does not publish them until the hands-on macOS check below passes.
 
-Update 2026-11-26: v1.1 (M6), v1.2 (M7), v1.3 (M8, markup) and v1.4 (M9, exploded view and crash reports) shipped (the v1.2 milestone was drafted as "v2"; it shipped as 1.2 because it only adds to the viewer). See [docs/PLAN.md](docs/PLAN.md) §7a. Every open item under Release and Viewport is blocked on hardware or a cost decision. Each item gets a design in `docs/designs/` before work starts.
+Update 2026-11-26: v1.1 (M6), v1.2 (M7), v1.3 (M8, markup), v1.4 (M9, exploded view and crash reports) and v1.5 (M10, part colors) shipped (the v1.2 milestone was drafted as "v2"; it shipped as 1.2 because it only adds to the viewer). See [docs/PLAN.md](docs/PLAN.md) §7a. Every open item under Release and Viewport is blocked on hardware or a cost decision. Each item gets a design in `docs/designs/` before work starts.
 
 ## Release
 
@@ -74,7 +74,13 @@ scope; add them here if users ask.
 
 Shipped as v1.4.0 on 2026-11-26 with the exploded view ([design](docs/designs/exploded-view.md))
 and crash reports ([design](docs/designs/crash-reporting.md)), see `CHANGELOG.md`. Its review
-notes on assembly-level PMI and unbounded geometry were fixed after the release (Unreleased).
+notes on assembly-level PMI and unbounded geometry were fixed in v1.5.0.
+
+## v1.5 (M10)
+
+Shipped as v1.5.0 on 2026-11-26 with part colors ([design](docs/designs/part-color-overrides.md))
+and the exploded view's follow-ups, see `CHANGELOG.md`. Colors per face or per definition, and
+colors in exported geometry, are out of its scope; add them here if users ask.
 
 ## Crash reporting follow-ups
 
