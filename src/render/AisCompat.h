@@ -14,6 +14,13 @@
 namespace sc::occ {
 
 #if OCC_VERSION_HEX >= 0x080000
+// OCCT 8's RTTI macros (DEFINE_STANDARD_RTTI_INLINE, ...) name `occ::handle`. In a file that also
+// sees this namespace, `occ::` inside namespace sc means sc::occ, so forward the name: without it
+// a class declared with those macros under sc fails to compile wherever this header comes first.
+using ::occ::handle;
+#endif
+
+#if OCC_VERSION_HEX >= 0x080000
 using InteractiveList = NCollection_List<opencascade::handle<AIS_InteractiveObject>>;
 #else
 using InteractiveList = AIS_ListOfInteractive;
