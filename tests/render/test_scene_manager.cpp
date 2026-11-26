@@ -12,10 +12,16 @@
 
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <TopExp_Explorer.hxx>
+#include <XCAFDoc_ColorTool.hxx>
+#include <XCAFDoc_DocumentTool.hxx>
+#include <XCAFDoc_ShapeTool.hxx>
 
 #include <QtTest>
 
+#include <algorithm>
+#include <functional>
 #include <memory>
+#include <optional>
 
 using sc::OccHandle;
 using sc::core::AssemblyIndex;
@@ -47,6 +53,29 @@ int displayedParts(const SceneManager& scene, const OccHandle<AIS_InteractiveCon
     }
   }
   return count;
+}
+
+// Pixels whose color leans clearly to one channel (blue: the override in these tests).
+int countPixels(const QImage& image, const std::function<bool(const QColor&)>& matches) {
+  int count = 0;
+  for (int y = 0; y < image.height(); ++y) {
+    for (int x = 0; x < image.width(); ++x) {
+      count += matches(image.pixelColor(x, y)) ? 1 : 0;
+    }
+  }
+  return count;
+}
+
+bool isBlue(const QColor& color) {
+  return color.blue() > 120 && color.blue() > color.red() + 60 && color.blue() > color.green() + 60;
+}
+
+bool isRed(const QColor& color) {
+  return color.red() > 120 && color.red() > color.green() + 60 && color.red() > color.blue() + 60;
+}
+
+bool isMagenta(const QColor& color) {
+  return color.red() > 140 && color.blue() > 140 && color.green() + 80 < std::min(color.red(), color.blue());
 }
 
 } // namespace
@@ -179,6 +208,73 @@ private Q_SLOTS:
     _scene->setPartOffsets({});
     QVERIFY(!_scene->isExploded());
     QVERIFY(qAbs(centerX(pin) - 30.0) < 0.5);
+  }
+
+  void partColorReplacesTheFilesColorsAndResets() {
+    // docs/designs/part-color-overrides.md: one color for the whole instance, its twins keep theirs.
+    _scene->showAll();
+    const NodeId plate = findNode(*_index, "Base plate");
+    const NodeId pin = findNode(*_index, Pin, 0);
+    const NodeId twin = findNode(*_index, Pin, 2); // same definition, the other pair
+    QVERIFY(plate != sc::core::NoNode && pin != sc::core::NoNode && twin != sc::core::NoNode);
+    QCOMPARE(_index->node(pin).prototypeLabel, _index->node(twin).prototypeLabel);
+    const QImage before = render();
+    const int red = countPixels(before, isRed); // the plate's file color
+    QVERIFY(red > 500);
+    QCOMPARE(countPixels(before, isBlue), 0);
+
+    const Quantity_Color blue(0.1, 0.2, 0.9, Quantity_TOC_sRGB);
+    _scene->setPartColor({plate, pin}, blue);
+    QVERIFY(_scene->partColor(plate).has_value());
+    QVERIFY(_scene->partColor(pin).has_value());
+    QVERIFY(!_scene->partColor(twin).has_value());
+    QCOMPARE(_scene->detachedCount(), 2); // the twin still shares its prototype
+    const QImage colored = render();
+    sc::test::dumpImage(colored, "scene_part_color");
+    QVERIFY2(countPixels(colored, isBlue) > red / 2,
+             qPrintable(QString::number(countPixels(colored, isBlue))));
+    QVERIFY(countPixels(colored, isRed) < red / 20);
+
+    // A display style change rebuilds the styles: the color stays.
+    _scene->setDisplayStyle(sc::render::DisplayStyle::Wireframe);
+    render();
+    _scene->setDisplayStyle(sc::render::DisplayStyle::ShadedWithEdges);
+    QVERIFY(countPixels(render(), isBlue) > red / 2);
+    // So does transparency, and its own color comes back with it off.
+    _scene->setTransparency({plate}, 0.5);
+    _scene->setTransparency({plate}, 0.0);
+    QVERIFY(countPixels(render(), isBlue) > red / 2);
+
+    _scene->setPartColor({plate, pin}, std::nullopt);
+    QVERIFY(!_scene->partColor(plate).has_value());
+    const QImage reset = render();
+    QVERIFY(countPixels(reset, isRed) > red * 9 / 10);
+    QCOMPARE(countPixels(reset, isBlue), 0);
+  }
+
+  void partColorCoversPerFaceFileColors() {
+    // Faces the file colors themselves (magenta: nothing else in the view is) take the override too.
+    auto document = sc::test::buildFixtureAssembly();
+    const AssemblyIndex lookup(document);
+    const TDF_Label plateLabel = lookup.node(findNode(lookup, "Base plate")).prototypeLabel;
+    auto shapes = XCAFDoc_DocumentTool::ShapeTool(document->ocaf()->Main());
+    auto colors = XCAFDoc_DocumentTool::ColorTool(document->ocaf()->Main());
+    for (TopExp_Explorer it(XCAFDoc_ShapeTool::GetShape(plateLabel), TopAbs_FACE); it.More(); it.Next()) {
+      colors->SetColor(shapes->AddSubShape(plateLabel, it.Current()), Quantity_Color(Quantity_NOC_MAGENTA1),
+                       XCAFDoc_ColorSurf);
+    }
+    _index = std::make_shared<AssemblyIndex>(document);
+    _scene->setModel(_index);
+    _viewport->fitAll();
+    const NodeId plate = findNode(*_index, "Base plate");
+    QVERIFY(countPixels(render(), isMagenta) > 500);
+    _scene->setPartColor({plate}, Quantity_Color(0.1, 0.2, 0.9, Quantity_TOC_sRGB));
+    const QImage colored = render();
+    sc::test::dumpImage(colored, "scene_part_color_faces");
+    QCOMPARE(countPixels(colored, isMagenta), 0);
+    QVERIFY(countPixels(colored, isBlue) > 500);
+    _scene->setPartColor({plate}, std::nullopt);
+    QVERIFY(countPixels(render(), isMagenta) > 500);
   }
 
   void detachesInstancesForTransparency() {
