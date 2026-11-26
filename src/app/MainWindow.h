@@ -336,7 +336,8 @@ private:
   QAction* _explodeAction = nullptr;
   ExplodePanel* _explodePanel = nullptr;
   QDockWidget* _explodeDock = nullptr;
-  std::optional<core::ExplodeLayout> _explodeLayout; // the open model's, computed when first needed
+  std::optional<core::ExplodeLayout> _explodeLayout;            // computed when first exploded
+  std::weak_ptr<const core::AssemblyIndex> _explodeLayoutModel; // the model it was computed for
   bool _exploded = false;
   const core::ExplodeLayout& explodeLayout();
   void applyExplode();

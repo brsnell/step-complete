@@ -1498,7 +1498,8 @@ void MainWindow::updateActions() {
   _showAllPmiAction->setEnabled(_pmi && !_pmi->isEmpty());
   _semanticLabelsAction->setEnabled(_pmi && !_pmi->isEmpty());
   _sectionAction->setEnabled(hasModel);
-  _explodeAction->setEnabled(hasModel && explodeLayout().canExplode()); // one box per part definition
+  // A cheap test here; whether the parts can move apart is computed when the user explodes.
+  _explodeAction->setEnabled(hasModel && _scene->model()->partInstances().size() >= 2);
   if (_cancelPickAction != nullptr) {
     _cancelPickAction->setEnabled(_sectionTool->isPicking() || _markupScene->isPickingNote() ||
                                   _markupScene->isSketching());
@@ -2034,9 +2035,11 @@ void MainWindow::setSectionView(bool on) {
 // ---------------------------------------------------------------------------------
 
 const core::ExplodeLayout& MainWindow::explodeLayout() {
-  if (!_explodeLayout) {
-    const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  // Always the shown model's: a layout computed for another model (or none) is computed again.
+  const std::shared_ptr<const core::AssemblyIndex>& index = _scene->model();
+  if (!_explodeLayout || _explodeLayoutModel.lock() != index) {
     _explodeLayout = index ? core::ExplodeLayout(*index) : core::ExplodeLayout();
+    _explodeLayoutModel = index;
   }
   return *_explodeLayout;
 }
@@ -2117,6 +2120,7 @@ void MainWindow::collapseExplode() {
 void MainWindow::resetExplode() {
   setExploded(false);
   _explodeLayout.reset();
+  _explodeLayoutModel.reset();
 }
 
 // ---------------------------------------------------------------------------------

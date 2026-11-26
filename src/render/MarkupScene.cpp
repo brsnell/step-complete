@@ -72,7 +72,7 @@ class MarkupNoteLabel : public AIS_InteractiveObject {
 public:
   MarkupNoteLabel(const std::string& text, const gp_Pnt& anchor, bool emphasized, double dpr)
       : _lines(linesOf(text)), _emphasized(emphasized), _dpr(dpr) {
-    SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomRotatePers, anchor));
+    setAnchor(anchor);
     SetZLayer(Graphic3d_ZLayerId_Topmost);
     double width = 0.0;
     for (const std::string& line : _lines) {
@@ -80,6 +80,11 @@ public:
     }
     _width = std::ceil(width) + 2.0 * NotePadding * _dpr;
     _height = static_cast<double>(_lines.size()) * NoteLineHeight * _dpr + 2.0 * NotePadding * _dpr;
+  }
+
+  // The point the note is drawn at; the caller redisplays.
+  void setAnchor(const gp_Pnt& anchor) {
+    SetTransformPersistence(new Graphic3d_TransformPers(Graphic3d_TMF_ZoomRotatePers, anchor));
   }
 
   bool AcceptDisplayMode(const int mode) const override { return mode == 0; }
@@ -258,19 +263,34 @@ void MarkupScene::refresh() {
 
 void MarkupScene::setPartOffsets(std::vector<gp_Vec> offsets) {
   _offsets = std::move(offsets);
-  rebuild();
+  applyOffsets();
 }
 
-std::optional<gp_Trsf> MarkupScene::displayedPlacement(const core::AssemblyIndex& index,
-                                                       const std::string& part) const {
-  std::optional<gp_Trsf> placement = core::markupPlacement(index, part);
-  const core::NodeId node = part.empty() ? core::NoNode : index.nodeForPathId(part);
-  if (placement && node != core::NoNode && static_cast<size_t>(node) < _offsets.size()) {
-    gp_Trsf offset;
-    offset.SetTranslation(_offsets[static_cast<size_t>(node)]);
-    placement = offset * *placement;
+void MarkupScene::applyOffsets() {
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
+  for (Item& item : _items) {
+    gp_Vec offset(0.0, 0.0, 0.0);
+    if (item.node != core::NoNode && static_cast<size_t>(item.node) < _offsets.size()) {
+      offset = _offsets[static_cast<size_t>(item.node)];
+    }
+    if (offset.IsEqual(item.offset, 0.0, 0.0)) {
+      continue;
+    }
+    item.offset = offset;
+    gp_Trsf translation;
+    translation.SetTranslation(offset);
+    item.box = item.assembledBox.Transformed(translation);
+    if (auto* note = dynamic_cast<MarkupNoteLabel*>(item.object.get()); note != nullptr && item.anchor) {
+      note->setAnchor(item.anchor->Translated(offset)); // drawn in screen space at its anchor
+      if (context->IsDisplayed(item.object)) {
+        context->Redisplay(item.object, false);
+      }
+    } else if (context->IsDisplayed(item.object)) {
+      context->SetLocation(item.object, TopLoc_Location(translation));
+    } else {
+      item.object->SetLocalTransformation(translation);
+    }
   }
-  return placement;
 }
 
 void MarkupScene::rebuild() {
@@ -285,19 +305,28 @@ void MarkupScene::rebuild() {
     return;
   }
   const double dpr = devicePixelRatio();
+  const auto nodeOf = [&index](const std::string& part) {
+    return part.empty() ? core::NoNode : index->nodeForPathId(part);
+  };
   for (const core::MarkupNote& note : _markup.notes()) {
-    const std::optional<gp_Trsf> placement = displayedPlacement(*index, note.part);
+    const std::optional<gp_Trsf> placement = core::markupPlacement(*index, note.part);
     if (!placement) {
       _missing.push_back(note.id);
       continue;
     }
     const gp_Pnt world = note.point.Transformed(*placement);
-    Item item{note.id, note.part, new MarkupNoteLabel(note.text, world, note.id == _emphasized, dpr), {}};
+    Item item;
+    item.id = note.id;
+    item.part = note.part;
+    item.object = new MarkupNoteLabel(note.text, world, note.id == _emphasized, dpr);
     item.box.Add(world);
+    item.node = nodeOf(note.part);
+    item.anchor = world;
+    item.assembledBox = item.box;
     _items.push_back(std::move(item));
   }
   for (const core::MarkupStroke& stroke : _markup.strokes()) {
-    const std::optional<gp_Trsf> placement = displayedPlacement(*index, stroke.part);
+    const std::optional<gp_Trsf> placement = core::markupPlacement(*index, stroke.part);
     if (!placement) {
       _missing.push_back(stroke.id);
       continue;
@@ -309,10 +338,16 @@ void MarkupScene::rebuild() {
       world.push_back(point.Transformed(*placement));
       box.Add(world.back());
     }
-    Item item{stroke.id, stroke.part,
-              new MarkupStrokePresentation(std::move(world), stroke.id == _emphasized, dpr), box};
+    Item item;
+    item.id = stroke.id;
+    item.part = stroke.part;
+    item.object = new MarkupStrokePresentation(std::move(world), stroke.id == _emphasized, dpr);
+    item.box = box;
+    item.node = nodeOf(stroke.part);
+    item.assembledBox = box;
     _items.push_back(std::move(item));
   }
+  applyOffsets(); // before display: a new item takes its part's offset at once
   for (Item& item : _items) {
     display(item);
   }

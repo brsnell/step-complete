@@ -97,11 +97,14 @@ private:
     std::string part; // empty: world
     OccHandle<AIS_InteractiveObject> object;
     Bnd_Box box;
+    core::NodeId node = core::NoNode; // the part's node, NoNode in the world
+    std::optional<gp_Pnt> anchor;     // a note's point, assembled
+    Bnd_Box assembledBox;             // where it is with the model assembled
+    gp_Vec offset;                    // the exploded offset applied now
   };
   void rebuild();
-  // Where an item's part is shown (its placement and exploded offset), or nullopt for a part
-  // the model does not have.
-  std::optional<gp_Trsf> displayedPlacement(const core::AssemblyIndex& index, const std::string& part) const;
+  // Moves the items by their part's exploded offset, without rebuilding them.
+  void applyOffsets();
   void display(Item& item);
   bool partShown(const std::string& part) const;
   void endNotePick(const std::optional<core::MarkupNote>& picked);

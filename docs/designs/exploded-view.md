@@ -59,8 +59,10 @@ and keeps the tools that measure or compute the assembled geometry out of the ex
      collapses first.
    - Restoring one of the user's own saved views works exploded, unless it turns on a section
      plane (then it collapses, as the section view does).
-6. **When it is available.** With a model that has at least two parts whose offsets are not all
-   zero; otherwise the action is disabled. A single part (an STL file, which is one part) has
+6. **When it is available.** With a model that has at least two part instances; otherwise the
+   action is disabled. Whether they move apart (offsets not all zero) is known once the layout
+   is computed, when the user first explodes; if none moves, it says so and stays assembled. The
+   layout is kept for the model it was computed for and computed again for another one. A single part (an STL file, which is one part) has
    nothing to explode. A mesh file with several parts (OBJ, glTF) explodes like any assembly:
    moving parts needs no exact geometry.
 7. **Code layout.**

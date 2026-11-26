@@ -163,12 +163,20 @@ private Q_SLOTS:
 
   void movesWithItsExplodedPart() {
     // Exploded view (docs/designs/exploded-view.md): an item on a part takes the part's offset; an
-    // item in the world stays.
-    sc::core::Markup markup = sample();
+    // item in the world stays. The items move where they are drawn, not only in their boxes.
+    int note = 0;
+    int stroke = 0;
+    sc::core::Markup markup = sample(&note, &stroke);
     const int world = markup.addNote({0, "In the world", "", gp_Pnt(0, 0, 50)});
     _markup->setMarkup(markup);
-    const int note = markup.notes().front().id;
     QVERIFY(!_markup->worldBox(note).IsOut(gp_Pnt(50, 30, 10)));
+    // Ink near the stroke's corner at (40, 40, z): a small window around its pixel.
+    const auto inkAt = [this](const gp_Pnt& point) {
+      const NCollection_Vec2<int> pixel = pixelOf(point);
+      const QImage image = render().copy(pixel.x() - 4, pixel.y() - 4, 9, 9);
+      return countPixels(image, isStroke);
+    };
+    QVERIFY(inkAt(gp_Pnt(40, 40, 10)) > 0);
 
     std::vector<gp_Vec> offsets(_index->nodes().size(), gp_Vec(0.0, 0.0, 0.0));
     offsets[static_cast<size_t>(_plate)] = gp_Vec(0.0, 0.0, -100.0);
@@ -176,10 +184,21 @@ private Q_SLOTS:
     QVERIFY(_markup->isDisplayed(note));
     QVERIFY(!_markup->worldBox(note).IsOut(gp_Pnt(50, 30, -90)));
     QVERIFY(_markup->worldBox(note).IsOut(gp_Pnt(50, 30, 10)));
+    QVERIFY(!_markup->worldBox(stroke).IsOut(gp_Pnt(40, 40, -90)));
     QVERIFY(!_markup->worldBox(world).IsOut(gp_Pnt(0, 0, 50)));
+    _viewport->fitAll();
+    QVERIFY(inkAt(gp_Pnt(40, 40, -90)) > 0); // the stroke is drawn where the plate went
+    QCOMPARE(inkAt(gp_Pnt(40, 40, 10)), 0);
+
+    // A markup change while exploded places the new items with the offset at once.
+    sc::core::Markup more = markup;
+    const int added = more.addNote({0, "Added while exploded", _index->pathId(_plate), gp_Pnt(10, 10, 10)});
+    _markup->setMarkup(more);
+    QVERIFY(!_markup->worldBox(added).IsOut(gp_Pnt(10, 10, -90)));
 
     _markup->setPartOffsets({});
     QVERIFY(!_markup->worldBox(note).IsOut(gp_Pnt(50, 30, 10)));
+    QVERIFY(!_markup->worldBox(added).IsOut(gp_Pnt(10, 10, 10)));
   }
 
   void followsVisibility() {
