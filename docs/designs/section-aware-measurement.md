@@ -50,10 +50,15 @@ it either measures a hidden face or does nothing.
    selection modes are sub-shape modes (any picking tool), and accepts them otherwise.
 6. **Code layout.**
    - `core/SectionCap.{h,cpp}` (OCCT only): `CutPlane`, `capHit` (decision 1), `capFaces` and
-     `faceAt` (decision 2).
+     `faceAt` (decision 2), `snapOnCap` (Point to Point on a cap: corners, then edge endpoints,
+     midpoints and centers, then the nearest edge point).
    - `core::Pick::sectionFace` names the entity "Section face" in the report.
-   - `render`: `MeasureTool` resolves cap picks, caches cap faces and draws pending cap picks;
-     `SectionTool` installs the handle filter.
+   - `render`: `MeasureTool` resolves cap picks, caches cap faces and draws pending cap picks; a
+     cap pick is kept apart from OCCT's selection (which holds the far wall), so clicking the cap
+     again un-picks it and the far wall stays pickable. `SectionTool` installs the handle filter.
+     `SceneManager::pickedPoint` gives the point where the selector met a given owner: with a
+     handle filtered out, the first hit is the handle, not the part. Measuring and note
+     placement use it.
 
 ## Out of scope
 

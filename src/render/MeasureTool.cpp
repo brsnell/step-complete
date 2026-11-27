@@ -207,8 +207,13 @@ void MeasureTool::onSelectionChanged() {
     }
   }
   if (capClick) {
-    const auto sameFace = [&capClick](const PendingPick& p) {
-      return p.pick.sectionFace && p.pick.shape.IsSame(capClick->shape);
+    // The same cut face again un-picks it; in Point to Point only at the same point, since its
+    // corners are picked through one face.
+    const bool byPoint = _mode == core::MeasureMode::PointToPoint;
+    const double samePoint = _viewport->pixelsToModel(SnapPixels) / 2.0;
+    const auto sameFace = [&capClick, byPoint, samePoint](const PendingPick& p) {
+      return p.pick.sectionFace && p.pick.shape.IsSame(capClick->shape) &&
+             (!byPoint || p.pick.point.Distance(capClick->point) <= samePoint);
     };
     const auto existing = std::find_if(_picks.begin(), _picks.end(), sameFace);
     if (existing != _picks.end()) {

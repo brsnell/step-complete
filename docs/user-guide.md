@@ -257,7 +257,7 @@ clicked point on the surface).
   It is reported as *Section face* and works like any flat face: its area (Entity Info), a
   distance or an angle to it. In Point to Point mode the marker snaps to its corners and edges.
   The picked cut face is drawn in the selection color until the measurement completes; clicking
-  it again un-picks it. With Cap off you see into the part, and a click picks the inside face
+  it again un-picks it (in Point to Point, clicking the same point again). With Cap off you see into the part, and a click picks the inside face
   you see.
 - Geometry on the cut-away side cannot be picked.
 - The planes' handles let clicks through while you measure (and while you pick a face for a

@@ -3,6 +3,7 @@
 
 #include "core/SectionCap.h"
 
+#include <BRepBuilderAPI_MakeFace.hxx>
 #include <BRepGProp.hxx>
 #include <BRepPrimAPI_MakeBox.hxx>
 #include <BRep_Builder.hxx>
@@ -128,4 +129,35 @@ TEST(SectionCap, APartWithTwoSolidsGivesTheFaceUnderThePoint) {
   GProp_GProps props;
   BRepGProp::SurfaceProperties(*face, props);
   EXPECT_NEAR(props.CentreOfMass().X(), 25.0, 1e-6);
+}
+
+TEST(SectionCap, APartWithoutSolidsHasNoCap) {
+  // OCCT caps closed volumes only: a lone face is never capped.
+  const TopoDS_Shape sheet =
+      BRepBuilderAPI_MakeFace(gp_Pln(gp_Pnt(0, 0, 0), gp_Dir(1, 0, 0)), 0, 10, 0, 10).Shape();
+  const std::vector<core::CutPlane> planes = {cut(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1))};
+  EXPECT_TRUE(core::capFaces(sheet, planes, 0).IsNull());
+  EXPECT_FALSE(core::capHit(sheet, gp_Pnt(0, 5, 0), Down, planes).has_value());
+}
+
+TEST(SectionCap, PointToPointSnapsOnTheCapsCornersEdgesAndFace) {
+  const std::vector<core::CutPlane> planes = {cut(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1))};
+  const auto face = core::faceAt(core::capFaces(plate(), planes, 0), gp_Pnt(60, 40, 5));
+  ASSERT_TRUE(face.has_value());
+
+  const core::SnapResult corner = core::snapOnCap(*face, gp_Pnt(1, 1, 5), 2.0);
+  EXPECT_EQ(corner.kind, core::SnapKind::Vertex);
+  EXPECT_TRUE(corner.point.IsEqual(gp_Pnt(0, 0, 5), 1e-6));
+
+  const core::SnapResult midpoint = core::snapOnCap(*face, gp_Pnt(50.5, 1, 5), 2.0);
+  EXPECT_EQ(midpoint.kind, core::SnapKind::Midpoint);
+  EXPECT_TRUE(midpoint.point.IsEqual(gp_Pnt(50, 0, 5), 1e-6));
+
+  const core::SnapResult onEdge = core::snapOnCap(*face, gp_Pnt(30, 1, 5), 2.0);
+  EXPECT_EQ(onEdge.kind, core::SnapKind::OnEdge);
+  EXPECT_TRUE(onEdge.point.IsEqual(gp_Pnt(30, 0, 5), 1e-6));
+
+  const core::SnapResult inside = core::snapOnCap(*face, gp_Pnt(30, 30, 5), 2.0);
+  EXPECT_EQ(inside.kind, core::SnapKind::OnFace);
+  EXPECT_TRUE(inside.point.IsEqual(gp_Pnt(30, 30, 5), 1e-9));
 }

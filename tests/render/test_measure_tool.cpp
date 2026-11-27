@@ -356,6 +356,47 @@ private Q_SLOTS:
     QCOMPARE(_tool->pickCount(), 1);
   }
 
+  void movingAPlaneRefreshesTheCutFace() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::PointToPoint);
+    hover(gp_Pnt(0.5, 0.5, 5));
+    QVERIFY(_viewport->overlayMarker()->point.IsEqual(gp_Pnt(0, 0, 5), 1e-6));
+    // The cached cut face was made for z = 5: after the move it must come from the new plane.
+    sc::render::SectionPlane plane = _section->plane(0);
+    plane.offset = 3.0;
+    _section->setPlane(0, plane);
+    render();
+    hover(gp_Pnt(0.5, 0.5, 3));
+    QVERIFY(_viewport->overlayMarker().has_value());
+    QVERIFY(_viewport->overlayMarker()->point.IsEqual(gp_Pnt(0, 0, 3), 1e-6));
+  }
+
+  void pointToPointMeasuresBetweenCapCorners() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::PointToPoint);
+    QVERIFY(clickAt(gp_Pnt(0.5, 0.5, 5)));
+    QVERIFY(clickAt(gp_Pnt(99.5, 0.5, 5)));
+    QCOMPARE(_results.size(), size_t(1));
+    QVERIFY2(_results.front().ok, _results.front().error.c_str());
+    QCOMPARE(_results.front().headline, std::string("100.000 mm"));
+  }
+
+  void leavingTheModeRemovesThePendingHighlight() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::Distance);
+    const auto displayed = [this] {
+      AIS_ListOfInteractive objects;
+      _viewport->context()->DisplayedObjects(objects);
+      return static_cast<int>(objects.Size());
+    };
+    const int before = displayed();
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(displayed(), before + 1);
+    _tool->setMode(std::nullopt);
+    QCOMPARE(displayed(), before);
+    QCOMPARE(_tool->pickCount(), 0);
+  }
+
   void pointToPointSnapsOnTheCap() {
     sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
     _tool->setMode(MeasureMode::PointToPoint);
