@@ -551,7 +551,7 @@ Measurement computeMeasurement(MeasureMode mode, const std::vector<Pick>& picks,
     return measurement;
   }
   for (const Pick& pick : picks) {
-    std::string entity = describeEntity(pick.shape);
+    std::string entity = pick.sectionFace ? std::string("Section face") : describeEntity(pick.shape);
     if (!pick.owner.empty()) {
       entity += " on " + pick.owner;
     }

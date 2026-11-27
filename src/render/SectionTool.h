@@ -20,6 +20,7 @@ namespace sc::render {
 
 class SceneManager;
 class SectionHandle;
+class SectionHandleFilter;
 
 // One section plane: the part on the side the normal points to is cut away.
 struct SectionPlane {
@@ -34,7 +35,10 @@ struct SectionPlane {
 // Section view: up to three clipping planes applied to the parts (PMI,
 // measurement witnesses and the view cube stay whole). Cut solids are capped
 // with the part's own color, optionally hatched. Each active plane shows a
-// translucent handle in the view that can be dragged along its normal.
+// translucent handle in the view that can be dragged along its normal. While a
+// tool picks faces, edges or vertices (the scene has sub-shape selection modes),
+// the handles let clicks through to the parts behind them
+// (docs/designs/section-aware-measurement.md).
 class SectionTool : public QObject, public DragHandler {
   Q_OBJECT
 
@@ -106,6 +110,7 @@ private:
   std::array<SectionPlane, MaxPlanes> _planes;
   std::array<OccHandle<Graphic3d_ClipPlane>, MaxPlanes> _clip;
   std::array<OccHandle<SectionHandle>, MaxPlanes> _handles;
+  OccHandle<SectionHandleFilter> _handleFilter; // on the context once a handle is shown
   OccHandle<Graphic3d_SequenceOfHClipPlane> _sequence;
   bool _handlesVisible = true;
 

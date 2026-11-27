@@ -47,6 +47,9 @@ struct Pick {
   TopoDS_Shape shape; // vertex, edge or face, already placed with toWorld()
   gp_Pnt point;       // where the user clicked on it
   std::string owner;  // display path of the part instance, for the report
+  // A section view's cut face (docs/designs/section-aware-measurement.md): reported as
+  // "Section face" rather than by its surface type.
+  bool sectionFace = false;
 };
 
 // Geometry that shows the work: drawn on top of the model.

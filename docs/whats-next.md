@@ -7,8 +7,9 @@ fences off what is deferred; do not keep a second ordered list here that can dri
   done: v1.0.0 shipped for Windows and Linux on 2026-11-15, v1.1.0 (M6) on 2026-11-22, v1.2.0
   (M7) and v1.3.0 (M8, [markup](designs/markup.md)) on 2026-11-23, v1.4.0 (M9,
   [exploded view](designs/exploded-view.md)) and v1.5.0 (M10,
-  [part colors](designs/part-color-overrides.md)) on 2026-11-26).
+  [part colors](designs/part-color-overrides.md)) on 2026-11-26; v1.6 (M11,
+  [measurements that follow section views](designs/section-aware-measurement.md)) in progress).
 - **Approved designs:** [`docs/designs/`](designs/).
 - **Dated plans:** [`docs/superpowers/plans/`](superpowers/plans/).
 - **Deferred:** the `## Deferred` section of `TODOS.md` (bundled Mesa on Windows,
-  Flathub, coarse-then-fine first mesh, measurements that follow section views). Do not start these without moving them out of Deferred first.
+  Flathub, coarse-then-fine first mesh). Do not start these without moving them out of Deferred first.

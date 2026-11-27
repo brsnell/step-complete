@@ -5,6 +5,16 @@ tag `v<VERSION>`, which builds the packages and publishes a GitHub Release.
 
 ## [Unreleased]
 
+### Added
+- Measuring with a section view: with Cap on, a click on a cut face measures that face (the
+  part's cross-section, reported as "Section face"), and Point to Point snaps to its corners and
+  edges. It used to measure the hidden wall behind the cap.
+
+### Fixed
+- A section plane's handle no longer swallows clicks while measuring, picking a face for a plane
+  or placing a note: the click reaches the part behind it. Clicks through a handle used to do
+  nothing.
+
 ## [1.5.0] - 2026-11-26
 
 Windows installer and portable zip, Linux AppImage, and the Windows debug symbols. The macOS DMGs

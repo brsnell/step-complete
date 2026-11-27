@@ -35,7 +35,7 @@ Three layers, each a library under `src/`, plus the app's `main.cpp`:
 
 - **`src/core`** (`sc::core`): OCCT only, no Qt. STEP import (`StepImporter`, `Document`,
   `CompressedStep`), the assembly index, units, the open-file cache (`DocumentCache`),
-  measurement (`Measure`, `Measurement`), the PMI model (`PmiModel`, `PmiText`) and the exploded
+  measurement (`Measure`, `Measurement`, `SectionCap` for cut faces), the PMI model (`PmiModel`, `PmiText`) and the exploded
   view's part offsets (`ExplodeLayout`).
 - **`src/render`** (`sc::render`): the Qt ↔ OCCT bridge. `OcctViewport` (a `QOpenGLWidget`
   hosting a `V3d_View`), `SceneManager` (parts, selection and exploded offsets), `MeasureTool`

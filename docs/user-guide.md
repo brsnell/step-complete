@@ -251,6 +251,21 @@ selecting a PMI annotation leaves measure mode.
 within a few pixels; otherwise the point is the closest point *On Edge* or *On Face* (the exact
 clicked point on the surface).
 
+**With a section view.** Measuring works on what you see:
+
+- With **Cap** on, clicking a cut face picks that face, the part's cross-section in the plane.
+  It is reported as *Section face* and works like any flat face: its area (Entity Info), a
+  distance or an angle to it. In Point to Point mode the marker snaps to its corners and edges.
+  The picked cut face is drawn in the selection color until the measurement completes; clicking
+  it again un-picks it. With Cap off you see into the part, and a click picks the inside face
+  you see.
+- Geometry on the cut-away side cannot be picked.
+- The planes' handles let clicks through while you measure (and while you pick a face for a
+  plane or place a note); drag them again once you stop, or move the plane with the Section
+  panel's slider.
+- Results and witnesses are not clipped: they stay whole and on top, and do not change when a
+  plane moves.
+
 ### Mass properties
 
 **Shift+M** measures the selected parts (assemblies expand to their parts), or every visible part
@@ -474,7 +489,9 @@ For each of Plane 1, 2 and 3:
 - **Hatch:** hatch the cut faces (needs Cap).
 
 **Show handles** displays a translucent rectangle with an arrow at each enabled plane. Drag a
-handle with the left mouse button to move the plane; it highlights on hover. **Reset** turns all
+handle with the left mouse button to move the plane; it highlights on hover. While you measure,
+pick a face or place a note, clicks go through the handles to the parts behind them. Measuring a
+cut face is described in section 6 (Picking, with a section view). **Reset** turns all
 planes off, and so does unchecking **Section View**.
 
 ### Exploded view

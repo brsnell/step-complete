@@ -262,6 +262,35 @@ private Q_SLOTS:
     QCOMPARE(_scene->selectedParts(), std::vector<sc::core::NodeId>{plate});
   }
 
+  void handlesLetAFacePickThrough() {
+    // Plane 0 above the model cuts nothing, but its handle covers the view from the top.
+    SectionPlane above;
+    above.enabled = true;
+    above.normal = gp_Dir(0, 0, 1);
+    above.offset = 35.0;
+    _section->setPlane(0, above);
+    render();
+    const auto& context = _viewport->context();
+    int pixelX = 0;
+    int pixelY = 0;
+    _viewport->view()->Convert(60, 40, 10, pixelX, pixelY);
+    context->MoveTo(pixelX, pixelY, _viewport->view(), false);
+    QVERIFY(context->HasDetected());
+    QVERIFY2(!_scene->pickedEntity(context->DetectedOwner()), "with no tool picking, the handle is on top");
+
+    _section->pickFace(1);
+    render();
+    QVERIFY(clickAt(gp_Pnt(60, 40, 10))); // the plate's top face, behind the handle
+    QVERIFY(!_section->isPicking());
+    QVERIFY(_section->plane(1).enabled);
+    QVERIFY(std::abs(_section->plane(1).offset - 10.0) < 1e-6);
+
+    // Picking over: the handle takes clicks (and drags) again.
+    context->MoveTo(pixelX, pixelY, _viewport->view(), false);
+    QVERIFY(context->HasDetected());
+    QVERIFY(!_scene->pickedEntity(context->DetectedOwner()));
+  }
+
   void aCurvedFaceIsRejectedAndThePickGoesOn() {
     _section->setHandlesVisible(false);
     _viewport->setStandardView(V3d_Yneg); // from the front: the pins' curved sides face us

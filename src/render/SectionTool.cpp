@@ -14,6 +14,7 @@
 #include <Prs3d_Presentation.hxx>
 #include <Select3D_SensitiveTriangle.hxx>
 #include <SelectMgr_EntityOwner.hxx>
+#include <SelectMgr_Filter.hxx>
 #include <SelectMgr_Selection.hxx>
 
 #include <algorithm>
@@ -137,6 +138,25 @@ private:
   double _halfSize = 0.0;
 };
 
+// Rejects the handles while a tool picks sub-shapes, so its clicks reach the parts behind them.
+class SectionHandleFilter : public SelectMgr_Filter {
+  DEFINE_STANDARD_RTTI_INLINE(SectionHandleFilter, SelectMgr_Filter)
+
+public:
+  explicit SectionHandleFilter(const SceneManager* scene) : _scene(scene) {}
+
+  bool IsOk(const OccHandle<SelectMgr_EntityOwner>& owner) const override {
+    if (_scene == nullptr || _scene->selectionModes().empty() || owner.IsNull()) {
+      return true;
+    }
+    const OccHandle<SelectMgr_SelectableObject>& selectable = owner->Selectable();
+    return selectable.IsNull() || !selectable->IsKind(STANDARD_TYPE(SectionHandle));
+  }
+
+private:
+  const SceneManager* _scene;
+};
+
 gp_Pln SectionPlane::plane() const {
   return gp_Pln(gp_Pnt(0, 0, 0).Translated(gp_Vec(normal) * offset), normal);
 }
@@ -166,6 +186,9 @@ SectionTool::~SectionTool() {
   if (!context.IsNull()) {
     for (const auto& handle : _handles) {
       context->Remove(handle, false);
+    }
+    if (!_handleFilter.IsNull()) {
+      context->RemoveFilter(_handleFilter);
     }
   }
   if (_scene != nullptr) {
@@ -355,6 +378,10 @@ void SectionTool::updateHandle(int index) {
   const gp_Pnt onPlane = center.Translated(-normal * distance);
   const double halfSize = 0.6 * std::sqrt(_bounds.SquareExtent()) / 2.0 * 1.2;
   handle->setGeometry(onPlane, plane.normal, halfSize);
+  if (_handleFilter.IsNull()) {
+    _handleFilter = new SectionHandleFilter(_scene);
+    context->AddFilter(_handleFilter);
+  }
   if (context->IsDisplayed(handle)) {
     context->Redisplay(handle, false);
     context->RecomputeSelectionOnly(handle);

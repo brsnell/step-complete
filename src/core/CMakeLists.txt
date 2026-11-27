@@ -51,6 +51,8 @@ add_library(sc_core STATIC
   Markup.cpp
   ExplodeLayout.h
   ExplodeLayout.cpp
+  SectionCap.h
+  SectionCap.cpp
 )
 add_library(sc::core ALIAS sc_core)
 

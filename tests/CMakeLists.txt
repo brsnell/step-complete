@@ -21,6 +21,7 @@ add_executable(sc_core_tests
   core/test_real_models.cpp
   core/test_measure.cpp
   core/test_measurement.cpp
+  core/test_section_cap.cpp
   core/test_pmi_text.cpp
   core/test_pmi_model.cpp
   core/test_compressed_step.cpp

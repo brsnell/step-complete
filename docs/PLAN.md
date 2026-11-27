@@ -424,6 +424,11 @@ Feedback from users can reorder what is left.
 - ✅ **Part color overrides** (View > Part Color, `C`): a color of the user's on part instances,
   kept with the model's data ([design](designs/part-color-overrides.md)).
 
+### M11: v1.6: 🚧 in progress
+- ✅ **Measurements that follow section views** (from Deferred): a click on a cut face measures
+  the cut face, and the plane handles let measuring clicks through
+  ([design](designs/section-aware-measurement.md)).
+
 ### Candidates, not scheduled
 Seen in other viewers. Waiting on user demand: 3D mouse (3Dconnexion) support. The other deferred
 items in `TODOS.md` are unchanged.
