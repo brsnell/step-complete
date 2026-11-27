@@ -66,7 +66,10 @@ it either measures a hidden face or does nothing.
   cap is the same plane; a note on a cap would move with the plane). Recorded in `TODOS.md`.
 - Edge and vertex picks on a cap's outline (use Point to Point).
 - Clipping witnesses, or re-measuring results when a plane moves.
-- Caps of open shells (OCCT caps closed volumes only).
+- Caps of open shells (OCCT caps closed volumes only), and parts made of closed shells without
+  solids (their caps still pick the far wall).
+- The uncapped clip plane a PMI saved view may set on the view: only the section planes count.
+- Radius on a cap's circular outline (the cap is a flat face; pick the hole's wall instead).
 
 ## Tests
 

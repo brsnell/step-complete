@@ -596,7 +596,7 @@ gp_Pnt SceneManager::pickedPoint(const OccHandle<AIS_InteractiveContext>& contex
       return selector->PickedPoint(rank);
     }
   }
-  return selector->PickedPoint(1);
+  return selector->NbPicked() > 0 ? selector->PickedPoint(1) : gp_Pnt();
 }
 
 std::vector<core::NodeId> SceneManager::selectedParts() const {

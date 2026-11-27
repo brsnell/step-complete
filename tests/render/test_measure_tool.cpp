@@ -5,6 +5,7 @@
 #include "TestModels.h"
 
 #include "core/AssemblyIndex.h"
+#include "render/AisCompat.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
 #include "render/SceneManager.h"
@@ -408,7 +409,7 @@ private Q_SLOTS:
     sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
     _tool->setMode(MeasureMode::Distance);
     const auto displayed = [this] {
-      AIS_ListOfInteractive objects;
+      sc::occ::InteractiveList objects;
       _viewport->context()->DisplayedObjects(objects);
       return static_cast<int>(objects.Size());
     };

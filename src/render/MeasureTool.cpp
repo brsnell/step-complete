@@ -300,8 +300,9 @@ std::optional<MeasureTool::SectionFace> MeasureTool::sectionFaceAt(core::NodeId 
     }
   }
   const std::optional<core::CapHit> hit = core::capCrossing(hitPoint, direction, planes);
-  if (!hit) {
-    return std::nullopt;
+  if (!hit ||
+      (!camera->IsOrthographic() && hit->point.Distance(hitPoint) >= camera->Eye().Distance(hitPoint))) {
+    return std::nullopt; // no cap in front, or (perspective) the crossing is behind the eye
   }
   // With the cap faces cached, they answer whether the crossing is on this part (Point to Point
   // hovers run this on every mouse move); otherwise classify against the solids before the boolean.
