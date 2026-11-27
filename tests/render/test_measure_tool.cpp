@@ -5,9 +5,11 @@
 #include "TestModels.h"
 
 #include "core/AssemblyIndex.h"
+#include "render/AisCompat.h"
 #include "render/MeasureTool.h"
 #include "render/OcctViewport.h"
 #include "render/SceneManager.h"
+#include "render/SectionTool.h"
 
 #include <QtTest>
 
@@ -23,7 +25,29 @@ private:
   std::unique_ptr<sc::render::OcctViewport> _viewport;
   std::unique_ptr<sc::render::SceneManager> _scene;
   std::unique_ptr<sc::render::MeasureTool> _tool;
+  std::unique_ptr<sc::render::SectionTool> _section;
   std::vector<Measurement> _results;
+
+  // A section view with one plane through 'point', cutting away the side 'normal' points to.
+  void sectionThrough(const gp_Pnt& point, const gp_Dir& normal, bool capping = true) {
+    _section = std::make_unique<sc::render::SectionTool>(_viewport.get(), _scene.get());
+    _section->setBounds(_scene->boundingBox(_scene->model()->roots()));
+    sc::render::SectionPlane plane;
+    plane.enabled = true;
+    plane.normal = normal;
+    plane.offset = gp_Vec(point.XYZ()).Dot(gp_Vec(normal));
+    plane.capping = capping;
+    _section->setPlane(0, plane);
+    render();
+  }
+
+  void hover(const gp_Pnt& point) {
+    int pixelX = 0;
+    int pixelY = 0;
+    _viewport->view()->Convert(point.X(), point.Y(), point.Z(), pixelX, pixelY);
+    _viewport->context()->MoveTo(pixelX, pixelY, _viewport->view(), false);
+    _tool->onHoverUpdated();
+  }
 
   QImage render() {
     _viewport->invalidateScene();
@@ -78,6 +102,7 @@ private Q_SLOTS:
 
   void cleanup() {
     _tool.reset();
+    _section.reset();
     _scene.reset();
     _viewport.reset();
   }
@@ -255,6 +280,155 @@ private Q_SLOTS:
     QVERIFY(!_viewport->overlayMarker().has_value());
     hover(gp_Pnt(10, 13, 30));
     QVERIFY(!_viewport->overlayMarker().has_value());
+  }
+
+  // --- Section views (docs/designs/section-aware-measurement.md) ---------------------------
+
+  void aClickOnACapMeasuresTheSectionFace() {
+    // The plate is cut at z = 5 and everything above is gone; from the top the cap fills the
+    // plate's outline. The plane's handle lies over the whole model: the click goes through it.
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::EntityInfo);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(_results.size(), size_t(1));
+    const Measurement& measurement = _results.front();
+    QVERIFY2(measurement.ok, measurement.error.c_str());
+    QCOMPARE(measurement.headline, std::string("6000.000 mm\xC2\xB2"));
+    QCOMPARE(measurement.entities.front(), std::string("Section face on Fixture / Base plate"));
+  }
+
+  void aPendingSectionFaceIsHighlighted() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::Distance);
+    const QImage before = render();
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(_tool->pickCount(), 1);
+    QCOMPARE(_tool->sectionFacePickCount(), 1);
+    _viewport->context()->MoveTo(2, 2, _viewport->view(), false); // no hover highlight
+    const QImage after = render();
+    sc::test::dumpImage(after, "measure_section_pick");
+    QVERIFY2(sc::test::changedPixelFraction(before, after) > 0.1, "the picked cut face is not drawn");
+
+    // Distance from the cut face to the plate's bottom, seen from below.
+    _viewport->setStandardView(V3d_Zneg);
+    _viewport->fitAll();
+    render();
+    QVERIFY(clickAt(gp_Pnt(60, 40, 0)));
+    QCOMPARE(_results.size(), size_t(1));
+    QCOMPARE(detail(_results.front(), "Parallel distance"), std::string("5.000 mm"));
+    QCOMPARE(_tool->sectionFacePickCount(), 0);
+  }
+
+  void clickingACapAgainUnpicksIt() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::Distance);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(_tool->sectionFacePickCount(), 1);
+    QVERIFY(clickAt(gp_Pnt(30, 20, 5))); // elsewhere on the same cut face
+    QCOMPARE(_tool->pickCount(), 0);
+    QVERIFY(_results.empty());
+    QVERIFY2(_viewport->context()->NbSelected() == 0, "the wall behind the cap stays unselected");
+  }
+
+  void wireframeDrawsNoCapsSoTheClickPicksWhatIsSeen() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _scene->setDisplayStyle(sc::render::DisplayStyle::Wireframe);
+    render();
+    _tool->setMode(MeasureMode::EntityInfo);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(_results.size(), size_t(1));
+    QVERIFY(_results.front().entities.front() != std::string("Section face on Fixture / Base plate"));
+  }
+
+  void movingAPlaneDropsAPendingSectionFace() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    connect(_section.get(), &sc::render::SectionTool::planeChanged, _tool.get(),
+            &sc::render::MeasureTool::dropSectionFacePicks);
+    _tool->setMode(MeasureMode::Distance);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(_tool->sectionFacePickCount(), 1);
+    sc::render::SectionPlane plane = _section->plane(0);
+    plane.offset = 3.0;
+    _section->setPlane(0, plane);
+    QCOMPARE(_tool->pickCount(), 0);
+  }
+
+  void withoutCapsTheClickPicksTheInside() {
+    // No cap is drawn: the user sees into the plate, and the click picks its bottom face.
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1), false);
+    _tool->setMode(MeasureMode::EntityInfo);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(_results.size(), size_t(1));
+    QCOMPARE(_results.front().entities.front(), std::string("Face (Plane) on Fixture / Base plate"));
+  }
+
+  void aClickThroughAHandleReachesThePart() {
+    // A plane above the model cuts nothing, but its handle covers the view from the top.
+    sectionThrough(gp_Pnt(0, 0, 35), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::Distance);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 10)));
+    QCOMPARE(_tool->pickCount(), 1);
+    QCOMPARE(_tool->sectionFacePickCount(), 0);
+  }
+
+  void theCutAwaySideCannotBePicked() {
+    sectionThrough(gp_Pnt(50, 0, 0), gp_Dir(1, 0, 0)); // x > 50 is gone
+    _tool->setMode(MeasureMode::Distance);
+    clickAt(gp_Pnt(80, 40, 10));
+    QCOMPARE(_tool->pickCount(), 0);
+    QVERIFY(clickAt(gp_Pnt(20, 40, 10))); // the kept side still picks
+    QCOMPARE(_tool->pickCount(), 1);
+  }
+
+  void movingAPlaneRefreshesTheCutFace() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::PointToPoint);
+    hover(gp_Pnt(0.5, 0.5, 5));
+    QVERIFY(_viewport->overlayMarker()->point.IsEqual(gp_Pnt(0, 0, 5), 1e-6));
+    // The cached cut face was made for z = 5: after the move it must come from the new plane.
+    sc::render::SectionPlane plane = _section->plane(0);
+    plane.offset = 3.0;
+    _section->setPlane(0, plane);
+    render();
+    hover(gp_Pnt(0.5, 0.5, 3));
+    QVERIFY(_viewport->overlayMarker().has_value());
+    QVERIFY(_viewport->overlayMarker()->point.IsEqual(gp_Pnt(0, 0, 3), 1e-6));
+  }
+
+  void pointToPointMeasuresBetweenCapCorners() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::PointToPoint);
+    QVERIFY(clickAt(gp_Pnt(0.5, 0.5, 5)));
+    QVERIFY(clickAt(gp_Pnt(99.5, 0.5, 5)));
+    QCOMPARE(_results.size(), size_t(1));
+    QVERIFY2(_results.front().ok, _results.front().error.c_str());
+    QCOMPARE(_results.front().headline, std::string("100.000 mm"));
+  }
+
+  void leavingTheModeRemovesThePendingHighlight() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::Distance);
+    const auto displayed = [this] {
+      sc::occ::InteractiveList objects;
+      _viewport->context()->DisplayedObjects(objects);
+      return static_cast<int>(objects.Size());
+    };
+    const int before = displayed();
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(displayed(), before + 1);
+    _tool->setMode(std::nullopt);
+    QCOMPARE(displayed(), before);
+    QCOMPARE(_tool->pickCount(), 0);
+  }
+
+  void pointToPointSnapsOnTheCap() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _tool->setMode(MeasureMode::PointToPoint);
+    // Near the plate's corner: the cap's corner at z = 5, not the bottom face's at z = 0.
+    hover(gp_Pnt(0.5, 0.5, 5));
+    QVERIFY(_viewport->overlayMarker().has_value());
+    QCOMPARE(_viewport->overlayMarker()->caption, QStringLiteral("Vertex"));
+    QVERIFY(_viewport->overlayMarker()->point.IsEqual(gp_Pnt(0, 0, 5), 1e-6));
   }
 
   void turningOffRestoresWholePartSelection() {

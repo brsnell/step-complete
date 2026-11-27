@@ -466,7 +466,7 @@ void MarkupScene::onSelectionChanged() {
   }
   core::MarkupNote note;
   note.part = index->pathId(entity->part);
-  const gp_Pnt world = context->MainSelector()->PickedPoint(1);
+  const gp_Pnt world = SceneManager::pickedPoint(context, context->SelectedOwner());
   const std::optional<gp_Trsf> placement = core::markupPlacement(*index, note.part);
   note.point = placement ? world.Transformed(placement->Inverted()) : world;
   _updatingSelection = true;

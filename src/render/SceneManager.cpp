@@ -9,6 +9,7 @@
 #include <Prs3d_PointAspect.hxx>
 #include <Quantity_NameOfColor.hxx>
 #include <StdSelect_BRepOwner.hxx>
+#include <StdSelect_ViewerSelector3d.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <TDF_Tool.hxx>
 #include <TopExp_Explorer.hxx>
@@ -585,6 +586,17 @@ SceneManager::pickedEntity(const OccHandle<SelectMgr_EntityOwner>& owner) const 
   // Owners of connected and detached instances hold the prototype-space shape;
   // the instance placement is the node's accumulated location.
   return PickedEntity{part, brepOwner->Shape().Moved(_index->node(part).location)};
+}
+
+gp_Pnt SceneManager::pickedPoint(const OccHandle<AIS_InteractiveContext>& context,
+                                 const OccHandle<SelectMgr_EntityOwner>& owner) {
+  const OccHandle<StdSelect_ViewerSelector3d>& selector = context->MainSelector();
+  for (int rank = 1; rank <= selector->NbPicked(); ++rank) {
+    if (selector->Picked(rank) == owner) {
+      return selector->PickedPoint(rank);
+    }
+  }
+  return selector->NbPicked() > 0 ? selector->PickedPoint(1) : gp_Pnt();
 }
 
 std::vector<core::NodeId> SceneManager::selectedParts() const {

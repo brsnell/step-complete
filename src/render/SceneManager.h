@@ -11,6 +11,7 @@
 #include <Quantity_Color.hxx>
 #include <SelectMgr_EntityOwner.hxx>
 #include <TopoDS_Shape.hxx>
+#include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
 
@@ -89,6 +90,10 @@ public:
   // The B-rep entity behind a sub-shape selection owner, or nullopt (whole
   // objects, the view cube, measurement witnesses).
   std::optional<PickedEntity> pickedEntity(const OccHandle<SelectMgr_EntityOwner>& owner) const;
+  // Where the selector's last pick met this owner. Not always the first pick: a selection filter
+  // (the section handles while a tool picks sub-shapes) can drop owners in front of it.
+  static gp_Pnt pickedPoint(const OccHandle<AIS_InteractiveContext>& context,
+                            const OccHandle<SelectMgr_EntityOwner>& owner);
 
   // --- Section planes ------------------------------------------------------------
   // Clip planes applied to every part (not to PMI, measurement witnesses or the

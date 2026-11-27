@@ -4,9 +4,14 @@
 #include "render/SceneManager.h"
 #include "render/WitnessPresentation.h"
 
+#include <Graphic3d_Camera.hxx>
+#include <Graphic3d_ClipPlane.hxx>
+#include <Graphic3d_SequenceOfHClipPlane.hxx>
+#include <Prs3d_Drawer.hxx>
 #include <StdSelect_ViewerSelector3d.hxx>
 
 #include <algorithm>
+#include <cmath>
 
 namespace sc::render {
 
@@ -14,6 +19,41 @@ namespace {
 
 // Point-to-point snapping radius around vertices and edge midpoints.
 constexpr double SnapPixels = 10.0;
+
+// The section planes that are on, with normals towards the side they cut away (OCCT keeps the
+// side its plane's normal points to).
+std::vector<core::CutPlane> cutPlanes(const OccHandle<Graphic3d_SequenceOfHClipPlane>& sequence) {
+  std::vector<core::CutPlane> planes;
+  if (sequence.IsNull()) {
+    return planes;
+  }
+  for (Graphic3d_SequenceOfHClipPlane::Iterator it(*sequence); it.More(); it.Next()) {
+    const OccHandle<Graphic3d_ClipPlane>& clip = it.Value();
+    if (clip.IsNull() || !clip->IsOn()) {
+      continue;
+    }
+    const gp_Pln& kept = clip->ToPlane();
+    planes.push_back(
+        core::CutPlane{gp_Pln(kept.Location(), kept.Axis().Direction().Reversed()), clip->IsCapping()});
+  }
+  return planes;
+}
+
+bool samePlanes(const std::vector<core::CutPlane>& a, const std::vector<core::CutPlane>& b) {
+  if (a.size() != b.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < a.size(); ++i) {
+    double a1, b1, c1, d1, a2, b2, c2, d2;
+    a[i].plane.Coefficients(a1, b1, c1, d1);
+    b[i].plane.Coefficients(a2, b2, c2, d2);
+    if (a[i].capped != b[i].capped || std::abs(a1 - a2) > 1e-12 || std::abs(b1 - b2) > 1e-12 ||
+        std::abs(c1 - c2) > 1e-12 || std::abs(d1 - d2) > 1e-9) {
+      return false;
+    }
+  }
+  return true;
+}
 
 } // namespace
 
@@ -24,6 +64,7 @@ MeasureTool::MeasureTool(OcctViewport* viewport, SceneManager* scene, QObject* p
 }
 
 MeasureTool::~MeasureTool() {
+  clearPicks();
   clearWitnesses();
 }
 
@@ -45,7 +86,7 @@ void MeasureTool::setMode(std::optional<core::MeasureMode> mode) {
   if (mode == _mode) {
     return;
   }
-  _picks.clear();
+  clearPicks();
   _mode = mode;
   _updatingSelection = true;
   _scene->setSelectionModes(mode ? selectionModesFor(*mode) : std::vector<int>{});
@@ -57,8 +98,11 @@ void MeasureTool::setMode(std::optional<core::MeasureMode> mode) {
 }
 
 void MeasureTool::reset() {
-  _picks.clear();
+  clearPicks();
   clearWitnesses();
+  _capModel = nullptr;
+  _capPlanes.clear();
+  _capFaces.clear();
   if (!_viewport->context().IsNull()) {
     _updatingSelection = true;
     _viewport->context()->ClearSelected(false);
@@ -69,7 +113,7 @@ void MeasureTool::reset() {
   }
 }
 
-std::optional<core::Pick> MeasureTool::makePick(const OccHandle<SelectMgr_EntityOwner>& owner) const {
+std::optional<core::Pick> MeasureTool::makePick(const OccHandle<SelectMgr_EntityOwner>& owner) {
   const auto entity = _scene->pickedEntity(owner);
   if (!entity) {
     return std::nullopt;
@@ -82,7 +126,17 @@ std::optional<core::Pick> MeasureTool::makePick(const OccHandle<SelectMgr_Entity
   // representative point of the entity.
   const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
   if (context->HasDetected() && context->DetectedOwner() == owner) {
-    pick.point = context->MainSelector()->PickedPoint(1);
+    pick.point = SceneManager::pickedPoint(context, owner);
+    if (std::optional<SectionFace> section = sectionFaceAt(entity->part, pick.point)) {
+      pick.shape = section->face;
+      pick.point = section->point;
+      pick.sectionFace = true;
+      if (_mode == core::MeasureMode::PointToPoint) {
+        // Where the hover marker showed it would snap: a corner or edge of the cut face.
+        pick.point =
+            core::snapOnCap(section->face, section->point, _viewport->pixelsToModel(SnapPixels)).point;
+      }
+    }
   } else {
     const core::measure::EntityInfo info = core::measure::entityInfo(pick.shape);
     pick.point = info.edge ? info.edge->midpoint : info.face ? info.face->centroid : info.point;
@@ -101,31 +155,78 @@ void MeasureTool::onSelectionChanged() {
     selected.push_back(context->SelectedOwner());
   }
 
-  // Un-picked (clicked again): drop.
-  _picks.erase(std::remove_if(_picks.begin(), _picks.end(),
-                              [&selected](const PendingPick& pick) {
-                                return std::find(selected.begin(), selected.end(), pick.owner) ==
-                                       selected.end();
-                              }),
-               _picks.end());
+  // A click on a section cap toggles the hidden wall behind it in OCCT's selection. The cap
+  // pick is kept apart from that selection (its owner is null), so the wall stays pickable on
+  // its own: undo the toggle and remember the cap.
+  std::optional<core::Pick> capClick;
+  std::optional<core::Pick> detectedPick; // a plain pick of the detected owner, made below anyway
+  std::vector<OccHandle<SelectMgr_EntityOwner>> toggleBack;
+  if (context->HasDetected()) {
+    const OccHandle<SelectMgr_EntityOwner> owner = context->DetectedOwner();
+    const auto isOwner = [&owner](const PendingPick& p) { return p.owner == owner; };
+    const bool nowSelected = std::find(selected.begin(), selected.end(), owner) != selected.end();
+    const bool wasPicked = std::any_of(_picks.begin(), _picks.end(), isOwner);
+    if (nowSelected != wasPicked) {
+      std::optional<core::Pick> pick = makePick(owner);
+      if (pick && pick->sectionFace) {
+        capClick = std::move(pick);
+        toggleBack.push_back(owner);
+        if (nowSelected) {
+          selected.erase(std::find(selected.begin(), selected.end(), owner));
+        } else {
+          selected.push_back(owner);
+        }
+      } else {
+        detectedPick = std::move(pick);
+      }
+    }
+  }
+
+  // Un-picked (clicked again): drop. Section face picks are not in the selection.
+  for (auto it = _picks.begin(); it != _picks.end();) {
+    if (!it->owner.IsNull() && std::find(selected.begin(), selected.end(), it->owner) == selected.end()) {
+      it = _picks.erase(it);
+    } else {
+      ++it;
+    }
+  }
 
   // Newly picked: add in selection order; anything that is not a part entity is deselected.
-  std::vector<OccHandle<SelectMgr_EntityOwner>> rejected;
   for (const auto& owner : selected) {
     const bool known = std::any_of(_picks.begin(), _picks.end(),
                                    [&owner](const PendingPick& p) { return p.owner == owner; });
     if (known) {
       continue;
     }
-    if (std::optional<core::Pick> pick = makePick(owner)) {
-      _picks.push_back({owner, std::move(*pick)});
+    std::optional<core::Pick> pick =
+        detectedPick && owner == context->DetectedOwner() ? std::move(detectedPick) : makePick(owner);
+    if (pick) {
+      _picks.push_back({owner, std::move(*pick), {}});
     } else {
-      rejected.push_back(owner);
+      toggleBack.push_back(owner);
     }
   }
-  if (!rejected.empty()) {
+  if (capClick) {
+    // The same cut face again un-picks it; in Point to Point only at the same point, since its
+    // corners are picked through one face.
+    const bool byPoint = _mode == core::MeasureMode::PointToPoint;
+    const double samePoint = _viewport->pixelsToModel(SnapPixels) / 2.0;
+    const auto sameFace = [&capClick, byPoint, samePoint](const PendingPick& p) {
+      return p.pick.sectionFace && p.pick.shape.IsSame(capClick->shape) &&
+             (!byPoint || p.pick.point.Distance(capClick->point) <= samePoint);
+    };
+    const auto existing = std::find_if(_picks.begin(), _picks.end(), sameFace);
+    if (existing != _picks.end()) {
+      context->Remove(existing->sectionHighlight, false); // clicked again: un-pick
+      _picks.erase(existing);
+    } else {
+      _picks.push_back({OccHandle<SelectMgr_EntityOwner>(), std::move(*capClick), {}});
+      showSectionHighlight(_picks.back());
+    }
+  }
+  if (!toggleBack.empty()) {
     _updatingSelection = true;
-    for (const auto& owner : rejected) {
+    for (const auto& owner : toggleBack) {
       context->AddOrRemoveSelected(owner, false);
     }
     _updatingSelection = false;
@@ -148,9 +249,13 @@ void MeasureTool::onHoverUpdated() {
     _viewport->setOverlayMarker(std::nullopt);
     return;
   }
-  // No exact face projection here: this runs on every mouse move.
-  const core::SnapResult snapped = core::snap(entity->worldShape, context->MainSelector()->PickedPoint(1),
-                                              _viewport->pixelsToModel(SnapPixels), false);
+  // No exact face projection here: this runs on every mouse move. Over a section cap, snap on
+  // the cut face (its faces are cached per part and plane).
+  const gp_Pnt point = SceneManager::pickedPoint(context, context->DetectedOwner());
+  const double snapDistance = _viewport->pixelsToModel(SnapPixels);
+  const std::optional<SectionFace> section = sectionFaceAt(entity->part, point);
+  const core::SnapResult snapped = section ? core::snapOnCap(section->face, section->point, snapDistance)
+                                           : core::snap(entity->worldShape, point, snapDistance, false);
   _viewport->setOverlayMarker(
       OcctViewport::OverlayMarker{snapped.point, QString::fromUtf8(core::toString(snapped.kind))});
 }
@@ -160,7 +265,7 @@ void MeasureTool::finish() {
   for (const PendingPick& pick : _picks) {
     picks.push_back(pick.pick);
   }
-  _picks.clear();
+  clearPicks();
   const core::Measurement result =
       core::computeMeasurement(*_mode, picks, _options, _viewport->pixelsToModel(SnapPixels));
 
@@ -170,6 +275,96 @@ void MeasureTool::finish() {
   _viewport->invalidateScene();
   Q_EMIT pickProgress(0, core::picksRequired(*_mode));
   Q_EMIT measured(result);
+}
+
+std::optional<MeasureTool::SectionFace> MeasureTool::sectionFaceAt(core::NodeId part,
+                                                                   const gp_Pnt& hitPoint) {
+  const std::vector<core::CutPlane> planes = cutPlanes(_scene->clipPlanes());
+  const auto& model = _scene->model();
+  // Wireframe draws no caps: what the user sees through the cut is what was hit.
+  if (planes.empty() || !model || part == core::NoNode || _scene->displayStyle() == DisplayStyle::Wireframe) {
+    return std::nullopt;
+  }
+  if (model.get() != _capModel || !samePlanes(planes, _capPlanes)) {
+    _capModel = model.get();
+    _capPlanes = planes;
+    _capFaces.clear();
+  }
+  // The ray from the eye through the hit.
+  const OccHandle<Graphic3d_Camera>& camera = _viewport->view()->Camera();
+  gp_Dir direction = camera->Direction();
+  if (!camera->IsOrthographic()) {
+    const gp_Vec toHit(camera->Eye(), hitPoint);
+    if (toHit.Magnitude() > gp::Resolution()) {
+      direction = gp_Dir(toHit);
+    }
+  }
+  const std::optional<core::CapHit> hit = core::capCrossing(hitPoint, direction, planes);
+  if (!hit ||
+      (!camera->IsOrthographic() && hit->point.Distance(hitPoint) >= camera->Eye().Distance(hitPoint))) {
+    return std::nullopt; // no cap in front, or (perspective) the crossing is behind the eye
+  }
+  // With the cap faces cached, they answer whether the crossing is on this part (Point to Point
+  // hovers run this on every mouse move); otherwise classify against the solids before the boolean.
+  const auto key = std::make_pair(part, hit->plane);
+  auto cached = _capFaces.find(key);
+  if (cached == _capFaces.end()) {
+    const TopoDS_Shape shape = model->worldShape(part);
+    if (!core::capHit(shape, hitPoint, direction, planes)) {
+      return std::nullopt;
+    }
+    cached = _capFaces.emplace(key, core::capFaces(shape, planes, hit->plane)).first;
+  }
+  const std::optional<TopoDS_Face> face = core::faceAt(cached->second, hit->point);
+  if (!face) {
+    return std::nullopt;
+  }
+  return SectionFace{*face, hit->point};
+}
+
+void MeasureTool::showSectionHighlight(PendingPick& pending) {
+  // The part's own highlight is on the far wall behind the cap: draw the cut face on top.
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
+  OccHandle<AIS_Shape> highlight = new AIS_Shape(pending.pick.shape);
+  highlight->SetColor(context->SelectionStyle()->Color());
+  highlight->SetTransparency(0.3);
+  highlight->SetZLayer(Graphic3d_ZLayerId_Topmost);
+  context->Display(highlight, AIS_Shaded, -1, false);
+  pending.sectionHighlight = highlight;
+}
+
+void MeasureTool::clearPicks() {
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
+  for (const PendingPick& pending : _picks) {
+    if (!pending.sectionHighlight.IsNull() && !context.IsNull()) {
+      context->Remove(pending.sectionHighlight, false);
+    }
+  }
+  _picks.clear();
+}
+
+void MeasureTool::dropSectionFacePicks() {
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
+  const auto before = _picks.size();
+  for (auto it = _picks.begin(); it != _picks.end();) {
+    if (it->pick.sectionFace) {
+      if (!context.IsNull() && !it->sectionHighlight.IsNull()) {
+        context->Remove(it->sectionHighlight, false);
+      }
+      it = _picks.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  _capFaces.clear();
+  if (_picks.size() != before && _mode) {
+    Q_EMIT pickProgress(static_cast<int>(_picks.size()), core::picksRequired(*_mode));
+  }
+}
+
+int MeasureTool::sectionFacePickCount() const {
+  return static_cast<int>(std::count_if(_picks.begin(), _picks.end(),
+                                        [](const PendingPick& pending) { return pending.pick.sectionFace; }));
 }
 
 void MeasureTool::setWitnesses(const std::vector<ShownWitness>& witnesses) {

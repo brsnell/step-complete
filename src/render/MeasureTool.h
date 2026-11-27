@@ -1,9 +1,13 @@
 #pragma once
 
+#include "core/AssemblyIndex.h"
 #include "core/Measurement.h"
 #include "core/OccHandle.h"
+#include "core/SectionCap.h"
 
+#include <AIS_Shape.hxx>
 #include <SelectMgr_EntityOwner.hxx>
+#include <TopoDS_Face.hxx>
 
 #include <QObject>
 
@@ -26,6 +30,9 @@ class WitnessPresentation;
 // the next click starts a new measurement. Clicking a picked entity again
 // un-picks it.
 //
+// With a section view on (docs/designs/section-aware-measurement.md), a click on a capped cut
+// face picks that face (the part's cross-section) rather than the hidden wall behind it.
+//
 // The tool also draws the witness geometry of the results the caller wants
 // on screen (setWitnesses): any number at once, one of them emphasized.
 class MeasureTool : public QObject {
@@ -44,6 +51,10 @@ public:
   const core::MeasureDisplayOptions& displayOptions() const { return _options; }
 
   int pickCount() const { return static_cast<int>(_picks.size()); }
+  // Pending picks that are section faces (drawn in the selection color on top).
+  int sectionFacePickCount() const;
+  // The section planes changed: pending section face picks no longer match what is drawn.
+  void dropSectionFacePicks();
 
   struct ShownWitness {
     int id = 0; // stable per result: the same id keeps its presentation
@@ -78,9 +89,18 @@ private:
   struct PendingPick {
     OccHandle<SelectMgr_EntityOwner> owner;
     core::Pick pick;
+    OccHandle<AIS_Shape> sectionHighlight; // the cut face, for a section face pick
+  };
+  struct SectionFace {
+    TopoDS_Face face;
+    gp_Pnt point;
   };
 
-  std::optional<core::Pick> makePick(const OccHandle<SelectMgr_EntityOwner>& owner) const;
+  std::optional<core::Pick> makePick(const OccHandle<SelectMgr_EntityOwner>& owner);
+  // The capped cut face of 'part' a click that hit 'hitPoint' went through, if any.
+  std::optional<SectionFace> sectionFaceAt(core::NodeId part, const gp_Pnt& hitPoint);
+  void showSectionHighlight(PendingPick& pending);
+  void clearPicks();
   std::vector<int> selectionModesFor(core::MeasureMode mode) const;
   void finish();
 
@@ -90,6 +110,10 @@ private:
   core::MeasureDisplayOptions _options;
   std::vector<PendingPick> _picks;
   std::map<int, OccHandle<WitnessPresentation>> _witnesses;
+  // Cap faces by part and plane, for the planes they were computed with.
+  const core::AssemblyIndex* _capModel = nullptr;
+  std::vector<core::CutPlane> _capPlanes;
+  std::map<std::pair<core::NodeId, size_t>, TopoDS_Shape> _capFaces;
   bool _updatingSelection = false;
 };
 

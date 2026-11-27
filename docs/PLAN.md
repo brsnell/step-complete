@@ -189,7 +189,8 @@ Credibility rules:
 | Mass properties | solid(s) / selection | Volume, area, centroid, inertia tensor, bounding box (axis-aligned and oriented). Compare against the file's STEP validation properties when present. |
 
 UX details: pre-highlight on hover, snap markers, a pinned result list (copy to clipboard, export
-CSV), results that survive hide/show and stay in sync with section views.
+CSV), results that survive hide/show, and picks that follow section views (a cut face measures
+the cut face; results stay whole).
 
 ---
 
@@ -282,7 +283,8 @@ Each milestone ends with something runnable on all three platforms in CI.
   validation properties (AS1: computed 96858.573 mm³ vs declared 96858.571 mm³ → "Matches").
 - ✅ Point to Point shows where a click will snap while hovering (vertex, endpoint, midpoint,
   center, on edge, on face).
-- ⏳ Results that follow section views (M4); manual check on a real GPU and on Windows/macOS.
+- ✅ Picks that follow section views (M11, [design](designs/section-aware-measurement.md)).
+- ⏳ Manual check on a real GPU and on Windows/macOS.
 - **Exit:** test suite covers every mode across transformed instances.
 
 ### M3: PMI (≈4–6 weeks): ✅ done
@@ -423,6 +425,11 @@ Feedback from users can reorder what is left.
 ### M10: v1.5: ✅ shipped as v1.5.0 (2026-11-26)
 - ✅ **Part color overrides** (View > Part Color, `C`): a color of the user's on part instances,
   kept with the model's data ([design](designs/part-color-overrides.md)).
+
+### M11: v1.6: 🚧 in progress
+- ✅ **Measurements that follow section views** (from Deferred): a click on a cut face measures
+  the cut face, and the plane handles let measuring clicks through
+  ([design](designs/section-aware-measurement.md)).
 
 ### Candidates, not scheduled
 Seen in other viewers. Waiting on user demand: 3D mouse (3Dconnexion) support. The other deferred

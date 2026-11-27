@@ -82,6 +82,26 @@ Shipped as v1.5.0 on 2026-11-26 with part colors ([design](docs/designs/part-col
 and the exploded view's follow-ups, see `CHANGELOG.md`. Colors per face or per definition, and
 colors in exported geometry, are out of its scope; add them here if users ask.
 
+## v1.6 (M11)
+
+Measurements that follow section views ([design](docs/designs/section-aware-measurement.md)), on
+`main` and not released yet.
+
+### Pick Face and notes on a section cap
+
+**What:** Make a section plane's Pick Face and placing a note treat a click on a cap as a click
+on the cut face, as measuring does.
+
+**Why:** They still pick the hidden wall behind the cap (a note lands on the far side of the
+part).
+
+**Context:** `MeasureTool::sectionFaceAt` and `core/SectionCap.h` already find the cap; the
+note would also need to say whether it follows the plane.
+
+**Effort:** S
+**Priority:** P3
+**Depends on:** Users placing notes on sections.
+
 ## Crash reporting follow-ups
 
 ### Debug info for the Linux and macOS packages
@@ -134,14 +154,3 @@ colors in exported geometry, are out of its scope; add them here if users ask.
 **Priority:** P4
 **Depends on:** Reference-machine numbers showing first-open time misses the §6 target.
 
-### Measurements that follow section views
-
-**What:** Make measurement results and picks respect the active section planes (no picks on the clipped-away side, results that make sense against the capped faces).
-
-**Why:** It's left open in M2 ("Results that follow section views").
-
-**Context:** The section view clips the parts only; witnesses stay whole.
-
-**Effort:** M
-**Priority:** P3
-**Depends on:** Real use that shows it's a problem.
