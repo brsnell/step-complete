@@ -53,6 +53,8 @@ public:
   int pickCount() const { return static_cast<int>(_picks.size()); }
   // Pending picks that are section faces (drawn in the selection color on top).
   int sectionFacePickCount() const;
+  // The section planes changed: pending section face picks no longer match what is drawn.
+  void dropSectionFacePicks();
 
   struct ShownWitness {
     int id = 0; // stable per result: the same id keeps its presentation

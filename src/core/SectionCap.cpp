@@ -63,8 +63,8 @@ std::vector<gp_Pnt> clipPolygon(const std::vector<gp_Pnt>& polygon, const CutPla
 
 } // namespace
 
-std::optional<CapHit> capHit(const TopoDS_Shape& part, const gp_Pnt& hitPoint, const gp_Dir& viewDirection,
-                             const std::vector<CutPlane>& planes) {
+std::optional<CapHit> capCrossing(const gp_Pnt& hitPoint, const gp_Dir& viewDirection,
+                                  const std::vector<CutPlane>& planes) {
   // Walking back from the hit towards the eye, the first plane whose cut side we reach is where
   // the visible model starts: the ray entered the kept side of every plane there.
   const gp_Vec direction(viewDirection);
@@ -84,11 +84,16 @@ std::optional<CapHit> capHit(const TopoDS_Shape& part, const gp_Pnt& hitPoint, c
   if (!entered || nearest <= Tolerance || !planes[*entered].capped) {
     return std::nullopt; // no plane in front, the hit is on the plane, or no cap is drawn
   }
-  const gp_Pnt crossing = hitPoint.Translated(-direction * nearest);
-  if (!insideASolid(part, crossing)) {
+  return CapHit{*entered, hitPoint.Translated(-direction * nearest)};
+}
+
+std::optional<CapHit> capHit(const TopoDS_Shape& part, const gp_Pnt& hitPoint, const gp_Dir& viewDirection,
+                             const std::vector<CutPlane>& planes) {
+  std::optional<CapHit> crossing = capCrossing(hitPoint, viewDirection, planes);
+  if (!crossing || !insideASolid(part, crossing->point)) {
     return std::nullopt; // the ray crossed the plane outside this part: the hit is what is seen
   }
-  return CapHit{*entered, crossing};
+  return crossing;
 }
 
 TopoDS_Shape capFaces(const TopoDS_Shape& part, const std::vector<CutPlane>& planes, size_t index) {

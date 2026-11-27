@@ -281,7 +281,8 @@ std::optional<MeasureTool::SectionFace> MeasureTool::sectionFaceAt(core::NodeId 
                                                                    const gp_Pnt& hitPoint) {
   const std::vector<core::CutPlane> planes = cutPlanes(_scene->clipPlanes());
   const auto& model = _scene->model();
-  if (planes.empty() || !model || part == core::NoNode) {
+  // Wireframe draws no caps: what the user sees through the cut is what was hit.
+  if (planes.empty() || !model || part == core::NoNode || _scene->displayStyle() == DisplayStyle::Wireframe) {
     return std::nullopt;
   }
   if (model.get() != _capModel || !samePlanes(planes, _capPlanes)) {
@@ -298,14 +299,19 @@ std::optional<MeasureTool::SectionFace> MeasureTool::sectionFaceAt(core::NodeId 
       direction = gp_Dir(toHit);
     }
   }
-  const TopoDS_Shape shape = model->worldShape(part);
-  const std::optional<core::CapHit> hit = core::capHit(shape, hitPoint, direction, planes);
+  const std::optional<core::CapHit> hit = core::capCrossing(hitPoint, direction, planes);
   if (!hit) {
     return std::nullopt;
   }
+  // With the cap faces cached, they answer whether the crossing is on this part (Point to Point
+  // hovers run this on every mouse move); otherwise classify against the solids before the boolean.
   const auto key = std::make_pair(part, hit->plane);
   auto cached = _capFaces.find(key);
   if (cached == _capFaces.end()) {
+    const TopoDS_Shape shape = model->worldShape(part);
+    if (!core::capHit(shape, hitPoint, direction, planes)) {
+      return std::nullopt;
+    }
     cached = _capFaces.emplace(key, core::capFaces(shape, planes, hit->plane)).first;
   }
   const std::optional<TopoDS_Face> face = core::faceAt(cached->second, hit->point);
@@ -334,6 +340,25 @@ void MeasureTool::clearPicks() {
     }
   }
   _picks.clear();
+}
+
+void MeasureTool::dropSectionFacePicks() {
+  const OccHandle<AIS_InteractiveContext>& context = _viewport->context();
+  const auto before = _picks.size();
+  for (auto it = _picks.begin(); it != _picks.end();) {
+    if (it->pick.sectionFace) {
+      if (!context.IsNull() && !it->sectionHighlight.IsNull()) {
+        context->Remove(it->sectionHighlight, false);
+      }
+      it = _picks.erase(it);
+    } else {
+      ++it;
+    }
+  }
+  _capFaces.clear();
+  if (_picks.size() != before && _mode) {
+    Q_EMIT pickProgress(static_cast<int>(_picks.size()), core::picksRequired(*_mode));
+  }
 }
 
 int MeasureTool::sectionFacePickCount() const {

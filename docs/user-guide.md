@@ -258,7 +258,9 @@ clicked point on the surface).
   distance or an angle to it. In Point to Point mode the marker snaps to its corners and edges.
   The picked cut face is drawn in the selection color until the measurement completes; clicking
   it again un-picks it (in Point to Point, clicking the same point again). With Cap off you see into the part, and a click picks the inside face
-  you see.
+  you see. In Wireframe no caps are drawn, so a click picks the edge or face you see. Parts made
+  of surfaces rather than solids have no cut face to pick. Moving or turning off a plane drops a
+  picked cut face from the measurement in progress.
 - Geometry on the cut-away side cannot be picked.
 - The planes' handles let clicks through while you measure (and while you pick a face for a
   plane or place a note); drag them again once you stop, or move the plane with the Section

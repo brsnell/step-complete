@@ -329,6 +329,29 @@ private Q_SLOTS:
     QVERIFY2(_viewport->context()->NbSelected() == 0, "the wall behind the cap stays unselected");
   }
 
+  void wireframeDrawsNoCapsSoTheClickPicksWhatIsSeen() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    _scene->setDisplayStyle(sc::render::DisplayStyle::Wireframe);
+    render();
+    _tool->setMode(MeasureMode::EntityInfo);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(_results.size(), size_t(1));
+    QVERIFY(_results.front().entities.front() != std::string("Section face on Fixture / Base plate"));
+  }
+
+  void movingAPlaneDropsAPendingSectionFace() {
+    sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1));
+    connect(_section.get(), &sc::render::SectionTool::planeChanged, _tool.get(),
+            &sc::render::MeasureTool::dropSectionFacePicks);
+    _tool->setMode(MeasureMode::Distance);
+    QVERIFY(clickAt(gp_Pnt(60, 40, 5)));
+    QCOMPARE(_tool->sectionFacePickCount(), 1);
+    sc::render::SectionPlane plane = _section->plane(0);
+    plane.offset = 3.0;
+    _section->setPlane(0, plane);
+    QCOMPARE(_tool->pickCount(), 0);
+  }
+
   void withoutCapsTheClickPicksTheInside() {
     // No cap is drawn: the user sees into the plate, and the click picks its bottom face.
     sectionThrough(gp_Pnt(0, 0, 5), gp_Dir(0, 0, 1), false);

@@ -33,6 +33,10 @@ struct CapHit {
 // crossing is inside one of the part's solids. nullopt when the hit is what the user sees.
 std::optional<CapHit> capHit(const TopoDS_Shape& part, const gp_Pnt& hitPoint, const gp_Dir& viewDirection,
                              const std::vector<CutPlane>& planes);
+// capHit without the solid test: where the ray last entered the kept side, if that plane is
+// capped. Cheap (no B-rep work); a caller holding the plane's cap faces tests them instead.
+std::optional<CapHit> capCrossing(const gp_Pnt& hitPoint, const gp_Dir& viewDirection,
+                                  const std::vector<CutPlane>& planes);
 
 // The cap faces of plane 'index' on 'part': the part's solids in common with the plane, minus
 // what the other planes cut away. A compound of faces, null when the plane misses the solids.

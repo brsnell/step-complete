@@ -152,6 +152,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   _measureTool = new render::MeasureTool(_viewport, _scene.get(), this);
   connect(_measureTool, &render::MeasureTool::measured, this, &MainWindow::onMeasured);
   connect(_measureTool, &render::MeasureTool::pickProgress, this, &MainWindow::onPickProgress);
+  connect(_sectionTool, &render::SectionTool::planeChanged, _measureTool,
+          &render::MeasureTool::dropSectionFacePicks);
   connect(_viewport, &render::OcctViewport::glInitialized, this, &MainWindow::onGlInitialized);
   connect(_viewport, &render::OcctViewport::selectionChanged, this, &MainWindow::onViewportSelectionChanged);
   // After the connection above: the window ignores a note pick's face selection first.
